@@ -1,0 +1,368 @@
+/* ═══════════════════════════════════════════
+   QQ宠物 - 主样式 (毛玻璃 Glassmorphism)
+   ═══════════════════════════════════════════ */
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  background: transparent;
+  overflow: hidden;
+  font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  font-size: 12px;
+  color: #fff;
+  user-select: none;
+  width: 320px;
+  height: 460px;
+  position: relative;
+}
+
+/* ─── 宠物容器 ─── */
+#pet-container {
+  position: absolute;
+  top: 200px;
+  left: 80px;
+  width: 160px;
+  height: 160px;
+  cursor: grab;
+  z-index: 100;
+  transition: none;
+}
+
+#pet-container:active {
+  cursor: grabbing;
+}
+
+#pet-canvas {
+  width: 160px;
+  height: 160px;
+  image-rendering: pixelated;
+}
+
+/* ─── 快捷对话框（屏幕中央） ─── */
+#quick-chat {
+  position: absolute;
+  z-index: 500;
+  animation: quick-chat-in 0.3s ease;
+  pointer-events: auto;
+}
+
+#quick-chat.hidden {
+  display: none !important;
+}
+
+@keyframes quick-chat-in {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.9); }
+  100% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+
+/* ─── 雨层（洗澡时出现） ─── */
+#rain-layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 90;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.5s ease;
+}
+
+#rain-layer.visible {
+  opacity: 1;
+}
+
+/* ─── 踢球用的球 ─── */
+#kick-ball {
+  position: absolute;
+  width: 24px;
+  height: 24px;
+  font-size: 20px;
+  line-height: 24px;
+  text-align: center;
+  z-index: 95;
+  pointer-events: none;
+  display: none;
+  transition: none;
+}
+
+#kick-ball.visible {
+  display: block;
+}
+
+/* ─── 咖啡杯（企鹅手上） ─── */
+#coffee-cup {
+  position: absolute;
+  width: 30px;
+  height: 30px;
+  font-size: 22px;
+  line-height: 30px;
+  text-align: center;
+  z-index: 110;
+  pointer-events: none;
+  display: none;
+  filter: drop-shadow(1px 1px 2px rgba(0,0,0,0.3));
+}
+
+#coffee-cup.visible {
+  display: block;
+  animation: coffee-steam 1s ease-in-out infinite;
+}
+
+@keyframes coffee-steam {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-3px); }
+}
+
+.quick-chat-box {
+  display: flex;
+  gap: 6px;
+  padding: 8px 10px;
+  background: rgba(22, 28, 45, 0.56);
+  border: 1px solid rgba(255, 255, 255, 0.32);
+  border-radius: 20px;
+  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.34), inset 0 1px 0 rgba(255,255,255,0.22);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+}
+
+#quick-chat-input {
+  width: 200px;
+  padding: 8px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 14px;
+  font-size: 14px;
+  font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', sans-serif;
+  outline: none;
+  background: rgba(255, 255, 255, 0.22);
+  color: #fff;
+  transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+}
+
+#quick-chat-input::placeholder {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+#quick-chat-input:focus {
+  border-color: rgba(99, 102, 241, 0.72);
+  background: rgba(255, 255, 255, 0.28);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+}
+
+#quick-chat-send {
+  padding: 8px 14px;
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.7), rgba(139, 92, 246, 0.7));
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 14px;
+  font-size: 13px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: background 0.2s, transform 0.1s;
+  backdrop-filter: blur(8px);
+}
+
+#quick-chat-send:hover {
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.85), rgba(139, 92, 246, 0.85));
+}
+
+#quick-chat-send:active {
+  transform: scale(0.95);
+}
+
+/* ─── 气泡堆叠容器 ─── */
+.bubble-stack {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  transition: opacity 0.3s ease;
+  pointer-events: auto;
+  max-height: 185px;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.bubble-stack.hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.bubble-list {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  max-width: 290px;
+  min-width: 60px;
+}
+
+/* 单条气泡（毛玻璃） */
+.bubble-item {
+  background: rgba(18, 24, 38, 0.62);
+  border: 1px solid rgba(255, 255, 255, 0.32);
+  border-radius: 14px;
+  padding: 5px 12px;
+  font-size: 11px;
+  line-height: 1.4;
+  max-width: 290px;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.28), inset 0 1px 0 rgba(255,255,255,0.16);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  word-break: break-all;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  cursor: default;
+  animation: bubbleFadeIn 0.25s ease;
+  color: rgba(255, 255, 255, 0.98);
+  text-shadow: 0 1px 2px rgba(0,0,0,0.45);
+}
+
+/* 旧消息变淡 */
+.bubble-item.faded {
+  opacity: 0.5;
+  transform: scale(0.95);
+}
+
+/* 可点击展开 */
+.bubble-item.expandable {
+  cursor: pointer;
+}
+
+.bubble-item.expandable:hover {
+  background: rgba(30, 39, 62, 0.74);
+}
+
+/* 截断箭头 */
+.bubble-arrow {
+  flex-shrink: 0;
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.5);
+  margin-left: 2px;
+}
+
+.bubble-item.expandable .bubble-arrow {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.bubble-text-content {
+  min-width: 0;
+}
+
+/* 超长文本自然渐隐，不再突兀显示 ... */
+.bubble-text-content.truncated {
+  display: -webkit-box;
+  max-width: 240px;
+  white-space: normal;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 10;
+  line-clamp: 10;
+  word-break: break-all;
+}
+
+/* 气泡尾巴（毛玻璃版） */
+.bubble-stack .bubble-tail {
+  width: 10px;
+  height: 10px;
+  margin-top: -4px;
+  transform: rotate(45deg);
+  border-right: 1px solid rgba(255, 255, 255, 0.3);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.3);
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0.08)),
+    rgba(18, 24, 38, 0.62);
+  box-shadow: 2px 2px 7px rgba(0, 0, 0, 0.16);
+}
+
+@keyframes bubbleFadeIn {
+  from { opacity: 0; transform: translateY(6px) scale(0.92); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* 语音识别中气泡 */
+.bubble-item.bubble-voice-recognizing {
+  background: rgba(74, 222, 128, 0.15);
+  border-color: rgba(74, 222, 128, 0.3);
+  animation: bubbleFadeIn 0.25s ease, voicePulse 1.5s ease-in-out infinite;
+}
+
+@keyframes voicePulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(74, 222, 128, 0.2); }
+  50%      { box-shadow: 0 0 12px 4px rgba(74, 222, 128, 0.15); }
+}
+
+/* ─── 通用隐藏 ─── */
+.hidden {
+  display: none !important;
+}
+
+/* ─── 语音识别流式字幕（屏幕中下方，毛玻璃） ─── */
+.voice-subtitle {
+  position: fixed;
+  bottom: 60px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 9999;
+  pointer-events: none;
+  animation: subtitleFadeIn 0.3s ease;
+}
+
+.voice-subtitle.hidden {
+  display: none !important;
+}
+
+.voice-subtitle-inner {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  background: rgba(15, 23, 42, 0.45);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 20px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+  max-width: 80vw;
+  min-width: 120px;
+}
+
+.voice-subtitle-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #4ade80, #22c55e);
+  flex-shrink: 0;
+  animation: subtitlePulse 1.2s ease-in-out infinite;
+  box-shadow: 0 0 8px rgba(74, 222, 128, 0.4);
+}
+
+.voice-subtitle-text {
+  color: rgba(255, 255, 255, 0.92);
+  font-size: 15px;
+  font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', sans-serif;
+  line-height: 1.5;
+  word-break: break-word;
+  max-width: 70vw;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.2);
+}
+
+@keyframes subtitleFadeIn {
+  from { opacity: 0; transform: translateX(-50%) translateY(10px); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+
+@keyframes subtitlePulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%      { opacity: 0.4; transform: scale(0.7); }
+}

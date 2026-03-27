@@ -1,0 +1,974 @@
+/* ═══════════════════════════════════════════
+   应用主入口 - 串联所有模块
+   ═══════════════════════════════════════════ */
+
+(function App() {
+  'use strict';
+
+  // ─── 快捷对话相关 ───
+  let quickChatVisible = false;
+  let quickChatTimeout = null;
+  let lastOfflineSleepAt = 0;
+
+  // ─── 初始化所有子系统 ───
+  function init() {
+    console.log('🐧 QQ宠物启动中...');
+
+    // 1. 启动精灵渲染
+    SpriteRenderer.start();
+    SpriteRenderer.setAnimation('idle');
+
+    // 2. 初始化拖拽
+    DragSystem.init();
+
+    // 3. 初始化面板
+    PanelManager.init();
+    PanelManager.updateInventoryUI();
+
+    // 4. 初始化 AI 对话
+    ChatSystem.init();
+
+    // 5. 初始化任务栏
+    TaskbarUI.init();
+    TaskbarUI.updateBars();
+
+    // 6. 启动系统监控
+    SystemMonitor.start();
+
+    // 7. 启动行为引擎（自走、打哈欠、睡觉）
+    BehaviorEngine.init();
+
+    // 8. 初始化特效引擎（下雨、踢球、咖啡杯）
+    EffectsEngine.init();
+
+    // 9. 初始化快捷对话
+    initQuickChat();
+
+    // 10. 初始化番茄钟 Focus Mode
+    FocusMode.init();
+
+    // 11. 初始化剪贴板背包
+    ClipboardBag.init();
+
+    // 12. 初始化文件拖拽 (Claw AI)
+    FileDrop.init();
+
+    // 13. 初始化进程管理器
+    ProcessManager.init();
+
+    // 14. 初始化桌面牧羊人
+    DesktopShepherd.init();
+
+    // 15. 初始化日记系统
+    PetDiary.init();
+
+    // 16. 初始化 Claw AI 联动
+    if (typeof ClawBridge !== 'undefined') ClawBridge.init();
+
+    // 17. 初始化右键菜单
+    initContextMenu();
+
+    // 17.0 同步“关于”面板版本号（读取本地 app 版本）
+    syncAboutVersion();
+
+    // 17.1 初始化系统设置面板
+    if (typeof SystemSettings !== 'undefined') {
+      SystemSettings.init();
+    }
+
+    // 17.1 监听主进程的"打开设置菜单"事件（右键菜单→设置）
+    if (window.electronAPI && window.electronAPI.onOpenStartMenu) {
+      window.electronAPI.onOpenStartMenu(() => {
+        const startMenu = document.getElementById('start-menu');
+        if (startMenu && startMenu.classList.contains('hidden')) {
+          startMenu.classList.remove('hidden');
+          SoundEngine.menuOpen();
+        }
+      });
+    }
+
+    // 更新通知（主进程检测到新版本后推送）
+    if (window.electronAPI && window.electronAPI.onUpdateAvailable) {
+      window.electronAPI.onUpdateAvailable(({ version }) => {
+        BubbleSystem.show(`发现新版本 v${version}，可立即更新`, 4500);
+      });
+    }
+
+    // 18. 初始化 AI 驱动系统（性格 → 记忆 → 大脑 → 主动说话）
+    if (typeof Personality !== 'undefined') Personality.init();
+    if (typeof PetMemory !== 'undefined') PetMemory.init();
+    if (typeof AIBrain !== 'undefined') AIBrain.init();
+    if (typeof ProactiveChat !== 'undefined') ProactiveChat.init();
+
+    // 19. 初始化语音模式（Cmd+K 按住说话）
+    initVoiceMode();
+
+    // 20. 初始化点击穿透（透明区域穿透点击）
+    if (typeof ClickThrough !== 'undefined') ClickThrough.init();
+
+    // 21. 入场动画
+    const petContainer = document.getElementById('pet-container');
+    petContainer.classList.add('bounce-in');
+    setTimeout(() => petContainer.classList.remove('bounce-in'), 700);
+
+    // ─── 事件监听 ───
+
+    // 状态变化 → 同步动画（仅在非行为引擎控制时）
+    PetState.on('state-change', ({ state }) => {
+      const bh = BehaviorEngine.currentBehavior;
+      if (bh === BehaviorEngine.BEHAVIOR.WALKING ||
+          bh === BehaviorEngine.BEHAVIOR.YAWNING ||
+          bh === BehaviorEngine.BEHAVIOR.SLEEPING) {
+        return;
+      }
+      // 番茄钟活动时不覆盖
+      if (FocusMode.isActive && state !== 'error') return;
+
+      const animMap = {
+        idle: 'idle',
+        eating: 'eating',
+        washing: 'washing',
+        working: 'working_1',
+        sleeping: 'sleeping',
+        happy: 'happy',
+        sad: 'sad',
+        thinking: 'thinking',
+        talking: 'talking',
+        error: 'error',
+      };
+      SpriteRenderer.setAnimation(animMap[state] || 'idle');
+    });
+
+    // 每分钟数值衰减
+    setInterval(() => {
+      PetState.decay();
+    }, 60000);
+
+    // 随机冒泡由 ProactiveChat 调度引擎接管（5秒检查一次，AI驱动）
+
+    // 首次打招呼（AI 驱动；无网络则直接睡眠）
+    setTimeout(async () => {
+      if (typeof AIBrain !== 'undefined') {
+        try {
+          const aiGreeting = await AIBrain.speak('startup_greeting', {
+            description: '刚启动，和主人打招呼',
+            constraint: '一句自然开场，20-35字，友好简洁，不要卖萌',
+          });
+          if (aiGreeting) {
+            BubbleSystem.show(aiGreeting, 4000);
+            SoundEngine.happy();
+            return;
+          }
+        } catch {}
+      }
+      enterOfflineSleep('没网了，我先睡着了。连上网再叫我。');
+    }, 1000);
+
+    console.log('🐧 所有系统就绪！(v3.0 AI驱动主动说话/性格/记忆/情绪)');
+  }
+
+  async function syncAboutVersion() {
+    const versionEl = document.getElementById('about-version');
+    try {
+      if (window.electronAPI && window.electronAPI.getAppVersion) {
+        const version = await window.electronAPI.getAppVersion();
+        if (versionEl) versionEl.textContent = `v${version}`;
+        const settingsVersionEl = document.getElementById('settings-version');
+        if (settingsVersionEl) settingsVersionEl.textContent = `v${version}`;
+        const startMenuVersionEl = document.getElementById('start-menu-version');
+        if (startMenuVersionEl) startMenuVersionEl.textContent = `QQ Pet v${version}`;
+      }
+    } catch (e) {
+      console.warn('读取应用版本失败:', e);
+    }
+  }
+
+  // ─── 右键菜单 ───
+  function initContextMenu() {
+    const petContainer = document.getElementById('pet-container');
+    petContainer.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const startMenu = document.getElementById('start-menu');
+      if (!startMenu) return;
+      const margin = 8;
+      startMenu.classList.remove('hidden');
+      const rect = startMenu.getBoundingClientRect();
+      const maxLeft = window.innerWidth - rect.width - margin;
+      const maxTop = window.innerHeight - rect.height - margin;
+      // 优先贴近状态栏（hover-panel）右侧展示，尽量不挡住宠物主体
+      let left = e.clientX;
+      let top = e.clientY;
+      const hoverPanel = document.getElementById('hover-panel');
+      if (hoverPanel) {
+        const hp = hoverPanel.getBoundingClientRect();
+        if (hp && hp.width > 0 && hp.height > 0) {
+          const rightCandidate = hp.right + 10;
+          const leftCandidate = hp.left - rect.width - 10;
+          if (rightCandidate <= maxLeft) {
+            left = rightCandidate;
+          } else if (leftCandidate >= margin) {
+            left = leftCandidate;
+          }
+          top = hp.bottom - rect.height;
+        }
+      }
+      left = Math.max(margin, Math.min(left, maxLeft));
+      top = Math.max(margin, Math.min(top, maxTop));
+      startMenu.style.left = `${left}px`;
+      startMenu.style.top = `${top}px`;
+      if (typeof SoundEngine !== 'undefined') {
+        SoundEngine.menuOpen();
+      }
+    });
+  }
+
+  // ─── 轻拍随机回复 ───
+  const patReplies = [
+    '好喜欢！💕',
+    '嘿嘿~再摸摸！🐧❤️',
+    '❤️❤️❤️',
+    '喜欢主人！💗',
+    '摸摸头好舒服~😊',
+    '嘻嘻，好痒！🤭',
+    '主人最好了！🥰',
+    '再来一下嘛~✨',
+    '爱你哟！💖',
+    '幸福感 MAX！🌟',
+  ];
+
+  // ─── 抚摸随机回复 ───
+  const strokeReplies = [
+    '好舒服~继续摸~😊',
+    '嗯嗯…好痒好痒🤭',
+    '咕噜咕噜~💕',
+    '主人的手好温暖✨',
+    '再摸摸这里~🐧',
+    '开心！💖',
+    '别停嘛~😆',
+    '幸福~🥰',
+  ];
+
+  // ─── 抚摸检测状态 ───
+  let strokeTimer = null;
+  let strokeStartAt = 0;
+  let strokeTriggered = false;
+  let lastStrokeTime = 0;
+  const STROKE_MIN_DURATION_MS = 2000; // 连续抚摸至少 2s 才触发
+  const STROKE_SESSION_GAP_MS = 450;   // 超过该间隔无移动视为抚摸中断
+  const STROKE_COOLDOWN = 3000;        // 抚摸冷却 3s
+  let isMouseDownOnPet = false;     // 记录鼠标是否按下（按下时不算抚摸）
+
+  // ─── 语音模式（Cmd+K 按住说话 / 按钮切换） ───
+  let voiceListeningBubble = null;  // 聆听中的气泡引用
+
+  async function initVoiceMode() {
+    if (typeof VoiceMode === 'undefined') {
+      console.warn('🎤 VoiceMode 模块未加载，语音功能禁用');
+      return;
+    }
+
+    await VoiceMode.init();
+
+    if (!VoiceMode.isSupported) {
+      console.warn('🎤 浏览器不支持语音功能');
+      return;
+    }
+
+    if (!VoiceMode.asrAvailable) {
+      console.warn('🎤 ASR 引擎不可用');
+      // 不 return，让用户可以看到错误提示
+    }
+
+    // ─── 流式中间结果：实时显示正在说的话（屏幕中下方字幕） ───
+    VoiceMode.onStreaming((text) => {
+      if (text && text.trim()) {
+        // 底部字幕显示流式识别文字
+        BubbleSystem.showSubtitle(text.trim());
+      } else {
+        // 无有效流式文本时，及时收起字幕框，避免长时间占屏
+        BubbleSystem.hideSubtitle();
+      }
+    });
+
+    // ─── 开始录音 ───
+    VoiceMode.onStart(() => {
+      console.log('🎤 进入聆听模式 (腾讯云 ASR)');
+      SoundEngine.voiceStart();
+
+      // 通知主进程
+      if (window.electronAPI && window.electronAPI.notifyVoiceStart) {
+        window.electronAPI.notifyVoiceStart();
+      }
+
+      // 暂停行为引擎（站定不动）
+      BehaviorEngine.pause();
+      BehaviorEngine.notifyInteraction();
+
+      // 企鹅进入聆听动画
+      SpriteRenderer.setAnimation('happy');
+
+      // 宠物头顶显示 "我在听呢" 气泡
+      BubbleSystem.show('我在听呢', 60000);
+    });
+
+    // ─── 停止录音 → 等待最终识别结果 ───
+    VoiceMode.onStop(() => {
+      console.log('🎤 停止录音，等待最终识别结果...');
+      SoundEngine.voiceStop();
+
+      // 通知主进程
+      if (window.electronAPI && window.electronAPI.notifyVoiceStop) {
+        window.electronAPI.notifyVoiceStop();
+      }
+
+      // 隐藏底部字幕（保留到最终结果出来）
+      // 注意：不立即隐藏字幕，等 onResult 拿到最终文字后再隐藏
+
+      // 隐藏头顶的「我在听呢」气泡
+      BubbleSystem.hide();
+
+      // 重置语音对讲按钮状态
+      resetVoiceButton();
+    });
+
+    // ─── 识别结果：送入 AI 对话流程 ───
+    VoiceMode.onResult((text) => {
+      console.log('🎤 语音识别结果:', text);
+
+      // 隐藏底部字幕
+      BubbleSystem.hideSubtitle();
+      // 隐藏语音识别气泡（旧版兼容）
+      BubbleSystem.hideVoiceRecognizing();
+      BubbleSystem.hide();
+
+      if (!text || text.trim().length === 0) {
+        // 没有有效内容，恢复正常
+        BubbleSystem.show('啥也没听到...再说一次?', 3000);
+        SpriteRenderer.setAnimation('idle');
+        BehaviorEngine.resume();
+        return;
+      }
+
+      // 语音识别结果送入 AI 对话（带语音标记）
+      handleVoiceMessage(text.trim());
+    });
+
+    // ─── 错误处理 ───
+    VoiceMode.onError((error) => {
+      console.warn('🎤 语音识别错误:', error);
+      SoundEngine.voiceError();
+      BubbleSystem.hide();
+      BubbleSystem.hideSubtitle();
+
+      // 重置语音对讲按钮状态
+      resetVoiceButton();
+
+      let errMsg = '听不清楚...';
+      if (error === 'not-supported') {
+        errMsg = '语音功能不可用';
+      } else if (error === 'not-allowed' || error === 'permission-denied') {
+        errMsg = '需要麦克风权限哦~';
+      } else if (error === 'asr-unavailable') {
+        errMsg = '语音服务不可用，请检查网络或腾讯云配置';
+      } else if (error === 'transcription-error') {
+        errMsg = '语音识别出错了';
+      } else if (error === 'start-failed') {
+        errMsg = '语音启动失败';
+      }
+
+      BubbleSystem.show(errMsg, 3000);
+      SpriteRenderer.setAnimation('idle');
+      BehaviorEngine.resume();
+    });
+
+    console.log('🎤 语音模式就绪 (点击按钮 / 按 Cmd+K 切换聆听模式)');
+
+    // ─── 监听全局快捷键 Cmd+K（从主进程 IPC 发来） ───
+    if (window.electronAPI && window.electronAPI.onToggleVoiceMode) {
+      window.electronAPI.onToggleVoiceMode(async () => {
+        console.log('⌨️ 收到全局 Cmd+K → 切换语音模式');
+        const result = await VoiceMode.toggle();
+        // 同步按钮 UI
+        const btnVoice = document.getElementById('btn-voice');
+        const voiceIcon = document.getElementById('voice-icon');
+        const voiceLabel = document.getElementById('voice-label');
+        if (result) {
+          // 开始录音
+          if (btnVoice) btnVoice.classList.add('recording');
+          if (voiceIcon) voiceIcon.textContent = '\u25A0';  // ■ 停止
+          if (voiceLabel) voiceLabel.textContent = '停止';
+        }
+        // 停止录音的 UI 重置在 onStop 回调中已处理
+      });
+    }
+  }
+
+  function resetVoiceButton() {
+    const btnVoice = document.getElementById('btn-voice');
+    const voiceIcon = document.getElementById('voice-icon');
+    const voiceLabel = document.getElementById('voice-label');
+    if (btnVoice) btnVoice.classList.remove('recording');
+    if (voiceIcon) voiceIcon.textContent = '\u25CF';  // ● 圆点
+    if (voiceLabel) {
+      const label = (typeof VoiceMode !== 'undefined' && VoiceMode.mode === VoiceMode.MODE_REALTIME)
+        ? '实时通话'
+        : '语音对讲';
+      voiceLabel.textContent = label;
+    }
+  }
+
+  // ─── 快捷对话系统 ───
+  function initQuickChat() {
+    const quickChat = document.getElementById('quick-chat');
+    const quickInput = document.getElementById('quick-chat-input');
+    const quickSend = document.getElementById('quick-chat-send');
+    const petContainer = document.getElementById('pet-container');
+
+    // 单击企鹅 → 轻拍交互（AI驱动回复 + 情绪联动）
+    petContainer.addEventListener('click', (e) => {
+      if (DragSystem.isDragging) return;
+      if (document.body.classList.contains('soap-cursor')) return;
+
+      BehaviorEngine.notifyInteraction();
+
+      // 如果对话框开着，不处理轻拍
+      if (quickChatVisible) return;
+
+      // 通知互动系统
+      if (typeof ProactiveChat !== 'undefined') ProactiveChat.notifyInteraction();
+      if (typeof Personality !== 'undefined') Personality.onEvent('patted');
+      if (typeof PetMemory !== 'undefined') PetMemory.addEvent('patted', '被主人摸了摸头~');
+
+      // 轻拍：播放 happy_jump 动画
+      SoundEngine.happy();
+      SpriteRenderer.setAnimation('happy_jump');
+
+      // 尝试 AI 生成轻拍回复，失败降级到本地台词
+      if (typeof AIBrain !== 'undefined') {
+        AIBrain.speak('patted', {
+          description: '被主人摸了头',
+            constraint: '一句简短回应，表达放松或感谢，15-30字，emoji可选',
+          }).then(reply => {
+            if (reply) {
+              BubbleSystem.show(reply, 2500);
+            } else {
+              enterOfflineSleep('没网了，我先睡着了。连上网再聊。');
+            }
+        });
+      } else {
+          enterOfflineSleep('没网了，我先睡着了。');
+      }
+
+      if (typeof PetDiary !== 'undefined') PetDiary.addEntry('pat', '被主人摸了摸头~');
+      setTimeout(() => {
+        SpriteRenderer.setAnimation('idle');
+      }, 1500);
+    });
+
+    // ─── 抚摸检测：鼠标在宠物上滑动（无点击） ───
+    petContainer.addEventListener('mousedown', () => { isMouseDownOnPet = true; });
+    document.addEventListener('mouseup', () => { isMouseDownOnPet = false; });
+
+    function resetStrokeSession() {
+      strokeStartAt = 0;
+      strokeTriggered = false;
+    }
+
+    petContainer.addEventListener('mouseleave', () => {
+      clearTimeout(strokeTimer);
+      resetStrokeSession();
+    });
+
+    petContainer.addEventListener('mousemove', () => {
+      // 拖拽中、鼠标按下、肥皂模式 → 不算抚摸
+      if (DragSystem.isDragging || isMouseDownOnPet || document.body.classList.contains('soap-cursor')) {
+        clearTimeout(strokeTimer);
+        resetStrokeSession();
+        return;
+      }
+
+      const now = Date.now();
+      // 冷却中
+      if (now - lastStrokeTime < STROKE_COOLDOWN) return;
+
+      clearTimeout(strokeTimer);
+      strokeTimer = setTimeout(() => { resetStrokeSession(); }, STROKE_SESSION_GAP_MS);
+
+      if (!strokeStartAt) strokeStartAt = now;
+      if (strokeTriggered) return;
+
+      if (now - strokeStartAt >= STROKE_MIN_DURATION_MS) {
+        strokeTriggered = true;
+        lastStrokeTime = now;
+
+        BehaviorEngine.notifyInteraction();
+
+        // 通知互动系统
+        if (typeof ProactiveChat !== 'undefined') ProactiveChat.notifyInteraction();
+        if (typeof Personality !== 'undefined') Personality.onEvent('stroked');
+        if (typeof PetMemory !== 'undefined') PetMemory.addEvent('stroked', '被主人抚摸了~');
+
+        // 抚摸动画（温柔版，比轻拍更柔和）
+        SpriteRenderer.setAnimation('happy');
+
+        // 连续抚摸 2 秒后，仅 50% 概率说话，降低打扰
+        if (Math.random() < 0.5 && typeof AIBrain !== 'undefined') {
+          AIBrain.speak('stroked', {
+            description: '被主人抚摸了',
+            constraint: '一句自然反馈，15-30字，语气温和，不要幼态化',
+          }).then(reply => {
+            if (reply) BubbleSystem.show(reply, 2000);
+          }).catch(() => {});
+        }
+
+        // 抚摸增加清洁值一点点
+        PetState.setStat('clean', PetState.stats.clean + 2);
+        if (typeof PetDiary !== 'undefined') PetDiary.addEntry('stroke', '被主人温柔地抚摸了~');
+
+        setTimeout(() => {
+          SpriteRenderer.setAnimation('idle');
+        }, 2000);
+      }
+    });
+
+    // 本地快捷键（默认 cmd/ctrl+u，可在系统设置中自定义）
+    document.addEventListener('keydown', (e) => {
+      if (matchesShortcut(e, 'talk')) {
+        e.preventDefault();
+        BehaviorEngine.notifyInteraction();
+        // Electron 环境 → 调用主进程打开屏幕居中独立窗口
+        if (window.electronAPI && window.electronAPI.openQuickChat) {
+          window.electronAPI.openQuickChat();
+        } else {
+          // 非 Electron 降级到内嵌对话框
+          if (quickChatVisible) {
+            hideQuickChat();
+          } else {
+            showQuickChat();
+          }
+        }
+      }
+    });
+
+    quickSend.addEventListener('click', () => {
+      sendQuickMessage();
+    });
+
+    quickInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && quickInput.value.trim()) {
+        sendQuickMessage();
+      }
+      if (e.key === 'Escape') {
+        hideQuickChat();
+      }
+    });
+
+    quickChat.addEventListener('click', (e) => {
+      e.stopPropagation();
+    });
+
+    document.addEventListener('click', (e) => {
+      if (quickChatVisible &&
+          !e.target.closest('#quick-chat') &&
+          !e.target.closest('#pet-container') &&
+          !e.target.closest('#btn-talk')) {
+        hideQuickChat();
+      }
+    });
+
+    // 对讲按钮通过自定义事件打开对话框
+    document.addEventListener('open-quick-chat', () => {
+      // Electron 环境 → 调用主进程打开屏幕居中独立窗口
+      if (window.electronAPI && window.electronAPI.openQuickChat) {
+        window.electronAPI.openQuickChat();
+      } else if (!quickChatVisible) {
+        showQuickChat();
+      }
+    });
+
+    // 全局快捷键（从主进程通过 IPC 发来）— 已改为屏幕居中独立窗口
+    // 保留旧的 toggle-quick-chat 作为兜底（非 Electron 环境）
+    if (window.electronAPI && window.electronAPI.onToggleQuickChat) {
+      window.electronAPI.onToggleQuickChat(() => {
+        // Electron 环境下由主进程处理，不再使用内嵌对话框
+        // 如果需要兜底，可以启用下面的逻辑
+        // if (quickChatVisible) { hideQuickChat(); } else { showQuickChat(); }
+      });
+    }
+
+    // ─── 屏幕居中快捷对话窗口通信 ───
+    if (window.electronAPI && window.electronAPI.onQuickChatMessage) {
+      // 接收来自独立快捷对话窗口的消息
+      window.electronAPI.onQuickChatMessage(({ text, attachments = [] }) => {
+        if (!text) return;
+        handleQuickChatMessage(text, attachments);
+      });
+    }
+    if (window.electronAPI && window.electronAPI.onQuickChatOpened) {
+      window.electronAPI.onQuickChatOpened(() => {
+        BehaviorEngine.pause();
+      });
+    }
+    if (window.electronAPI && window.electronAPI.onQuickChatClosed) {
+      window.electronAPI.onQuickChatClosed(() => {
+        BehaviorEngine.resume();
+      });
+    }
+
+    // ─── Skill 配置对话引导 ───
+    if (window.electronAPI && window.electronAPI.onSkillConfigureChat) {
+      window.electronAPI.onSkillConfigureChat(({ skillId, skillName, skillDesc, skillSource }) => {
+        const displayName = skillName || skillId || '这个技能';
+        const descLine = skillDesc ? `能力简介：${skillDesc}` : '能力简介：我可以帮你整理这个技能需要的配置项。';
+        const sourceLine = skillSource ? `来源：${skillSource}` : '';
+
+        // 企鹅先冒泡，再在对话窗口主动发完整引导
+        const greeting = `我来帮你配置「${displayName}」🔧 我会告诉你需要提供哪些信息。`;
+        BubbleSystem.show(greeting, 5200);
+        SpriteRenderer.setAnimation('talking');
+        SoundEngine.aiReply();
+
+        const guideText = [
+          `嗨～我们开始配置「${displayName}」吧！`,
+          descLine,
+          sourceLine,
+          '你先给我这些信息（不知道就写“暂无”）：',
+          '1) 你要达成的目标（想让这个技能做什么）',
+          '2) 账号/平台信息（如服务商、区域、项目名）',
+          '3) 需要的密钥或凭证项名称（不用直接发明文也可以）',
+          '4) 触发方式偏好（自动执行 / 手动指令）',
+          '5) 输出形式偏好（简洁结论 / 详细步骤）',
+          '你可以直接按 1~5 回我，我会继续追问并帮你生成可用配置。',
+        ].filter(Boolean).join('\n');
+
+        setTimeout(() => {
+          if (window.electronAPI && window.electronAPI.openQuickChat) {
+            window.electronAPI.openQuickChat();
+          }
+          // 让企鹅在对话窗口主动开场
+          setTimeout(() => {
+            if (window.electronAPI && window.electronAPI.sendQuickChatReply) {
+              window.electronAPI.sendQuickChatReply(guideText);
+            }
+          }, 380);
+        }, 900);
+      });
+    }
+  }
+
+  function matchesShortcut(e, type) {
+    const fallbackKey = type === 'voice' ? 'k' : 'u';
+    let shortcut = `CommandOrControl+${fallbackKey.toUpperCase()}`;
+    if (typeof SystemSettings !== 'undefined' && SystemSettings.getState) {
+      shortcut = SystemSettings.getState()?.shortcuts?.[type] || shortcut;
+    }
+    const m = String(shortcut).match(/^CommandOrControl\+([A-Z])$/i);
+    if (!m) return false;
+    const key = m[1].toLowerCase();
+    return (e.metaKey || e.ctrlKey) && String(e.key || '').toLowerCase() === key;
+  }
+
+  function showQuickChat() {
+    const quickChat = document.getElementById('quick-chat');
+    const quickInput = document.getElementById('quick-chat-input');
+    quickChat.classList.remove('hidden');
+    quickChatVisible = true;
+    quickInput.value = '';
+
+    // 将对话框定位到屏幕中央（不再跟随企鹅头顶）
+    positionQuickChatCenter();
+
+    setTimeout(() => quickInput.focus(), 100);
+
+    BehaviorEngine.pause();
+
+    clearTimeout(quickChatTimeout);
+    quickChatTimeout = setTimeout(() => {
+      if (quickChatVisible) hideQuickChat();
+    }, 30000);
+  }
+
+  // 将对话框定位到屏幕中央
+  function positionQuickChatCenter() {
+    const quickChat = document.getElementById('quick-chat');
+    // 固定居中，不再跟随企鹅位置
+    quickChat.style.left = '50%';
+    quickChat.style.top = '50%';
+    quickChat.style.transform = 'translate(-50%, -50%)';
+  }
+
+  function hideQuickChat() {
+    const quickChat = document.getElementById('quick-chat');
+    quickChat.classList.add('hidden');
+    quickChatVisible = false;
+    clearTimeout(quickChatTimeout);
+
+    BehaviorEngine.resume();
+  }
+
+  function sendQuickMessage() {
+    const quickInput = document.getElementById('quick-chat-input');
+    const text = quickInput.value.trim();
+    if (!text) return;
+
+    quickInput.value = '';
+    SoundEngine.click();
+
+    // 立即关闭对话框
+    hideQuickChat();
+
+    // 通知互动系统
+    if (typeof ProactiveChat !== 'undefined') ProactiveChat.notifyInteraction();
+    if (typeof Personality !== 'undefined') Personality.onEvent('chat');
+
+    // 企鹅进入思考状态：站定不动 + 思考动画 + 「...」气泡
+    BehaviorEngine.pause();
+    PetState.setState(PetState.STATES.THINKING, 30000);
+    SpriteRenderer.setAnimation('thinking');
+    BubbleSystem.showThinking();
+
+    ChatSystem.addLine(text, 'user');
+    if (typeof PetDiary !== 'undefined') PetDiary.addEntry('chat', `和主人聊天: "${text.substring(0, 20)}${text.length > 20 ? '...' : ''}"`);
+    if (typeof PetMemory !== 'undefined') {
+      PetMemory.addDialogue('user', text);
+      PetMemory.addEvent('chat', `和主人聊天: "${text.substring(0, 20)}"`);
+    }
+
+    // 异步获取回复，通过气泡展示
+    getQuickReply(text).then(reply => {
+      if (!reply) {
+        enterOfflineSleep('没网了，我先睡着了。连上网再继续。');
+        ChatSystem.addLine('[系统] 无网络或模型不可用，宠物已睡眠', 'system');
+        return;
+      }
+      PetState.setState(PetState.STATES.TALKING, 3000);
+      SpriteRenderer.setAnimation('talking');
+      BubbleSystem.showAIReply(reply);
+      SoundEngine.aiReply();
+      ChatSystem.addLine(reply, 'ai');
+
+      if (typeof PetMemory !== 'undefined') {
+        PetMemory.addDialogue('assistant', reply);
+      }
+
+      // 异步提取记忆（不阻塞 UI）
+      if (typeof AIBrain !== 'undefined') {
+        const convo = `用户: ${text}\n宠物: ${reply}`;
+        AIBrain.summarizeForMemory(convo).then(memories => {
+          if (memories && typeof PetMemory !== 'undefined') {
+            memories.forEach(m => PetMemory.addImportantConversation(m));
+          }
+        });
+      }
+
+      setTimeout(() => {
+        PetState.autoState();
+        BehaviorEngine.resume();
+      }, 3000);
+    });
+  }
+
+  // ─── 处理来自屏幕居中快捷对话窗口的消息 ───
+  async function handleQuickChatMessage(text, attachments = []) {
+    SoundEngine.click();
+
+    // 通知互动系统
+    if (typeof ProactiveChat !== 'undefined') ProactiveChat.notifyInteraction();
+    if (typeof Personality !== 'undefined') Personality.onEvent('chat');
+
+    // 企鹅进入思考状态
+    BehaviorEngine.pause();
+    PetState.setState(PetState.STATES.THINKING, 30000);
+    SpriteRenderer.setAnimation('thinking');
+    BubbleSystem.showThinking();
+
+    const attachmentHint = attachments.length > 0 ? ` [附件${attachments.length}]` : '';
+    ChatSystem.addLine(`${text}${attachmentHint}`, 'user');
+    if (typeof PetDiary !== 'undefined') PetDiary.addEntry('chat', `和主人聊天: "${text.substring(0, 20)}${text.length > 20 ? '...' : ''}"${attachmentHint}`);
+    if (typeof PetMemory !== 'undefined') {
+      PetMemory.addDialogue('user', `${text}${attachmentHint}`);
+      PetMemory.addEvent('chat', `和主人聊天: "${text.substring(0, 20)}"`);
+    }
+
+    // 异步获取回复（复杂任务优先委托 WorkBuddy 本体）
+    getRoutedReply(text, attachments).then(reply => {
+      if (!reply) {
+        enterOfflineSleep('没网了，我先睡着了。连上网再叫醒我。');
+        ChatSystem.addLine('[系统] 无网络或模型不可用，宠物已睡眠', 'system');
+        if (window.electronAPI && window.electronAPI.sendQuickChatReply) {
+          window.electronAPI.sendQuickChatReply('网络不可用，我先睡着了。联网后再叫我继续处理。');
+        }
+        return;
+      }
+      PetState.setState(PetState.STATES.TALKING, 3000);
+      SpriteRenderer.setAnimation('talking');
+      BubbleSystem.showAIReply(reply);
+      SoundEngine.aiReply();
+      ChatSystem.addLine(reply, 'ai');
+
+      // 转发 AI 回复给对话终端窗口
+      if (window.electronAPI && window.electronAPI.sendQuickChatReply) {
+        window.electronAPI.sendQuickChatReply(reply);
+      }
+
+      if (typeof PetMemory !== 'undefined') {
+        PetMemory.addDialogue('assistant', reply);
+      }
+
+      if (typeof AIBrain !== 'undefined') {
+        const convo = `用户: ${text}${attachmentHint}\n宠物: ${reply}`;
+        AIBrain.summarizeForMemory(convo).then(memories => {
+          if (memories && typeof PetMemory !== 'undefined') {
+            memories.forEach(m => PetMemory.addImportantConversation(m));
+          }
+        });
+      }
+
+      setTimeout(() => {
+        PetState.autoState();
+        BehaviorEngine.resume();
+      }, 3000);
+    });
+  }
+
+  // ─── 处理语音对讲消息（ASR 结果 → 对话 + AI 回复） ───
+  function handleVoiceMessage(text) {
+    SoundEngine.click();
+
+    // 通知互动系统
+    if (typeof ProactiveChat !== 'undefined') ProactiveChat.notifyInteraction();
+    if (typeof Personality !== 'undefined') Personality.onEvent('chat');
+
+    // [已移除] 语音结束后不再自动打开对话终端窗口
+
+    // 企鹅进入思考状态
+    BehaviorEngine.pause();
+    PetState.setState(PetState.STATES.THINKING, 30000);
+    SpriteRenderer.setAnimation('thinking');
+    BubbleSystem.showThinking();
+
+    // 在对话窗口中标注语音来源
+    ChatSystem.addLine(`[语音] ${text}`, 'user');
+    if (typeof PetDiary !== 'undefined') PetDiary.addEntry('voice_chat', `语音对讲: "${text.substring(0, 20)}${text.length > 20 ? '...' : ''}"`);
+    if (typeof PetMemory !== 'undefined') {
+      PetMemory.addDialogue('user', text);
+      PetMemory.addEvent('voice_chat', `语音对讲: "${text.substring(0, 20)}"`);
+    }
+
+    // 异步获取回复
+    getQuickReply(text).then(reply => {
+      if (!reply) {
+        enterOfflineSleep('没网了，我先睡着了。连上网再继续语音对讲。');
+        ChatSystem.addLine('[系统] 无网络或模型不可用，宠物已睡眠', 'system');
+        return;
+      }
+      PetState.setState(PetState.STATES.TALKING, 3000);
+      SpriteRenderer.setAnimation('talking');
+      BubbleSystem.showAIReply(reply);
+      SoundEngine.aiReply();
+      ChatSystem.addLine(reply, 'ai');
+
+      if (typeof PetMemory !== 'undefined') {
+        PetMemory.addDialogue('assistant', reply);
+      }
+
+      if (typeof AIBrain !== 'undefined') {
+        const convo = `用户(语音): ${text}\n宠物: ${reply}`;
+        AIBrain.summarizeForMemory(convo).then(memories => {
+          if (memories && typeof PetMemory !== 'undefined') {
+            memories.forEach(m => PetMemory.addImportantConversation(m));
+          }
+        });
+      }
+
+      setTimeout(() => {
+        PetState.autoState();
+        BehaviorEngine.resume();
+      }, 3000);
+    });
+  }
+
+  // ─── 快捷对话的多轮历史（保留最近 10 轮） ───
+  const quickChatHistory = [];
+
+  async function getRoutedReply(text, attachments = []) {
+    if (shouldDelegateToWorkBuddy(text, attachments)) {
+      const delegated = await getWorkBuddyReply(text, attachments);
+      if (delegated) return delegated;
+    }
+    return getQuickReply(text, attachments);
+  }
+
+  async function getQuickReply(text, attachments = []) {
+    try {
+      // 优先通过 AIBrain（带性格/记忆/情绪 prompt）
+      if (typeof AIBrain !== 'undefined') {
+        const reply = await AIBrain.chat(text, quickChatHistory, { attachments });
+        // 记录到历史
+        const attachmentDesc = buildAttachmentSummary(attachments);
+        const userText = attachmentDesc ? `${text}\n${attachmentDesc}` : text;
+        quickChatHistory.push({ role: 'user', text: userText });
+        quickChatHistory.push({ role: 'assistant', text: reply });
+        while (quickChatHistory.length > 20) quickChatHistory.shift();
+        return reply;
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  }
+
+  function buildAttachmentSummary(attachments = []) {
+    if (!attachments.length) return '';
+    const lines = attachments.map((att, i) => {
+      const kind = att.type === 'image' ? '图片' : '文件';
+      return `${i + 1}. ${kind}: ${att.name || '未命名'} (${att.path || '无路径'})`;
+    });
+    return `用户附带了 ${attachments.length} 个附件：\n${lines.join('\n')}`;
+  }
+
+  function shouldDelegateToWorkBuddy(text, attachments = []) {
+    if (attachments.length > 0) return true;
+    const t = (text || '').toLowerCase();
+    const keywords = [
+      '帮我实现', '帮我修改', '写代码', '调试', '报错', '修复',
+      '优化', '重构', '设计方案', '分析', '排查', '部署', '脚本',
+      'run', 'build', 'test', 'debug', 'refactor', 'implement',
+    ];
+    return keywords.some(k => t.includes(k));
+  }
+
+  async function getWorkBuddyReply(text, attachments = []) {
+    try {
+      if (!window.electronAPI || !window.electronAPI.delegateToWorkBuddy) return null;
+      const attachmentSummary = buildAttachmentSummary(attachments);
+      const result = await window.electronAPI.delegateToWorkBuddy({
+        userText: text,
+        attachmentSummary,
+        history: quickChatHistory.slice(-20),
+      });
+      if (!result || !result.ok || !result.reply) return null;
+      return `我把这件复杂任务交给主执行引擎处理了，结果如下：\n${result.reply}`;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function enterOfflineSleep(message = '没网了，我先睡着了。') {
+    const now = Date.now();
+    if (now - lastOfflineSleepAt < 20000) return;
+    lastOfflineSleepAt = now;
+    BubbleSystem.hideThinking();
+    PetState.setState(PetState.STATES.SLEEPING, 600000);
+    SpriteRenderer.setAnimation('sleeping');
+    BubbleSystem.show(message, 4500);
+  }
+
+  // 等待 DOM 加载完成
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
+})();

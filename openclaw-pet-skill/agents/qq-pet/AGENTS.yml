@@ -1,0 +1,54 @@
+# QQ宠物 Agent 多Agent配置
+# 定义 qq-pet Agent 的独立 workspace 和会话结构
+
+agents:
+  qq-pet:
+    name: "QQ宠物企鹅"
+    description: "桌面宠物企鹅，独立于主 Agent 的伴侣角色"
+    workspace: "~/.openclaw/agents/qq-pet"
+    soul: "./SOUL.md"
+    identity: "./IDENTITY.md"
+    
+    # 会话配置
+    sessions:
+      pet-main:
+        description: "宠物主动说话（时间问候、状态触发、闲聊）"
+        max_history: 20
+        temperature: 0.95
+        
+      pet-main-chat:
+        description: "与主人的对话（多轮历史）"
+        max_history: 50
+        temperature: 0.85
+        
+      pet-main-peek:
+        description: "旁观主 Agent 的反应"
+        max_history: 5
+        temperature: 0.95
+    
+    # 记忆配置
+    memory:
+      short_term:
+        storage: "local"         # localStorage / file
+        max_events: 50
+        retention: "1d"          # 保留1天
+        
+      long_term:
+        storage: "file"
+        path: "~/.openclaw/agents/qq-pet/memory/"
+        max_entries: 200
+        
+    # 权限（宠物 Agent 不需要文件操作权限）
+    permissions:
+      - "llm:chat"               # 可以调用 LLM
+      - "llm:task"               # 可以使用 LLM Task
+      - "memory:read"            # 可以读取自己的记忆
+      - "memory:write"           # 可以写入自己的记忆
+      # 注意：不给 file/terminal/web 权限，宠物不需要操作文件
+      
+    # 旁观配置
+    peek:
+      enabled: true
+      target_agent: "default"    # 旁观主 Agent
+      interval: 60               # 每60秒检查一次
+      summary_only: true         # 只读取摘要，不读取完整对话

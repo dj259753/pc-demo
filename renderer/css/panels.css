@@ -1,0 +1,1118 @@
+/* ═══════════════════════════════════════════
+   面板样式 - 毛玻璃 Glassmorphism 风格
+   ═══════════════════════════════════════════ */
+
+/* ═══════════ 统一浮动面板（状态栏+动作栏） ═══════════ */
+#hover-panel {
+  position: absolute;
+  bottom: 4px;
+  left: 50%;
+  transform: translateX(-50%) translateY(8px);
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  z-index: 350;
+  padding: 8px 10px;
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.24), rgba(255, 255, 255, 0.08)),
+    rgba(17, 24, 39, 0.58);
+  border: 1px solid rgba(255, 255, 255, 0.42);
+  border-radius: 20px;
+  box-shadow:
+    0 14px 36px rgba(0, 0, 0, 0.34),
+    inset 0 1px 0 rgba(255,255,255,0.36),
+    inset 0 -1px 0 rgba(255,255,255,0.1);
+  backdrop-filter: blur(30px) saturate(135%);
+  -webkit-backdrop-filter: blur(30px) saturate(135%);
+  overflow: hidden;
+  background-clip: padding-box;
+  isolation: isolate;
+  will-change: transform, opacity;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+  max-width: 310px;
+  width: max-content;
+}
+
+#hover-panel.visible {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateX(-50%) translateY(0);
+}
+
+/* ── 状态条区域 ── */
+#hover-stats {
+  display: flex;
+  gap: 6px;
+  padding: 2px 2px 4px;
+}
+
+.hover-stat {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  flex: 1;
+  min-width: 0;
+}
+
+.hover-stat-icon {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+
+.hover-stat-bar {
+  flex: 1;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.22);
+  border-radius: 3px;
+  overflow: hidden;
+  min-width: 30px;
+  box-shadow: inset 0 1px 3px rgba(0,0,0,0.26);
+}
+
+.hover-stat-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.5s ease;
+  box-shadow: 0 0 6px rgba(0,0,0,0.1);
+}
+
+.hover-stat-fill.hunger {
+  background: linear-gradient(90deg, #66bb6a, #2e7d32);
+}
+
+.hover-stat-fill.clean {
+  background: linear-gradient(90deg, #42a5f5, #1565c0);
+}
+
+.hover-stat-fill.energy {
+  background: linear-gradient(90deg, #ffca28, #f57c00);
+}
+
+.hover-stat-fill.warning {
+  background: linear-gradient(90deg, #ef5350, #b71c1c) !important;
+  animation: warningPulse 1.5s ease-in-out infinite;
+}
+
+@keyframes warningPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+.hover-stat-val {
+  font-size: 9px;
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Mono', monospace;
+  color: rgba(255, 255, 255, 0.94);
+  width: 18px;
+  text-align: right;
+  flex-shrink: 0;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.45);
+}
+
+/* ── 分隔线 ── */
+.hover-panel-divider {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.45), transparent);
+  margin: 2px 4px;
+}
+
+/* ── 动作按钮区域 ── */
+#hover-actions {
+  display: flex;
+  gap: 2px;
+  padding: 4px 0 0;
+  justify-content: center;
+  align-items: center;
+}
+
+.hover-actions-spacer {
+  flex: 1;
+  min-width: 2px;
+}
+
+.hover-clock {
+  font-size: 9px;
+  font-family: -apple-system, BlinkMacSystemFont, monospace;
+  color: rgba(255, 255, 255, 0.86);
+  padding: 0 1px;
+  white-space: nowrap;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.4);
+}
+
+.hover-window-btns {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.action-bar-btn {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  padding: 4px 5px;
+  border-radius: 12px;
+  border: 1px solid transparent;
+  background: rgba(255, 255, 255, 0.04);
+  cursor: pointer;
+  transition: background 0.2s ease, transform 0.15s ease;
+  min-width: 36px;
+}
+
+.action-bar-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 255, 255, 0.3);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18);
+  transform: translateY(-2px);
+}
+
+.action-bar-btn:active {
+  transform: scale(0.92);
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.action-bar-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.action-bar-btn:disabled:hover {
+  background: transparent;
+  transform: none;
+}
+
+.action-bar-icon {
+  font-size: 18px;
+  line-height: 1;
+  pointer-events: none;
+  filter: drop-shadow(0 1px 2px rgba(0,0,0,0.15));
+}
+
+.action-bar-label {
+  font-size: 8px;
+  color: rgba(255, 255, 255, 0.9);
+  font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  pointer-events: none;
+  white-space: nowrap;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.42);
+  font-weight: 500;
+}
+
+.action-bar-badge {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 3px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #ff6b6b, #ee5a24);
+  color: #fff;
+  font-size: 9px;
+  font-weight: bold;
+  font-family: -apple-system, monospace;
+  line-height: 16px;
+  text-align: center;
+  pointer-events: none;
+  box-shadow: 0 2px 6px rgba(238,90,36,0.4);
+}
+
+/* 对讲按钮的快捷键提示 */
+.action-bar-shortcut {
+  position: absolute;
+  bottom: -14px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 8px;
+  color: rgba(255, 255, 255, 0.78);
+  font-family: -apple-system, monospace;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.action-bar-btn:hover .action-bar-shortcut {
+  opacity: 1;
+}
+
+/* 使用物品时的弹跳效果 */
+@keyframes action-bar-use-bounce {
+  0% { transform: scale(1); }
+  20% { transform: scale(0.7); }
+  50% { transform: scale(1.3); }
+  70% { transform: scale(0.95); }
+  100% { transform: scale(1); }
+}
+
+.action-bar-btn.using {
+  animation: action-bar-use-bounce 0.5s ease !important;
+}
+
+/* ── 🎤 语音对讲按钮 - 录制状态 ── */
+#btn-voice.recording {
+  background: rgba(239, 68, 68, 0.2);
+  box-shadow: 0 0 12px rgba(239, 68, 68, 0.25);
+}
+
+#btn-voice.recording .action-bar-icon {
+  animation: voice-pulse 1.2s ease-in-out infinite;
+}
+
+#btn-voice.recording .action-bar-label {
+  color: #ff6b6b;
+  font-weight: bold;
+}
+
+@keyframes voice-pulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.25); opacity: 0.7; }
+}
+
+/* ═══════════ 工作按钮上的倒计时 ═══════════ */
+.work-btn-timer {
+  display: none;
+  position: absolute;
+  bottom: -2px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 8px;
+  font-family: -apple-system, monospace;
+  font-weight: bold;
+  color: #fff;
+  background: rgba(59, 130, 246, 0.85);
+  backdrop-filter: blur(8px);
+  padding: 0px 4px;
+  border-radius: 6px;
+  white-space: nowrap;
+  pointer-events: none;
+  line-height: 13px;
+  letter-spacing: 0.5px;
+  z-index: 10;
+  box-shadow: 0 2px 8px rgba(59,130,246,0.3);
+}
+
+.work-btn-timer.active {
+  display: block;
+  animation: timer-pulse 2s ease-in-out infinite;
+}
+
+.work-btn-timer.warning {
+  background: rgba(239, 68, 68, 0.85);
+  box-shadow: 0 2px 8px rgba(239,68,68,0.3);
+}
+
+@keyframes timer-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+/* 工作中时按钮图标缩小给倒计时让位 */
+#btn-work.item-active .action-bar-icon {
+  font-size: 16px;
+  margin-top: -3px;
+}
+
+/* tooltip 提示（hover 显示 title） */
+.action-bar-btn::after {
+  content: attr(title);
+  position: absolute;
+  top: -26px;
+  left: 50%;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  background: rgba(15, 23, 42, 0.86);
+  backdrop-filter: blur(12px);
+  color: #fff;
+  font-size: 10px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  opacity: 0;
+  transition: opacity 0.2s;
+  pointer-events: none;
+  box-shadow: 0 6px 16px rgba(0,0,0,0.32);
+}
+
+.action-bar-btn:hover::after {
+  opacity: 1;
+}
+
+/* ═══════════ 语音模式右键菜单 ═══════════ */
+#voice-mode-menu {
+  position: fixed;
+  z-index: 1200;
+  display: flex;
+  flex-direction: column;
+  min-width: 150px;
+  padding: 6px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(17, 24, 39, 0.96);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.38);
+}
+
+#voice-mode-menu.hidden {
+  display: none !important;
+}
+
+.voice-mode-item {
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.9);
+  text-align: left;
+  font-size: 12px;
+  padding: 8px 10px;
+  cursor: pointer;
+}
+
+.voice-mode-item:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.voice-mode-item.active::before {
+  content: '✓ ';
+  color: #4ade80;
+}
+
+
+/* ═══════════ 通用面板（毛玻璃） ═══════════ */
+.retro-panel {
+  position: absolute;
+  width: 260px;
+  background: rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 16px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15), inset 0 1px 0 rgba(255,255,255,0.2);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  z-index: 400;
+  overflow: hidden;
+}
+
+/* ─── 库存面板 ─── */
+#backpack-panel {
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 200px;
+}
+
+/* ─── 对话面板 ─── */
+#chat-panel {
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 290px;
+}
+
+/* ─── 标题栏 ─── */
+.panel-titlebar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px;
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 12px;
+  font-weight: 600;
+  font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', sans-serif;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  text-shadow: 0 1px 2px rgba(0,0,0,0.2);
+}
+
+.panel-close {
+  width: 20px;
+  height: 20px;
+  background: rgba(255, 255, 255, 0.1);
+  border: none;
+  border-radius: 50%;
+  font-size: 12px;
+  line-height: 18px;
+  text-align: center;
+  cursor: pointer;
+  color: rgba(255, 255, 255, 0.6);
+  transition: background 0.2s, color 0.2s;
+}
+
+.panel-close:hover {
+  background: rgba(239, 68, 68, 0.6);
+  color: #fff;
+}
+
+/* ─── 面板内容 ─── */
+.panel-body {
+  padding: 8px;
+}
+
+/* ─── 库存列表样式 ─── */
+.inventory-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.inventory-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 10px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.85);
+  transition: background 0.15s;
+}
+
+.inventory-row:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.inventory-row span:last-child {
+  font-family: -apple-system, monospace;
+  font-weight: bold;
+  color: rgba(147, 197, 253, 0.9);
+}
+
+/* ─── CMD 对话终端（毛玻璃版） ─── */
+.cmd-titlebar {
+  font-family: -apple-system, monospace;
+  font-size: 11px;
+}
+
+.cmd-body {
+  background: rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(12px);
+  padding: 6px;
+  font-family: 'SF Mono', 'Menlo', 'Courier New', monospace;
+  font-size: 11px;
+  color: rgba(74, 222, 128, 0.9);
+  border-radius: 0 0 16px 16px;
+}
+
+.cmd-history {
+  height: 180px;
+  overflow-y: auto;
+  padding-bottom: 4px;
+  user-select: text;
+  cursor: text;
+}
+
+.cmd-history::selection, .cmd-history *::selection {
+  background: rgba(59, 130, 246, 0.4);
+  color: #fff;
+}
+
+.cmd-history::-webkit-scrollbar {
+  width: 6px;
+}
+
+.cmd-history::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.cmd-history::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 3px;
+}
+
+.cmd-line {
+  line-height: 1.5;
+  word-break: break-all;
+  position: relative;
+  padding-right: 22px;
+}
+
+/* 一键复制按钮 */
+.cmd-copy-btn {
+  position: absolute;
+  right: 2px;
+  top: 2px;
+  width: 16px;
+  height: 16px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 4px;
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 10px;
+  cursor: pointer;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  padding: 0;
+  user-select: none;
+}
+
+.cmd-line:hover .cmd-copy-btn {
+  display: flex;
+}
+
+.cmd-copy-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.cmd-copy-btn.copied {
+  color: #4ade80;
+  border-color: rgba(74, 222, 128, 0.4);
+}
+
+.cmd-line.user {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.cmd-line.user::before {
+  content: '› ';
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.cmd-line.ai {
+  color: rgba(74, 222, 128, 0.9);
+}
+
+.cmd-line.ai::before {
+  content: '🐧 ';
+}
+
+.cmd-line.system {
+  color: rgba(255, 255, 255, 0.35);
+}
+
+.cmd-line.thinking {
+  color: rgba(250, 204, 21, 0.8);
+}
+
+.cmd-line.thinking::after {
+  content: '...';
+  animation: blink 1s infinite;
+}
+
+@keyframes blink {
+  0%, 50% { opacity: 1; }
+  51%, 100% { opacity: 0; }
+}
+
+.cmd-input-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 4px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  padding-top: 4px;
+}
+
+.cmd-prompt {
+  color: rgba(255, 255, 255, 0.35);
+  flex-shrink: 0;
+}
+
+.cmd-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: rgba(255, 255, 255, 0.9);
+  font-family: 'SF Mono', 'Menlo', 'Courier New', monospace;
+  font-size: 11px;
+  caret-color: #4ade80;
+}
+
+.cmd-input::placeholder {
+  color: rgba(255, 255, 255, 0.2);
+}
+
+/* ═══════════ 剪贴板背包区域 ═══════════ */
+.clipboard-section {
+  margin-top: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  padding-top: 6px;
+}
+
+.clipboard-header {
+  font-size: 11px;
+  font-weight: 600;
+  color: rgba(147, 197, 253, 0.9);
+  margin-bottom: 4px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.clipboard-hint {
+  font-weight: normal;
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 10px;
+}
+
+.clipboard-list {
+  max-height: 120px;
+  overflow-y: auto;
+  background: rgba(0, 0, 0, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+}
+
+.clipboard-list::-webkit-scrollbar { width: 6px; }
+.clipboard-list::-webkit-scrollbar-track { background: transparent; }
+.clipboard-list::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 3px;
+}
+
+.clipboard-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  cursor: pointer;
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.75);
+  transition: background 0.15s;
+}
+
+.clipboard-row:hover {
+  background: rgba(59, 130, 246, 0.2);
+  color: #fff;
+}
+
+.clipboard-preview {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: -apple-system, monospace;
+}
+
+.clipboard-time {
+  flex-shrink: 0;
+  color: rgba(255, 255, 255, 0.35);
+  font-size: 9px;
+}
+
+.clipboard-row:hover .clipboard-time { color: rgba(255,255,255,0.6); }
+
+.clipboard-copy-btn {
+  width: 20px;
+  height: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 10px;
+  padding: 0;
+  line-height: 16px;
+  text-align: center;
+  flex-shrink: 0;
+  color: rgba(255, 255, 255, 0.5);
+  transition: background 0.15s;
+}
+
+.clipboard-copy-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+  color: #fff;
+}
+
+.clipboard-empty {
+  padding: 8px;
+  text-align: center;
+  color: rgba(255, 255, 255, 0.35);
+  font-size: 10px;
+}
+
+/* ═══════════ 进程管理器面板 ═══════════ */
+#process-panel {
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 280px;
+}
+
+.process-titlebar {
+  background: rgba(239, 68, 68, 0.15) !important;
+}
+
+.process-body {
+  padding: 6px;
+}
+
+.process-header {
+  display: flex;
+  justify-content: space-between;
+  padding: 4px 8px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  font-size: 10px;
+  font-weight: 600;
+  margin-bottom: 4px;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.process-list {
+  max-height: 160px;
+  overflow-y: auto;
+  background: rgba(0, 0, 0, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 8px;
+}
+
+.process-list::-webkit-scrollbar { width: 6px; }
+.process-list::-webkit-scrollbar-track { background: transparent; }
+.process-list::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 3px;
+}
+
+.process-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 6px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.8);
+  transition: background 0.15s;
+}
+
+.process-row:hover {
+  background: rgba(99, 102, 241, 0.12);
+}
+
+.process-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.process-name {
+  font-weight: bold;
+  font-family: -apple-system, monospace;
+  font-size: 10px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.process-stats {
+  font-size: 9px;
+  color: rgba(255, 255, 255, 0.45);
+}
+
+.process-mem-bar {
+  width: 40px;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+.process-mem-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #4ade80, #22c55e);
+  border-radius: 3px;
+  transition: width 0.3s;
+}
+
+.process-mem-fill.high {
+  background: linear-gradient(90deg, #f87171, #ef4444);
+}
+
+.process-kill-btn {
+  padding: 3px 8px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 9px;
+  white-space: nowrap;
+  flex-shrink: 0;
+  color: rgba(255, 255, 255, 0.6);
+  transition: background 0.15s, color 0.15s;
+}
+
+.process-kill-btn:hover {
+  background: rgba(239, 68, 68, 0.3);
+  color: #fff;
+  border-color: rgba(239, 68, 68, 0.4);
+}
+
+.process-empty {
+  padding: 12px;
+  text-align: center;
+  color: rgba(255, 255, 255, 0.35);
+  font-size: 11px;
+}
+
+.process-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 4px;
+  padding: 2px 4px;
+}
+
+.process-action-btn {
+  padding: 4px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.7);
+  transition: background 0.15s;
+}
+
+.process-action-btn:hover {
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
+}
+
+.process-mem-info {
+  font-size: 10px;
+  font-family: -apple-system, monospace;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.process-mem-info.high {
+  color: #f87171;
+  font-weight: bold;
+}
+
+/* ═══════════════════════════════════════════
+   📔 企鹅日记面板
+   ═══════════════════════════════════════════ */
+
+.diary-titlebar {
+  background: rgba(139, 92, 246, 0.15) !important;
+}
+
+.diary-body {
+  padding: 6px;
+  max-height: 280px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.diary-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 4px 8px;
+  margin-bottom: 4px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.diary-duration-label {
+  font-weight: bold;
+}
+
+.diary-count-label {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.diary-list {
+  flex: 1;
+  overflow-y: auto;
+  max-height: 240px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 8px;
+  padding: 4px;
+}
+
+.diary-entry {
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 3px 4px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  font-size: 10px;
+  line-height: 1.3;
+}
+
+.diary-entry:last-child {
+  border-bottom: none;
+}
+
+.diary-time {
+  color: rgba(255, 255, 255, 0.35);
+  font-family: -apple-system, monospace;
+  font-size: 9px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.diary-icon {
+  flex-shrink: 0;
+  font-size: 11px;
+}
+
+.diary-text {
+  color: rgba(255, 255, 255, 0.75);
+  word-break: break-all;
+}
+
+.diary-empty {
+  text-align: center;
+  color: rgba(255, 255, 255, 0.3);
+  padding: 20px;
+  font-style: italic;
+  font-size: 11px;
+}
+
+/* ═══════════ 系统设置面板 ═══════════ */
+#system-settings-panel {
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 300px;
+  max-height: 420px;
+  background: rgba(18, 24, 34, 0.92);
+  border: 1px solid rgba(167, 243, 208, 0.24);
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.42);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+
+.settings-titlebar {
+  background: rgba(16, 185, 129, 0.16) !important;
+}
+
+.settings-body {
+  padding: 8px;
+  max-height: 372px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.settings-section {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  padding: 8px;
+  background: rgba(20, 28, 40, 0.68);
+}
+
+.settings-section-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: rgba(167, 243, 208, 0.95);
+  margin-bottom: 6px;
+}
+
+.settings-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.88);
+  margin-bottom: 6px;
+}
+
+.settings-item:last-child {
+  margin-bottom: 0;
+}
+
+.settings-item-inline {
+  align-items: center;
+}
+
+.settings-toggle-btn,
+.settings-action-btn {
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.92);
+  border-radius: 8px;
+  font-size: 11px;
+  padding: 4px 10px;
+  cursor: pointer;
+}
+
+.settings-toggle-btn.on {
+  background: rgba(16, 185, 129, 0.28);
+  border-color: rgba(16, 185, 129, 0.65);
+}
+
+.settings-input {
+  width: 130px;
+  padding: 4px 6px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.95);
+  font-size: 11px;
+  outline: none;
+}
+
+.settings-input::placeholder {
+  color: rgba(255, 255, 255, 0.45);
+}
+
+.settings-radio-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.88);
+}
+
+.settings-radio-list input[type="radio"] {
+  margin-right: 6px;
+}
+
+/* ═══════════ 反馈与建议面板 ═══════════ */
+#feedback-panel {
+  top: 18px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 300px;
+  background: rgba(18, 24, 34, 0.92);
+  border: 1px solid rgba(125, 211, 252, 0.24);
+}
+
+.feedback-titlebar {
+  background: rgba(59, 130, 246, 0.2) !important;
+}
+
+.feedback-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 10px;
+}
+
+.feedback-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.9);
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(20, 28, 40, 0.68);
+}
+
+.feedback-link-row a {
+  color: #7dd3fc;
+  text-decoration: underline;
+  cursor: pointer;
+}

@@ -1,0 +1,224 @@
+/* ═══════════════════════════════════════════
+   毛玻璃风格设置菜单 & 窗口控制
+   ═══════════════════════════════════════════ */
+
+/* ─── 开始菜单（设置页） ─── */
+#start-menu {
+  position: absolute;
+  bottom: 4px;
+  left: 2px;
+  width: 180px;
+  background: rgba(25, 32, 46, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  border-radius: 16px;
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.42), inset 0 1px 0 rgba(255,255,255,0.16);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  z-index: 600;
+  display: flex;
+  overflow: hidden;
+}
+
+.menu-sidebar {
+  width: 28px;
+  background: linear-gradient(to top, rgba(99, 102, 241, 0.3), rgba(139, 92, 246, 0.3));
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding-bottom: 8px;
+  border-right: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.sidebar-text {
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 1px;
+  font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.2);
+}
+
+.menu-items {
+  flex: 1;
+  padding: 4px;
+}
+
+.menu-item {
+  display: block;
+  width: 100%;
+  padding: 8px 10px;
+  text-align: left;
+  background: transparent;
+  border: none;
+  border-radius: 10px;
+  font-size: 12px;
+  font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  cursor: pointer;
+  color: rgba(255, 255, 255, 0.92);
+  transition: background 0.15s, color 0.15s;
+}
+
+.menu-item:hover {
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
+}
+
+.menu-separator {
+  height: 1px;
+  margin: 3px 8px;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.15), transparent);
+}
+
+/* ─── 退出按钮 ─── */
+.menu-item-exit {
+  color: rgba(248, 113, 113, 0.9);
+}
+
+.menu-item-exit:hover {
+  background: rgba(239, 68, 68, 0.2);
+  color: #f87171;
+}
+
+/* ═══════════════════════════════════════════
+   窗口控制按钮（macOS 红绿灯风格）
+   ═══════════════════════════════════════════ */
+
+.win-btn {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 1px solid rgba(0,0,0,0.15);
+  cursor: pointer;
+  position: relative;
+  transition: opacity 0.15s, transform 0.1s;
+}
+
+.win-btn:hover {
+  opacity: 0.85;
+  transform: scale(1.15);
+}
+
+.win-btn:active {
+  transform: scale(0.9);
+}
+
+.win-btn-minimize {
+  background: radial-gradient(circle at 35% 35%, #fcd34d, #f59e0b);
+  box-shadow: 0 1px 3px rgba(245,158,11,0.4);
+}
+
+.win-btn-maximize {
+  background: radial-gradient(circle at 35% 35%, #6ee7b7, #10b981);
+  box-shadow: 0 1px 3px rgba(16,185,129,0.4);
+}
+
+/* 放大按钮高亮状态 */
+.win-btn-maximize.active {
+  box-shadow: 0 0 0 2px rgba(16,185,129,0.5), 0 1px 3px rgba(16,185,129,0.4);
+}
+
+/* ═══════════════════════════════════════════
+   Compact（缩小）模式
+   ═══════════════════════════════════════════ */
+
+body.compact-mode {
+  width: 160px !important;
+  height: 160px !important;
+}
+
+body.compact-mode #hover-panel {
+  display: none !important;
+}
+
+body.compact-mode .retro-panel {
+  display: none !important;
+}
+
+body.compact-mode #start-menu {
+  display: none !important;
+}
+
+body.compact-mode #work-timer,
+body.compact-mode #focus-timer {
+  display: none !important;
+}
+
+body.compact-mode #pet-container {
+  left: 0px !important;
+  top: 0px !important;
+  cursor: grab;
+}
+
+body.compact-mode #pet-container:active {
+  cursor: grabbing;
+}
+
+body.compact-mode .bubble-stack {
+  max-width: 150px;
+}
+
+body.compact-mode .bubble-item {
+  max-width: 140px;
+  font-size: 10px;
+  padding: 3px 6px;
+}
+
+body.compact-mode #quick-chat {
+  display: none !important;
+}
+
+body.compact-mode #crt-overlay {
+  display: none !important;
+}
+
+/* ─── 浮动控制栏（compact模式悬停时出现） ─── */
+#compact-toolbar {
+  display: none;
+  position: absolute;
+  bottom: 4px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 600;
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0.08)),
+    rgba(17, 24, 39, 0.56);
+  border: 1px solid rgba(255, 255, 255, 0.36);
+  border-radius: 14px;
+  padding: 3px 8px;
+  gap: 6px;
+  align-items: center;
+  box-shadow:
+    0 8px 22px rgba(0, 0, 0, 0.28),
+    inset 0 1px 0 rgba(255,255,255,0.3);
+  backdrop-filter: blur(26px) saturate(130%);
+  -webkit-backdrop-filter: blur(26px) saturate(130%);
+  opacity: 0;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  transform: translateX(-50%) translateY(4px);
+  pointer-events: none;
+}
+
+body.compact-mode #compact-toolbar {
+  display: flex;
+}
+
+body.compact-mode.compact-hover #compact-toolbar {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+  pointer-events: auto;
+}
+
+#compact-toolbar .compact-clock {
+  font-size: 9px;
+  font-family: -apple-system, monospace;
+  color: rgba(255, 255, 255, 0.85);
+  padding: 0 2px;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.4);
+}
+
+#compact-toolbar .win-btn {
+  width: 12px;
+  height: 12px;
+}

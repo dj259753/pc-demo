@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>QQ宠物</title>
+  <link rel="stylesheet" href="css/main.css">
+  <link rel="stylesheet" href="css/taskbar.css">
+  <link rel="stylesheet" href="css/panels.css">
+  <link rel="stylesheet" href="css/effects.css">
+</head>
+<body>
+  <!-- CRT 扫描线覆盖层 -->
+  <div id="crt-overlay"></div>
+
+  <!-- 雨层（洗澡时出现） -->
+  <div id="rain-layer"></div>
+
+  <!-- 踢球用的球 -->
+  <div id="kick-ball">⚽</div>
+
+  <!-- 咖啡杯（企鹅手上） -->
+  <div id="coffee-cup">☕</div>
+
+  <!-- 气泡弹窗（多条堆叠） -->
+  <div id="bubble-stack" class="bubble-stack hidden">
+    <div id="bubble-list" class="bubble-list"></div>
+    <div class="bubble-tail"></div>
+  </div>
+
+  <!-- 工作倒计时（已移至按钮显示，此处保留但隐藏） -->
+  <div id="work-timer" class="work-timer hidden" style="display:none">
+    <div class="work-timer-icon">💻</div>
+    <div class="work-timer-text">
+      <span class="work-timer-label">工作中</span>
+      <span class="work-timer-countdown" id="work-countdown">20:00</span>
+    </div>
+    <div class="work-timer-bar">
+      <div class="work-timer-progress" id="work-progress"></div>
+    </div>
+  </div>
+
+  <!-- 番茄钟专注倒计时显示 -->
+  <div id="focus-timer" class="work-timer focus-timer hidden">
+    <div class="focus-timer-icon">🍅</div>
+    <div class="work-timer-text">
+      <span class="work-timer-label focus-timer-label">专注中</span>
+      <span class="work-timer-countdown" id="focus-countdown">25:00</span>
+    </div>
+    <div class="work-timer-bar">
+      <div class="work-timer-progress focus-progress" id="focus-progress"></div>
+    </div>
+  </div>
+
+  <!-- 快捷对话输入框（企鹅头顶，跟随位置） -->
+  <div id="quick-chat" class="hidden">
+    <div class="quick-chat-box">
+      <input type="text" id="quick-chat-input" placeholder="跟企鹅说..." autocomplete="off">
+      <button id="quick-chat-send">发送</button>
+    </div>
+  </div>
+
+  <!-- 宠物精灵区域 -->
+  <div id="pet-container">
+    <canvas id="pet-canvas" width="160" height="160"></canvas>
+  </div>
+
+  <!-- 浮动控制面板（悬浮 1s 后显示，状态栏+动作栏统一） -->
+  <div id="hover-panel">
+    <!-- 状态条区域 -->
+    <div id="hover-stats">
+      <div class="hover-stat" title="饱食度">
+        <img class="hover-stat-icon" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='a' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0%25' stop-color='%23FFB74D'/%3E%3Cstop offset='100%25' stop-color='%23E65100'/%3E%3C/linearGradient%3E%3C/defs%3E%3Cellipse cx='16' cy='18' rx='8' ry='10' fill='url(%23a)'/%3E%3Cellipse cx='16' cy='18' rx='5.5' ry='7' fill='%23FFCC80' opacity='0.5'/%3E%3Crect x='14' y='2' width='4' height='12' rx='2' fill='%23EFEBE9'/%3E%3Ccircle cx='16' cy='3' r='3' fill='%23EFEBE9'/%3E%3Ccircle cx='20' cy='12' r='1.5' fill='%23FFF3E0' opacity='0.7'/%3E%3C/svg%3E" alt="饱食度">
+        <div class="hover-stat-bar"><div class="hover-stat-fill hunger" id="bar-hunger" style="width:80%"></div></div>
+        <span class="hover-stat-val" id="val-hunger">80</span>
+      </div>
+      <div class="hover-stat" title="清洁值">
+        <img class="hover-stat-icon" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='b' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0%25' stop-color='%2381D4FA'/%3E%3Cstop offset='100%25' stop-color='%230288D1'/%3E%3C/linearGradient%3E%3C/defs%3E%3Ccircle cx='16' cy='17' r='10' fill='url(%23b)' opacity='0.85'/%3E%3Ccircle cx='16' cy='17' r='6.5' fill='%23B3E5FC' opacity='0.5'/%3E%3Ccircle cx='13' cy='14' r='2' fill='%23E1F5FE' opacity='0.8'/%3E%3Ccircle cx='22' cy='10' r='3.5' fill='url(%23b)' opacity='0.6'/%3E%3Ccircle cx='22' cy='10' r='1.8' fill='%23E1F5FE' opacity='0.5'/%3E%3Ccircle cx='10' cy='24' r='2.5' fill='url(%23b)' opacity='0.5'/%3E%3Cpath d='M6 4l1.5 3 3-1-1.5 3L6 8z' fill='%23FFF9C4' opacity='0.9'/%3E%3Cpath d='M24 3l1 2 2-0.5-1 2-2-0.5z' fill='%23FFF9C4' opacity='0.7'/%3E%3C/svg%3E" alt="清洁值">
+        <div class="hover-stat-bar"><div class="hover-stat-fill clean" id="bar-clean" style="width:70%"></div></div>
+        <span class="hover-stat-val" id="val-clean">70</span>
+      </div>
+      <div class="hover-stat" title="精力值">
+        <img class="hover-stat-icon" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='c' x1='0' y1='0' x2='0.5' y2='1'%3E%3Cstop offset='0%25' stop-color='%23FFEE58'/%3E%3Cstop offset='100%25' stop-color='%23FF8F00'/%3E%3C/linearGradient%3E%3Cfilter id='glow'%3E%3CfeGaussianBlur stdDeviation='1.5' result='blur'/%3E%3CfeMerge%3E%3CfeMergeNode in='blur'/%3E%3CfeMergeNode in='SourceGraphic'/%3E%3C/feMerge%3E%3C/filter%3E%3C/defs%3E%3Cpolygon points='18,2 12,14 18,13 14,30 22,16 16,17' fill='url(%23c)' filter='url(%23glow)'/%3E%3Cpolygon points='17,6 14,14 17,13.5 15,25 20,16 17,16.5' fill='%23FFF9C4' opacity='0.6'/%3E%3C/svg%3E" alt="精力值">
+        <div class="hover-stat-bar"><div class="hover-stat-fill energy" id="bar-energy" style="width:90%"></div></div>
+        <span class="hover-stat-val" id="val-energy">90</span>
+      </div>
+    </div>
+    <!-- 分隔线 -->
+    <div class="hover-panel-divider"></div>
+    <!-- 动作按钮区域 -->
+    <div id="hover-actions">
+      <button class="action-bar-btn" id="btn-feed" title="喂小鱼 🐟" data-item="cookie">
+        <span class="action-bar-icon">🐟</span>
+        <span class="action-bar-label">喂食</span>
+        <span class="action-bar-badge" id="cookie-count">10</span>
+      </button>
+      <button class="action-bar-btn" id="btn-soap" title="洗澡 🧼" data-item="soap">
+        <span class="action-bar-icon">🧼</span>
+        <span class="action-bar-label">洗澡</span>
+      </button>
+      <button class="action-bar-btn" id="btn-talk" title="对讲 💬">
+        <span class="action-bar-icon">💬</span>
+        <span class="action-bar-label">对讲</span>
+        <span class="action-bar-shortcut" id="talk-shortcut"></span>
+      </button>
+      <button class="action-bar-btn" id="btn-voice" title="语音对讲">
+        <span class="action-bar-icon" id="voice-icon">&#9679;</span>
+        <span class="action-bar-label" id="voice-label">语音对讲</span>
+        <span class="action-bar-shortcut" id="voice-shortcut"></span>
+      </button>
+      <div class="hover-actions-spacer"></div>
+      <span class="hover-clock" id="taskbar-clock">--:--</span>
+      <div class="hover-window-btns">
+        <button class="win-btn win-btn-minimize" id="btn-win-minimize" title="缩小"></button>
+        <button class="win-btn win-btn-maximize" id="btn-win-maximize" title="放大"></button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 背包面板（含剪贴板历史） -->
+  <div id="backpack-panel" class="retro-panel hidden">
+    <div class="panel-titlebar">
+      <span>🎒 物品库存</span>
+      <button class="panel-close" data-panel="backpack-panel">×</button>
+    </div>
+    <div class="panel-body">
+      <div class="inventory-list">
+        <div class="inventory-row"><span>🐟 小鱼</span><span id="inv-cookie">x10</span></div>
+        <div class="inventory-row"><span>🧼 肥皂</span><span id="inv-soap">x5</span></div>
+        <div class="inventory-row"><span>☕ 咖啡</span><span id="inv-coffee">x8</span></div>
+        <div class="inventory-row"><span>⚽ 小球</span><span id="inv-toy">x3</span></div>
+
+      </div>
+      <!-- 剪贴板背包区域 -->
+      <div class="clipboard-section">
+        <div class="clipboard-header">📋 剪贴板背包 <span class="clipboard-hint">(最近10条)</span></div>
+        <div id="clipboard-list" class="clipboard-list">
+          <div class="clipboard-empty">暂无剪贴板记录</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- AI 对话 CMD 窗口 -->
+  <div id="chat-panel" class="retro-panel hidden">
+    <div class="panel-titlebar cmd-titlebar">
+      <span>C:\PENGUIN\AI&gt; 对话终端</span>
+      <button class="panel-close" data-panel="chat-panel">×</button>
+    </div>
+    <div class="panel-body cmd-body">
+      <div id="chat-history" class="cmd-history">
+        <div class="cmd-line system">Microsoft(R) 企鹅智能终端 [版本 Q.Q.2026]</div>
+        <div class="cmd-line system">(C) QQ Corporation. 保留所有权利。</div>
+        <div class="cmd-line system">&nbsp;</div>
+      </div>
+      <div class="cmd-input-row">
+        <span class="cmd-prompt">C:\&gt;</span>
+        <input type="text" id="chat-input" class="cmd-input" placeholder="输入消息..." autocomplete="off">
+      </div>
+    </div>
+  </div>
+
+  <!-- 进程管理器面板（Star-Office 风格） -->
+  <div id="process-panel" class="retro-panel hidden">
+    <div class="panel-titlebar process-titlebar">
+      <span>🧹 任务管理器</span>
+      <button class="panel-close" data-panel="process-panel">×</button>
+    </div>
+    <div class="panel-body process-body">
+      <div class="process-header">
+        <span>进程名</span>
+        <span>内存</span>
+        <span>操作</span>
+      </div>
+      <div id="process-list" class="process-list">
+        <div class="process-empty">加载中...</div>
+      </div>
+      <div class="process-footer">
+        <button id="process-refresh-btn" class="process-action-btn">🔄 刷新</button>
+        <span id="process-mem-total" class="process-mem-info"></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- 📔 企鹅日记面板 -->
+  <div id="diary-panel" class="retro-panel hidden">
+    <div class="panel-titlebar diary-titlebar">
+      <span>📔 企鹅日记</span>
+      <button class="panel-close" data-panel="diary-panel">×</button>
+    </div>
+    <div class="panel-body diary-body">
+      <div class="diary-info">
+        <span class="diary-duration-label">⏱️ 运行: <span id="diary-duration">0分钟</span></span>
+        <span class="diary-count-label" id="diary-count">共 0 条记录</span>
+      </div>
+      <div id="diary-list" class="diary-list">
+        <div class="diary-empty">暂无日记记录</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ⚙️ 系统设置面板 -->
+  <div id="system-settings-panel" class="retro-panel hidden">
+    <div class="panel-titlebar settings-titlebar">
+      <span>⚙️ 系统设置</span>
+      <button class="panel-close" data-panel="system-settings-panel">×</button>
+    </div>
+    <div class="panel-body settings-body">
+      <div class="settings-section">
+        <div class="settings-section-title">显示设置</div>
+        <div class="settings-item">
+          <span>窗口置顶（默认开）</span>
+          <button id="setting-always-on-top" class="settings-toggle-btn">开</button>
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <div class="settings-section-title">行为设置</div>
+        <div class="settings-item">
+          <span>开机自启动宠物</span>
+          <button id="setting-auto-launch" class="settings-toggle-btn">关</button>
+        </div>
+        <div class="settings-item">
+          <span>主动对话</span>
+          <button id="setting-proactive-chat" class="settings-toggle-btn">开</button>
+        </div>
+        <div class="settings-item">
+          <span>语音抗噪强度</span>
+          <button id="setting-voice-noise" class="settings-toggle-btn">3 档（抗噪）</button>
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <div class="settings-section-title">快捷键设置</div>
+        <div class="settings-item settings-item-inline">
+          <span>倾听模式快捷键</span>
+          <input id="setting-voice-shortcut" class="settings-input" type="text" placeholder="cmd/ctrl+k">
+        </div>
+        <div class="settings-item settings-item-inline">
+          <span>对讲快捷键</span>
+          <input id="setting-talk-shortcut" class="settings-input" type="text" placeholder="cmd/ctrl+u">
+        </div>
+        <button id="setting-save-shortcuts" class="settings-action-btn">保存快捷键</button>
+      </div>
+
+      <div class="settings-section">
+        <div class="settings-section-title">层级设置</div>
+        <div class="settings-radio-list">
+          <label><input type="radio" name="layer-mode" value="always"> 永远置顶</label>
+          <label><input type="radio" name="layer-mode" value="normal"> 普通置顶（默认）</label>
+          <label><input type="radio" name="layer-mode" value="desktop"> 跟随桌面</label>
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <div class="settings-section-title">关于</div>
+        <div class="settings-item"><span>版本号</span><span id="settings-version">v0.0.0</span></div>
+        <div class="settings-item"><span>反馈和建议</span><span>联系riojdai</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 💡 反馈与建议面板 -->
+  <div id="feedback-panel" class="retro-panel hidden">
+    <div class="panel-titlebar feedback-titlebar">
+      <span>💡 反馈与建议</span>
+      <button class="panel-close" data-panel="feedback-panel">×</button>
+    </div>
+    <div class="panel-body feedback-body">
+      <div class="feedback-row"><span>作者：</span><span>riojdai</span></div>
+      <div class="feedback-row feedback-link-row">
+        <span>反馈与建议：</span>
+        <a id="feedback-link" href="https://doc.weixin.qq.com/sheet/e3_AaIAHAZhAG0CN0j2SDZNGRsO5ozrM?scode=AJEAIQdfAAoDICeBgIAaIAHAZhAG0&tab=BB08J2">反馈入口</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- 语音识别流式字幕（屏幕中下方） -->
+  <div id="voice-subtitle" class="voice-subtitle hidden">
+    <div class="voice-subtitle-inner">
+      <span class="voice-subtitle-dot"></span>
+      <span id="voice-subtitle-text" class="voice-subtitle-text"></span>
+    </div>
+  </div>
+
+  <!-- Compact模式浮动控制栏（悬停企鹅时出现） -->
+  <div id="compact-toolbar">
+    <span class="compact-clock" id="compact-clock">--:--</span>
+    <button class="win-btn win-btn-maximize" id="btn-compact-maximize" title="放大"></button>
+  </div>
+
+
+
+  <!-- 开始菜单 -->
+  <div id="start-menu" class="hidden">
+    <div class="menu-sidebar">
+      <span class="sidebar-text" id="start-menu-version">QQ Pet v0.0.0</span>
+    </div>
+    <div class="menu-items">
+      <button class="menu-item" data-action="focus">🎯 专注模式</button>
+      <button class="menu-item" data-action="diary">📔 企鹅日记</button>
+      <div class="menu-separator"></div>
+      <button class="menu-item" data-action="skills">🧩 Skills 接入</button>
+      <div class="menu-separator"></div>
+      <button class="menu-item" data-action="check-update">🔄 检查更新</button>
+      <div class="menu-separator"></div>
+      <button class="menu-item" data-action="system-settings">⚙️ 系统设置</button>
+      <div class="menu-separator"></div>
+      <button class="menu-item" data-action="feedback">💡 反馈与建议</button>
+      <div class="menu-separator"></div>
+      <button class="menu-item menu-item-exit" data-action="exit">❌ 关闭退出</button>
+    </div>
+  </div>
+
+  <!-- 语音模式右键菜单 -->
+  <div id="voice-mode-menu" class="hidden">
+    <button class="voice-mode-item" data-mode="single">单次对话模式</button>
+    <button class="voice-mode-item" data-mode="realtime">实时通话模式</button>
+  </div>
+
+  <!-- 脚本加载 -->
+  <script src="js/sound.js"></script>
+  <script src="js/state.js"></script>
+  <script src="js/sprite.js"></script>
+  <script src="js/bubble.js"></script>
+  <script src="js/drag.js"></script>
+  <script src="js/panels.js"></script>
+  <script src="js/chat.js"></script>
+  <script src="js/taskbar-ui.js"></script>
+  <script src="js/system-monitor.js"></script>
+  <script src="js/edge-snap.js"></script>
+  <script src="js/behavior.js"></script>
+  <script src="js/effects-engine.js"></script>
+  <script src="js/focus-mode.js"></script>
+  <script src="js/clipboard-bag.js"></script>
+  <script src="js/file-drop.js"></script>
+  <script src="js/process-manager.js"></script>
+  <script src="js/desktop-shepherd.js"></script>
+  <script src="js/diary.js"></script>
+  <script src="js/claw-bridge.js"></script>
+  <!-- AI 驱动系统（按依赖顺序: 性格 → 记忆 → AI大脑 → 主动说话） -->
+  <script src="js/personality.js"></script>
+  <script src="js/memory.js"></script>
+  <script src="js/ai-brain.js"></script>
+  <script src="js/proactive-chat.js"></script>
+  <script src="js/click-through.js"></script>
+  <script src="js/voice-mode.js"></script>
+  <script src="js/system-settings.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

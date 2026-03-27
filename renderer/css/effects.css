@@ -1,0 +1,297 @@
+/* ═══════════════════════════════════════════
+   视觉特效 - 毛玻璃风格
+   ═══════════════════════════════════════════ */
+
+/* ─── CRT 扫描线覆盖层（已移除） ─── */
+#crt-overlay {
+  display: none;
+}
+
+/* ─── 宠物像素化效果 ─── */
+#pet-canvas {
+  filter: contrast(1.05);
+}
+
+/* ─── 状态条动画 ─── */
+.stat-bar-inner {
+  position: relative;
+  overflow: hidden;
+}
+
+.stat-bar-inner::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255,255,255,0.25) 50%,
+    transparent 100%
+  );
+  animation: shimmer 3s infinite;
+}
+
+@keyframes shimmer {
+  0% { left: -100%; }
+  100% { left: 100%; }
+}
+
+/* ─── 宠物入场动画 ─── */
+@keyframes pet-bounce-in {
+  0% {
+    transform: scale(0) rotate(-10deg);
+    opacity: 0;
+  }
+  50% {
+    transform: scale(1.2) rotate(5deg);
+  }
+  70% {
+    transform: scale(0.9) rotate(-3deg);
+  }
+  100% {
+    transform: scale(1) rotate(0);
+    opacity: 1;
+  }
+}
+
+#pet-container.bounce-in {
+  animation: pet-bounce-in 0.6s ease-out;
+}
+
+/* ─── 喂食效果 ─── */
+@keyframes feed-effect {
+  0% { transform: scale(1); }
+  15% { transform: scale(1.15); }
+  30% { transform: scale(1); }
+  45% { transform: scale(1.1); }
+  60% { transform: scale(1); }
+  100% { transform: scale(1); }
+}
+
+#pet-container.feeding {
+  animation: feed-effect 0.8s ease;
+}
+
+/* ─── 清洗效果 ─── */
+@keyframes wash-effect {
+  0% { transform: rotate(0); filter: brightness(1); }
+  25% { transform: rotate(3deg); filter: brightness(1.3); }
+  50% { transform: rotate(-3deg); filter: brightness(1); }
+  75% { transform: rotate(2deg); filter: brightness(1.2); }
+  100% { transform: rotate(0); filter: brightness(1); }
+}
+
+#pet-container.washing {
+  animation: wash-effect 0.6s ease;
+}
+
+/* ─── 思考旋转 ─── */
+@keyframes think-spin {
+  0% { transform: rotate(0); }
+  100% { transform: rotate(360deg); }
+}
+
+#pet-container.thinking {
+  animation: think-spin 2s linear infinite;
+}
+
+/* ─── 低数值警告闪烁 ─── */
+@keyframes low-warning {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+.stat-bar-inner.warning {
+  animation: low-warning 1s infinite;
+  background: #f00 !important;
+}
+
+/* ─── 肥皂光标 ─── */
+body.soap-cursor,
+body.soap-cursor * {
+  cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Ctext y='18' font-size='18'%3E🧼%3C/text%3E%3C/svg%3E") 12 12, pointer !important;
+}
+
+/* ─── 物品按钮抖动（用完时） ─── */
+@keyframes item-shake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-4px) rotate(-2deg); }
+  40% { transform: translateX(4px) rotate(2deg); }
+  60% { transform: translateX(-3px) rotate(-1deg); }
+  80% { transform: translateX(3px) rotate(1deg); }
+}
+
+.desktop-item-btn.shake {
+  animation: item-shake 0.4s ease !important;
+}
+
+/* ─── 肥皂按钮激活态（毛玻璃版） ─── */
+.desktop-item-btn.item-active {
+  background: rgba(99, 200, 255, 0.25) !important;
+  box-shadow: 0 0 16px rgba(99, 200, 255, 0.3) !important;
+  animation: soap-glow 1s ease-in-out infinite !important;
+}
+
+@keyframes soap-glow {
+  0%, 100% { box-shadow: 0 0 8px rgba(99, 200, 255, 0.2); }
+  50% { box-shadow: 0 0 20px rgba(99, 200, 255, 0.4); }
+}
+
+/* ─── 文件拖拽悬停效果 ─── */
+#pet-container.file-drop-hover {
+  outline: 3px dashed rgba(99, 102, 241, 0.6);
+  outline-offset: 4px;
+  background: rgba(99, 102, 241, 0.08);
+  border-radius: 8px;
+  animation: drop-pulse 0.8s ease-in-out infinite;
+}
+
+@keyframes drop-pulse {
+  0%, 100% { outline-color: rgba(99, 102, 241, 0.6); }
+  50% { outline-color: rgba(248, 113, 113, 0.6); }
+}
+
+/* ─── 低电量效果 ─── */
+#pet-container.low-battery {
+  transition: opacity 2s ease;
+}
+
+@keyframes slow-walk {
+  0%, 100% { transform: translateX(0); }
+  50% { transform: translateX(2px); }
+}
+
+/* ─── 搜索网络效果 ─── */
+#pet-container.searching {
+  animation: search-wobble 1.5s ease-in-out infinite;
+}
+
+@keyframes search-wobble {
+  0%, 100% { transform: rotate(0deg); }
+  25% { transform: rotate(-3deg); }
+  75% { transform: rotate(3deg); }
+}
+
+/* ─── 番茄钟专注模式样式（毛玻璃） ─── */
+.focus-timer {
+  background: rgba(127, 29, 29, 0.35) !important;
+  border-color: rgba(185, 28, 28, 0.4) !important;
+  backdrop-filter: blur(20px) !important;
+  -webkit-backdrop-filter: blur(20px) !important;
+}
+
+.focus-timer .focus-timer-icon {
+  font-size: 18px;
+  animation: tomato-pulse 2s ease-in-out infinite;
+}
+
+@keyframes tomato-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.2) rotate(10deg); }
+}
+
+.focus-progress {
+  background: linear-gradient(90deg, #f87171, #f59e0b) !important;
+}
+
+.focus-progress.ending {
+  background: linear-gradient(90deg, #4ade80, #38bdf8) !important;
+}
+
+/* ─── 工作倒计时（毛玻璃） ─── */
+.work-timer {
+  position: fixed;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(15, 23, 42, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 16px;
+  padding: 6px 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  z-index: 800;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255,255,255,0.1);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  min-width: 160px;
+  transition: opacity 0.3s, transform 0.3s;
+}
+
+.work-timer.hidden {
+  opacity: 0;
+  transform: translateX(-50%) translateY(-20px);
+  pointer-events: none;
+}
+
+.work-timer-icon {
+  font-size: 18px;
+  animation: work-icon-pulse 2s ease-in-out infinite;
+}
+
+@keyframes work-icon-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.15); }
+}
+
+.work-timer-text {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+}
+
+.work-timer-label {
+  font-size: 9px;
+  color: rgba(160, 160, 204, 0.8);
+  font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+  letter-spacing: 2px;
+}
+
+.work-timer-countdown {
+  font-size: 16px;
+  font-weight: bold;
+  color: #4ade80;
+  font-family: -apple-system, monospace;
+  text-shadow: 0 0 10px rgba(74, 222, 128, 0.4);
+  letter-spacing: 1px;
+}
+
+.work-timer-countdown.warning {
+  color: #f87171;
+  text-shadow: 0 0 10px rgba(248, 113, 113, 0.4);
+  animation: timer-blink 1s ease-in-out infinite;
+}
+
+@keyframes timer-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.work-timer-bar {
+  width: 100%;
+  height: 3px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 2px;
+  overflow: hidden;
+  position: absolute;
+  bottom: 3px;
+  left: 0;
+  border-radius: 0 0 14px 14px;
+}
+
+.work-timer-progress {
+  height: 100%;
+  background: linear-gradient(90deg, #4ade80, #38bdf8);
+  border-radius: 2px;
+  width: 0%;
+  transition: width 1s linear;
+}
+
+.work-timer-progress.ending {
+  background: linear-gradient(90deg, #f87171, #f59e0b);
+}

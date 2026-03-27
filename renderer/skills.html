@@ -1,0 +1,658 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>Skills 接入</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: transparent;
+      overflow: hidden;
+      font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+      -webkit-app-region: no-drag;
+    }
+
+    .skills-container {
+      width: 420px;
+      background: #0f172a;
+      border: 1px solid #334155;
+      border-radius: 20px;
+      box-shadow: 0 14px 38px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.08);
+      overflow: hidden;
+    }
+
+    /* 标题栏 */
+    .skills-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 16px;
+      background: #1e293b;
+      border-bottom: 1px solid #334155;
+      color: #f8fafc;
+    }
+
+    .skills-title {
+      font-size: 15px;
+      font-weight: bold;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .skills-count {
+      font-size: 11px;
+      font-weight: 400;
+      opacity: 0.6;
+      margin-left: 4px;
+    }
+
+    .skills-close {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      border: none;
+      background: #334155;
+      color: #e2e8f0;
+      font-size: 14px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.2s;
+    }
+    .skills-close:hover { background: #b91c1c; color: #fff; }
+
+    /* 搜索栏 */
+    .skills-search {
+      padding: 8px 12px;
+      border-bottom: 1px solid #334155;
+      background: #0b1220;
+    }
+    .skills-search input {
+      width: 100%;
+      padding: 7px 12px;
+      border: 1px solid #475569;
+      border-radius: 10px;
+      font-size: 12px;
+      outline: none;
+      background: #111827;
+      color: #f8fafc;
+      transition: border-color 0.2s, background 0.2s;
+    }
+    .skills-search input:focus { border-color: #6366f1; background: #0f172a; }
+    .skills-search input::placeholder { color: #94a3b8; }
+
+    .skills-auth {
+      padding: 8px 12px;
+      border-bottom: 1px solid #334155;
+      background: #10192c;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      font-size: 11px;
+      color: rgba(255, 255, 255, 0.72);
+    }
+    .skills-auth .auth-status.ok { color: #6ee7b7; }
+    .skills-auth .auth-status.warn { color: #fca5a5; }
+    .skills-auth .auth-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+    .skills-auth a {
+      color: #93c5fd;
+      text-decoration: underline;
+      cursor: pointer;
+    }
+    .btn-auth {
+      border: 1px solid rgba(59, 130, 246, 0.4);
+      background: rgba(59, 130, 246, 0.15);
+      color: #bfdbfe;
+      border-radius: 8px;
+      padding: 4px 8px;
+      font-size: 11px;
+      cursor: pointer;
+    }
+
+    /* 列表 */
+    .skills-list {
+      padding: 4px 12px 12px;
+      max-height: 420px;
+      overflow-y: auto;
+      background: #0f172a;
+    }
+
+    /* 分组标题 */
+    .skill-category {
+      font-size: 10px;
+      color: rgba(255, 255, 255, 0.45);
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      padding: 10px 12px 4px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .skill-category-count {
+      background: rgba(255, 255, 255, 0.08);
+      padding: 1px 6px;
+      border-radius: 8px;
+      font-size: 9px;
+      color: rgba(255, 255, 255, 0.4);
+    }
+
+    .skill-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 12px;
+      border-radius: 12px;
+      transition: background 0.15s;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+    }
+    .skill-item:last-child { border-bottom: none; }
+    .skill-item:hover { background: #1e293b; }
+
+    .skill-icon {
+      width: 36px;
+      height: 36px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      flex-shrink: 0;
+      background: #312e81;
+    }
+
+    .skill-info {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .skill-name {
+      font-size: 13px;
+      font-weight: 600;
+      color: rgba(255, 255, 255, 0.9);
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .skill-source-badge {
+      font-size: 9px;
+      padding: 1px 5px;
+      border-radius: 4px;
+      font-weight: 500;
+    }
+    .badge-skillhub {
+      background: rgba(59, 130, 246, 0.2);
+      color: rgba(147, 197, 253, 0.9);
+    }
+    .badge-marketplace {
+      background: rgba(217, 119, 6, 0.2);
+      color: rgba(253, 224, 71, 0.9);
+    }
+
+    .skill-desc {
+      font-size: 11px;
+      color: rgba(255, 255, 255, 0.45);
+      margin-top: 2px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .skill-action {
+      flex-shrink: 0;
+      display: flex;
+      gap: 6px;
+      align-items: center;
+    }
+
+    .btn-installed {
+      padding: 5px 10px;
+      border-radius: 8px;
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      background: rgba(16, 185, 129, 0.12);
+      color: rgba(110, 231, 183, 0.9);
+      font-size: 11px;
+      font-weight: 600;
+      cursor: default;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .btn-config {
+      padding: 5px 10px;
+      border-radius: 8px;
+      border: 1px solid rgba(99, 102, 241, 0.3);
+      background: rgba(99, 102, 241, 0.12);
+      color: rgba(165, 180, 252, 0.9);
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 3px;
+      transition: all 0.15s;
+    }
+    .btn-config:hover {
+      background: rgba(99, 102, 241, 0.2);
+      box-shadow: 0 2px 8px rgba(99,102,241,0.2);
+      transform: translateY(-1px);
+    }
+    .btn-config:active { transform: scale(0.95); }
+
+    .btn-uninstall {
+      padding: 5px 10px;
+      border-radius: 8px;
+      border: 1px solid rgba(239, 68, 68, 0.45);
+      background: rgba(127, 29, 29, 0.45);
+      color: #fecaca;
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .btn-uninstall:hover {
+      background: rgba(185, 28, 28, 0.65);
+      color: #fff;
+      transform: translateY(-1px);
+    }
+    .btn-uninstall:active { transform: scale(0.95); }
+
+    .btn-install {
+      padding: 5px 12px;
+      border-radius: 8px;
+      border: 1px solid rgba(99, 102, 241, 0.3);
+      background: linear-gradient(135deg, rgba(99, 102, 241, 0.5), rgba(139, 92, 246, 0.5));
+      color: #fff;
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform 0.1s, box-shadow 0.2s;
+    }
+    .btn-install:hover {
+      box-shadow: 0 2px 10px rgba(99,102,241,0.3);
+      transform: translateY(-1px);
+    }
+    .btn-install:active { transform: scale(0.95); }
+
+    .btn-installing {
+      padding: 5px 12px;
+      border-radius: 8px;
+      border: 1px solid rgba(245, 158, 11, 0.3);
+      background: rgba(245, 158, 11, 0.12);
+      color: rgba(253, 224, 71, 0.9);
+      font-size: 11px;
+      font-weight: 600;
+      cursor: default;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .btn-error {
+      padding: 5px 12px;
+      border-radius: 8px;
+      border: 1px solid rgba(239, 68, 68, 0.3);
+      background: rgba(239, 68, 68, 0.12);
+      color: rgba(248, 113, 113, 0.9);
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    @keyframes spin {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+    .spin { animation: spin 1s linear infinite; display: inline-block; }
+
+    /* 加载态 */
+    .loading-state {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 40px 0;
+      color: rgba(255, 255, 255, 0.4);
+      font-size: 13px;
+      gap: 8px;
+    }
+
+    /* 空态 */
+    .empty-state {
+      text-align: center;
+      padding: 30px 0;
+      color: rgba(255, 255, 255, 0.3);
+      font-size: 12px;
+    }
+
+    /* 滚动条 */
+    .skills-list::-webkit-scrollbar { width: 6px; }
+    .skills-list::-webkit-scrollbar-track { background: transparent; }
+    .skills-list::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 3px;
+    }
+  </style>
+</head>
+<body>
+  <div class="skills-container">
+    <div class="skills-header">
+      <div class="skills-title">
+        🧩 Skills 技能
+        <span class="skills-count" id="skills-count"></span>
+      </div>
+      <button class="skills-close" id="btn-close" title="关闭">×</button>
+    </div>
+    <div class="skills-search">
+      <input type="text" id="search-input" placeholder="🔍 搜索技能...">
+    </div>
+    <div class="skills-auth">
+      <span id="auth-status" class="auth-status warn">仓库登录：未配置 token（私有技能安装会失败）</span>
+      <div class="auth-actions">
+        <a id="auth-guide-link" href="#">如何获取？</a>
+        <button id="btn-auth-config" class="btn-auth">配置 token</button>
+      </div>
+    </div>
+    <div class="skills-list" id="skills-list">
+      <div class="loading-state"><span class="spin">⏳</span> 加载中...</div>
+    </div>
+  </div>
+
+  <script>
+    // ─── 状态 ───
+    let allInstalled = [];
+    let allMarketplace = [];
+    let searchQuery = '';
+    let authGuideUrl = '';
+    async function loadAuthStatus() {
+      try {
+        if (!window.skillsAPI || !window.skillsAPI.getAuthStatus) return;
+        const result = await window.skillsAPI.getAuthStatus();
+        const statusEl = document.getElementById('auth-status');
+        const guideEl = document.getElementById('auth-guide-link');
+        if (guideEl) {
+          authGuideUrl = result.guideUrl || '';
+          if (authGuideUrl) guideEl.href = authGuideUrl;
+        }
+        if (!statusEl) return;
+        if (result && result.hasToken) {
+          statusEl.textContent = '仓库登录：已配置 token（可安装私有 skills）';
+          statusEl.className = 'auth-status ok';
+        } else {
+          statusEl.textContent = '仓库登录：未配置 token（私有技能安装会失败）';
+          statusEl.className = 'auth-status warn';
+        }
+      } catch (e) {
+        console.warn('加载鉴权状态失败:', e);
+      }
+    }
+
+    async function promptAndSaveToken() {
+      const token = window.prompt('请输入 git.woa.com 的访问 token（需要 read_repository 权限）');
+      if (!token) return false;
+      if (!window.skillsAPI || !window.skillsAPI.saveAuthToken) return false;
+      const result = await window.skillsAPI.saveAuthToken(token.trim());
+      if (!result || !result.ok) {
+        alert(`保存 token 失败：${(result && result.error) || '未知错误'}`);
+        return false;
+      }
+      await loadAuthStatus();
+      alert(`token 已保存\n路径：${result.tokenPath}`);
+      return true;
+    }
+
+
+    function escapeHtml(str) {
+      return String(str || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    function normalizeText(str, fallback = '') {
+      const text = String(str || '').replace(/\s+/g, ' ').trim();
+      return text || fallback;
+    }
+
+    // ─── 初始化：从主进程获取真实数据 ───
+    async function loadSkills() {
+      try {
+        const data = await window.skillsAPI.getSkills();
+        allInstalled = data.installed || [];
+        allMarketplace = data.marketplace || [];
+        render();
+      } catch (e) {
+        console.error('加载 skills 失败:', e);
+        document.getElementById('skills-list').innerHTML =
+          '<div class="empty-state">⚠️ 加载失败，请重试</div>';
+      }
+    }
+
+    // ─── 过滤 ───
+    function filterSkills(list) {
+      if (!searchQuery) return list;
+      const q = searchQuery.toLowerCase();
+      return list.filter(s =>
+        s.displayName.toLowerCase().includes(q) ||
+        s.name.toLowerCase().includes(q) ||
+        s.desc.toLowerCase().includes(q)
+      );
+    }
+
+    // ─── 渲染 ───
+    function render() {
+      const list = document.getElementById('skills-list');
+      list.innerHTML = '';
+
+      const filteredInstalled = filterSkills(allInstalled);
+      const filteredMarketplace = filterSkills(allMarketplace);
+      const totalInstalled = allInstalled.length;
+      const totalAvailable = allMarketplace.length;
+
+      document.getElementById('skills-count').textContent =
+        `(已安装 ${totalInstalled} · 可用 ${totalAvailable})`;
+
+      // ─── 已安装区域 ───
+      if (filteredInstalled.length > 0) {
+        const catEl = document.createElement('div');
+        catEl.className = 'skill-category';
+        catEl.innerHTML = `✅ 已安装 <span class="skill-category-count">${filteredInstalled.length}</span>`;
+        list.appendChild(catEl);
+
+        filteredInstalled.forEach(skill => {
+          list.appendChild(createSkillItem(skill));
+        });
+      }
+
+      // ─── 市场可用区域 ───
+      if (filteredMarketplace.length > 0) {
+        const catEl = document.createElement('div');
+        catEl.className = 'skill-category';
+        catEl.innerHTML = `📦 更多技能 <span class="skill-category-count">${filteredMarketplace.length}</span>`;
+        list.appendChild(catEl);
+
+        filteredMarketplace.forEach(skill => {
+          list.appendChild(createSkillItem(skill));
+        });
+      }
+
+      if (filteredInstalled.length === 0 && filteredMarketplace.length === 0) {
+        list.innerHTML = '<div class="empty-state">没有匹配的技能</div>';
+      }
+    }
+
+    // ─── 创建单个 skill 项 ───
+    function createSkillItem(skill) {
+      const item = document.createElement('div');
+      item.className = 'skill-item';
+      item.dataset.id = skill.id;
+
+      // 来源 badge
+      let badgeHtml = '';
+      if (skill.source === 'skillhub') {
+        badgeHtml = '<span class="skill-source-badge badge-skillhub">Hub</span>';
+      } else if (skill.source === 'marketplace' || skill.source === 'marketplace-available') {
+        badgeHtml = '<span class="skill-source-badge badge-marketplace">市场</span>';
+      }
+
+      // 操作按钮
+      let actionHtml;
+      if (skill.installed) {
+        actionHtml = `
+          <div class="btn-installed">✅ 已装</div>
+          <button class="btn-config" data-id="${skill.id}" data-name="${skill.displayName}">⚙️ 配置</button>
+          <button class="btn-uninstall" data-id="${skill.id}" data-name="${skill.displayName}">卸载</button>
+        `;
+      } else {
+        actionHtml = `<button class="btn-install" data-id="${skill.id}" data-source="${skill.source}">安装</button>`;
+      }
+
+      const safeName = escapeHtml(normalizeText(skill.displayName, '未命名技能'));
+      const safeDesc = escapeHtml(normalizeText(skill.desc, '暂无描述'));
+      const safeEmoji = escapeHtml(normalizeText(skill.emoji, '🧩'));
+      item.innerHTML = `
+        <div class="skill-icon">${safeEmoji}</div>
+        <div class="skill-info">
+          <div class="skill-name">${safeName} ${badgeHtml}</div>
+          <div class="skill-desc" title="${safeDesc}">${safeDesc}</div>
+        </div>
+        <div class="skill-action">${actionHtml}</div>
+      `;
+
+      // 绑定安装按钮
+      const installBtn = item.querySelector('.btn-install');
+      if (installBtn) {
+        installBtn.addEventListener('click', () => installSkill(skill, installBtn));
+      }
+
+      // 绑定配置按钮
+      const configBtn = item.querySelector('.btn-config');
+      if (configBtn) {
+        configBtn.addEventListener('click', () => configureSkill(skill));
+      }
+
+      // 绑定卸载按钮
+      const uninstallBtn = item.querySelector('.btn-uninstall');
+      if (uninstallBtn) {
+        uninstallBtn.addEventListener('click', () => uninstallSkill(skill, uninstallBtn));
+      }
+
+      return item;
+    }
+
+    // ─── 安装 ───
+    async function installSkill(skill, btnEl) {
+      // 改为安装中状态
+      btnEl.outerHTML = `<div class="btn-installing"><span class="spin">⏳</span> 安装中...</div>`;
+
+      try {
+        const result = await window.skillsAPI.installSkill(skill.id, skill.source);
+
+        if (result.ok) {
+          // 安装成功 → 刷新列表
+          await loadSkills();
+        } else {
+          if (result.authRequired) {
+            const goGuide = confirm(`安装私有 Skill 需要 git.woa.com 登录 token。\n\n是否先打开获取指引页面？`);
+            if (goGuide && authGuideUrl && window.skillsAPI && window.skillsAPI.openExternalUrl) {
+              await window.skillsAPI.openExternalUrl(authGuideUrl);
+            }
+            const saved = await promptAndSaveToken();
+            if (saved) {
+              await loadSkills();
+            }
+            return;
+          }
+          // 安装失败
+          const parent = document.querySelector(`[data-id="${skill.id}"] .skill-action`);
+          if (parent) {
+            parent.innerHTML = `<button class="btn-error" title="${result.error || '安装失败'}">❌ 重试</button>`;
+            parent.querySelector('.btn-error').addEventListener('click', async () => {
+              await loadSkills();
+            });
+          }
+        }
+      } catch (e) {
+        console.error('安装失败:', e);
+        await loadSkills(); // 刷新恢复
+      }
+    }
+
+    // ─── 配置（对话引导） ───
+    function configureSkill(skill) {
+      window.skillsAPI.configureSkill(skill.id, skill.displayName);
+    }
+
+    // ─── 卸载 ───
+    async function uninstallSkill(skill, btnEl) {
+      const ok = confirm(`确认卸载「${skill.displayName}」吗？`);
+      if (!ok) return;
+
+      btnEl.disabled = true;
+      btnEl.textContent = '卸载中...';
+      try {
+        const result = await window.skillsAPI.uninstallSkill(skill.id);
+        if (!result.ok) {
+          alert(`卸载失败：${result.error || '未知错误'}`);
+        }
+      } catch (e) {
+        alert(`卸载失败：${e.message || e}`);
+      } finally {
+        await loadSkills();
+      }
+    }
+
+    // ─── 搜索 ───
+    document.getElementById('search-input').addEventListener('input', (e) => {
+      searchQuery = e.target.value.trim();
+      render();
+    });
+
+    const authGuideLink = document.getElementById('auth-guide-link');
+    if (authGuideLink) {
+      authGuideLink.addEventListener('click', async (e) => {
+        e.preventDefault();
+        if (authGuideUrl && window.skillsAPI && window.skillsAPI.openExternalUrl) {
+          await window.skillsAPI.openExternalUrl(authGuideUrl);
+        }
+      });
+    }
+    const authConfigBtn = document.getElementById('btn-auth-config');
+    if (authConfigBtn) {
+      authConfigBtn.addEventListener('click', async () => {
+        await promptAndSaveToken();
+      });
+    }
+
+    // ─── 关闭 ───
+    document.getElementById('btn-close').addEventListener('click', () => {
+      if (window.skillsAPI && window.skillsAPI.hide) {
+        window.skillsAPI.hide();
+      }
+    });
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        if (window.skillsAPI && window.skillsAPI.hide) {
+          window.skillsAPI.hide();
+        }
+      }
+    });
+
+    // ─── 启动加载 ───
+    loadSkills();
+    loadAuthStatus();
+  </script>
+</body>
+</html>
