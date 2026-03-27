@@ -220,11 +220,43 @@ const PanelManager = (() => {
       });
     }
 
-    // ─── 全局点击取消肥皂模式 ───
+    // ─── 全局点击：点击面板/菜单外部自动关闭 ───
+    const ALL_PANEL_IDS = ['backpack-panel', 'chat-panel', 'process-panel', 'diary-panel', 'system-settings-panel', 'feedback-panel'];
+    const ALL_PANEL_SELECTORS = ALL_PANEL_IDS.map(id => `#${id}`).join(',');
+
+    function closeAllPanelsAndMenus() {
+      ALL_PANEL_IDS.forEach(id => {
+        const el = document.getElementById(id);
+        if (el && !el.classList.contains('hidden')) {
+          el.classList.add('hidden');
+        }
+      });
+      const startMenu = document.getElementById('start-menu');
+      if (startMenu && !startMenu.classList.contains('hidden')) {
+        startMenu.classList.add('hidden');
+      }
+      if (voiceModeMenu && !voiceModeMenu.classList.contains('hidden')) {
+        voiceModeMenu.classList.add('hidden');
+      }
+    }
+
     document.addEventListener('click', (e) => {
+      // 关闭语音模式菜单
       if (voiceModeMenu && !e.target.closest('#voice-mode-menu') && !e.target.closest('#btn-voice')) {
         voiceModeMenu.classList.add('hidden');
       }
+      // 关闭所有 retro-panel：点击不在面板内、不在触发按钮内
+      const insideAnyPanel = e.target.closest(ALL_PANEL_SELECTORS);
+      const insideTrigger = e.target.closest('#start-menu, .menu-item, .action-bar-btn, #btn-settings');
+      if (!insideAnyPanel && !insideTrigger) {
+        ALL_PANEL_IDS.forEach(id => {
+          const el = document.getElementById(id);
+          if (el && !el.classList.contains('hidden')) {
+            el.classList.add('hidden');
+          }
+        });
+      }
+      // 取消肥皂模式
       if (soapMode && !e.target.closest('#pet-container') && !e.target.closest('#btn-soap')) {
         soapMode = false;
         document.body.classList.remove('soap-cursor');
@@ -232,6 +264,11 @@ const PanelManager = (() => {
         BubbleSystem.show('肥皂放回去了~', 1500);
         BehaviorEngine.resume();
       }
+    });
+
+    // ─── 窗口失焦（点击窗口外桌面区域）→ 关闭所有面板和菜单 ───
+    window.addEventListener('blur', () => {
+      closeAllPanelsAndMenus();
     });
 
     // ─── 双击宠物打开独立对话终端窗口 ───

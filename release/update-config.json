@@ -1,6 +1,6 @@
 {
   "enabled": true,
-  "git_repo_url": "git@git.woa.com:riojdai/pc-pet-demo.git",
-  "check_interval_minutes": 60,
+  "git_repo_url": "git@github.com:dj259753/pet-pc-demo.git",
+  "check_interval_minutes": 1,
   "package_url": ""
 }

@@ -531,11 +531,11 @@
       });
     }
 
-    // ─── 接收来自主窗口的用户消息（如语音识别文本） ───
+    // ─── 接收来自主窗口的用户消息（skill 配置触发、语音识别等） ───
     if (window.quickChatAPI && window.quickChatAPI.onUserMsg) {
       window.quickChatAPI.onUserMsg((text) => {
         if (welcomeEl) welcomeEl.style.display = 'none';
-        appendMessage('user', `🎤 ${text}`);
+        appendMessage('user', text);
         showThinking();
         isWaiting = true;
         sendBtn.disabled = true;

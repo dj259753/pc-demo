@@ -2803,19 +2803,18 @@ app.whenReady().then(() => {
 
   registerGlobalShortcutsFromSettings();
 
-  // 自动更新已临时禁用（等 GitHub 更新源就绪后重新启用）
-  // const updateCfg = getUpdateConfig();
-  // if (updateCfg && updateCfg.enabled) {
-  //   setTimeout(() => { checkForUpdates('manual'); }, 3000);
-  //   setTimeout(() => { checkForUpdates('auto'); }, 15000);
-  //   const intervalMinutes = Math.max(1, updateCfg.checkIntervalMinutes);
-  //   const intervalMs = intervalMinutes * 60 * 1000;
-  //   updateCheckTimer = setInterval(() => { checkForUpdates('auto'); }, intervalMs);
-  //   console.log(`🔄 自动更新已启用，每 ${intervalMinutes} 分钟检查一次`);
-  // } else {
-  //   console.log('🔄 自动更新未启用（缺少 ~/.qq-pet/config/update-config.json）`);
-  // }
-  console.log('🔄 自动更新已临时禁用，等 GitHub 更新源就绪后重新启用');
+  // 启动自动更新检查（使用 ~/.qq-pet/config/update-config.json 配置）
+  const updateCfg = getUpdateConfig();
+  if (updateCfg && updateCfg.enabled) {
+    // 启动后 5 秒做一次检查
+    setTimeout(() => { checkForUpdates('auto'); }, 5000);
+    const intervalMinutes = Math.max(1, updateCfg.checkIntervalMinutes);
+    const intervalMs = intervalMinutes * 60 * 1000;
+    updateCheckTimer = setInterval(() => { checkForUpdates('auto'); }, intervalMs);
+    console.log(`🔄 自动更新已启用，每 ${intervalMinutes} 分钟检查一次`);
+  } else {
+    console.log('🔄 自动更新未启用（缺少 ~/.qq-pet/config/update-config.json）');
+  }
 });
 
 app.on('will-quit', () => {

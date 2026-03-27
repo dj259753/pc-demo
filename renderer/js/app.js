@@ -68,7 +68,7 @@
     // 17. 初始化右键菜单
     initContextMenu();
 
-    // 17.0 同步“关于”面板版本号（读取本地 app 版本）
+    // 17.0 同步"关于"面板版本号（读取本地 app 版本）
     syncAboutVersion();
 
     // 17.1 初始化系统设置面板
@@ -641,39 +641,30 @@
     if (window.electronAPI && window.electronAPI.onSkillConfigureChat) {
       window.electronAPI.onSkillConfigureChat(({ skillId, skillName, skillDesc, skillSource }) => {
         const displayName = skillName || skillId || '这个技能';
-        const descLine = skillDesc ? `能力简介：${skillDesc}` : '能力简介：我可以帮你整理这个技能需要的配置项。';
-        const sourceLine = skillSource ? `来源：${skillSource}` : '';
 
-        // 企鹅先冒泡，再在对话窗口主动发完整引导
-        const greeting = `我来帮你配置「${displayName}」🔧 我会告诉你需要提供哪些信息。`;
-        BubbleSystem.show(greeting, 5200);
-        SpriteRenderer.setAnimation('talking');
-        SoundEngine.aiReply();
+        // 企鹅先冒泡提示
+        BubbleSystem.show(`好的，我来查一下「${displayName}」怎么用～`, 3000);
+        SpriteRenderer.setAnimation('thinking');
+        SoundEngine.click();
 
-        const guideText = [
-          `嗨～我们开始配置「${displayName}」吧！`,
-          descLine,
-          sourceLine,
-          '你先给我这些信息（不知道就写“暂无”）：',
-          '1) 你要达成的目标（想让这个技能做什么）',
-          '2) 账号/平台信息（如服务商、区域、项目名）',
-          '3) 需要的密钥或凭证项名称（不用直接发明文也可以）',
-          '4) 触发方式偏好（自动执行 / 手动指令）',
-          '5) 输出形式偏好（简洁结论 / 详细步骤）',
-          '你可以直接按 1~5 回我，我会继续追问并帮你生成可用配置。',
-        ].filter(Boolean).join('\n');
+        // 构造模拟用户消息：让 AI Brain 去真正查阅 skill 并回答
+        const userQuery = `教我怎么使用「${displayName}」这个 skill，包括如何配置和触发方式`;
 
+        // 打开对话窗口，然后模拟用户发送消息
         setTimeout(() => {
           if (window.electronAPI && window.electronAPI.openQuickChat) {
             window.electronAPI.openQuickChat();
           }
-          // 让企鹅在对话窗口主动开场
+          // 稍等窗口就绪，再把消息同步显示到对话窗口 + 触发 AI 处理
           setTimeout(() => {
-            if (window.electronAPI && window.electronAPI.sendQuickChatReply) {
-              window.electronAPI.sendQuickChatReply(guideText);
+            // 在对话窗口显示用户气泡（sendQuickChatUserMsg → quick-chat.html 的 onUserMsg）
+            if (window.electronAPI && window.electronAPI.sendQuickChatUserMsg) {
+              window.electronAPI.sendQuickChatUserMsg(userQuery);
             }
-          }, 380);
-        }, 900);
+            // 同时触发 AI Brain 真正处理这条消息
+            handleQuickChatMessage(userQuery);
+          }, 420);
+        }, 600);
       });
     }
   }
