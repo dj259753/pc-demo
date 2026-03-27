@@ -2,9 +2,14 @@ node_modules/
 .DS_Store
 
 # 大型模型文件（onnx / bin）不上传
-models/moonshine-tiny/onnx/
+models/
 *.onnx
 *.bin
+
+# tools 里的构建产物（wasm/ruffle 等）
+tools/*.wasm
+tools/core.ruffle.*.js
+tools/ruffle.js
 
 # Electron 构建产物
 dist/

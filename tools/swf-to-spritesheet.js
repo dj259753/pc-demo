@@ -107,9 +107,10 @@ app.whenReady().then(async () => {
     const spritesheetPath = path.join(outputDir, `${outputName}.png`);
     const metaPath = path.join(outputDir, `${outputName}.json`);
     
-    // 跳过已存在的
-    if (fs.existsSync(spritesheetPath) && fs.existsSync(metaPath)) {
-      console.log(`[SKIP] ${swfFile.relPath}`);
+    // 跳过已存在的（检查帧目录）
+    const framesDir = path.join(outputDir, '_frames', outputName);
+    if (fs.existsSync(framesDir) && fs.readdirSync(framesDir).length > 0) {
+      // console.log(`[SKIP] ${swfFile.relPath}`);
       completed++;
       continue;
     }

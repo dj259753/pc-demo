@@ -242,9 +242,31 @@
     .skills-list::-webkit-scrollbar { width: 6px; }
     .skills-list::-webkit-scrollbar-track { background: transparent; }
     .skills-list::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 3px; }
+
+    /* Tooltip */
+    .skills-container { position: relative; }
+    #skill-tooltip {
+      position: absolute;
+      z-index: 9999;
+      max-width: 260px;
+      padding: 8px 12px;
+      background: #1e293b;
+      border: 1px solid #475569;
+      border-radius: 10px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+      font-size: 12px;
+      line-height: 1.6;
+      color: rgba(255,255,255,0.85);
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.15s;
+      word-break: break-word;
+    }
+    #skill-tooltip.visible { opacity: 1; }
   </style>
 </head>
 <body>
+  <div id="skill-tooltip"></div>
   <div class="skills-container">
     <div class="skills-header">
       <div class="skills-title">🧩 Skills 技能</div>
@@ -402,7 +424,7 @@
         <div class="skill-icon">${safeEmoji}</div>
         <div class="skill-info">
           <div class="skill-name">${safeName}</div>
-          <div class="skill-desc" title="${safeDesc}">${safeDesc}</div>
+          <div class="skill-desc" data-full-desc="${safeDesc}" title="">${safeDesc}</div>
           ${heatHtml}
         </div>
         <div class="skill-action">${actionHtml}</div>
@@ -467,6 +489,60 @@
     // ─── 关闭 ───
     document.getElementById('btn-close').addEventListener('click', () => window.skillsAPI?.hide());
     document.addEventListener('keydown', e => { if (e.key === 'Escape') window.skillsAPI?.hide(); });
+
+    // ─── Tooltip（hover 描述时展示完整文字） ───
+    const tooltip = document.getElementById('skill-tooltip');
+    let tooltipTimer = null;
+
+    document.addEventListener('mouseover', e => {
+      const el = e.target.closest('.skill-desc[data-full-desc]');
+      if (!el) return;
+      const text = el.dataset.fullDesc;
+      if (!text || el.scrollWidth <= el.clientWidth) return;
+
+      clearTimeout(tooltipTimer);
+      tooltipTimer = setTimeout(() => {
+        tooltip.textContent = text;
+        tooltip.classList.add('visible');
+        positionTooltip(e);
+      }, 300);
+    });
+
+    document.addEventListener('mousemove', e => {
+      if (!tooltip.classList.contains('visible')) return;
+      positionTooltip(e);
+    });
+
+    document.addEventListener('mouseout', e => {
+      const el = e.target.closest('.skill-desc[data-full-desc]');
+      if (!el) return;
+      clearTimeout(tooltipTimer);
+      tooltip.classList.remove('visible');
+    });
+
+    function positionTooltip(e) {
+      const container = document.querySelector('.skills-container');
+      const cRect = container.getBoundingClientRect();
+      const pad = 8;
+      const tw = tooltip.offsetWidth || 260;
+      const th = tooltip.offsetHeight || 60;
+
+      // 鼠标相对容器的坐标
+      let x = e.clientX - cRect.left + 10;
+      let y = e.clientY - cRect.top + 16;
+
+      // 右边界溢出 → 向左
+      if (x + tw > cRect.width - pad) x = e.clientX - cRect.left - tw - 8;
+      // 左边界
+      if (x < pad) x = pad;
+      // 下边界溢出 → 向上
+      if (y + th > cRect.height - pad) y = e.clientY - cRect.top - th - 8;
+      // 上边界
+      if (y < pad) y = pad;
+
+      tooltip.style.left = x + 'px';
+      tooltip.style.top  = y + 'px';
+    }
 
     // ─── 启动 ───
     loadSkills();
