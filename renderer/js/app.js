@@ -94,11 +94,17 @@
       });
     }
 
-    // 安装进度通知（实时气泡显示，避免用户不知道在安装）
+    // 安装进度通知：通过 update-progress（标题+内容）
     if (window.electronAPI && window.electronAPI.onUpdateProgress) {
       window.electronAPI.onUpdateProgress(({ title, message }) => {
         const text = message ? `${title}\n${message}` : title;
-        // 用长时间气泡持续显示（覆盖旧的），进度完成前不消失
+        BubbleSystem.showUpdateProgress(text);
+      });
+    }
+
+    // 安装进度通知：通过 update-bubble（精简文字，直接显示在气泡）
+    if (window.electronAPI && window.electronAPI.onUpdateBubble) {
+      window.electronAPI.onUpdateBubble(({ text }) => {
         BubbleSystem.showUpdateProgress(text);
       });
     }

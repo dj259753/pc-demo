@@ -654,19 +654,34 @@ function findFirstAppBundle(dir) {
   return null;
 }
 
-async function downloadToFile(url, outPath) {
+async function downloadToFile(url, outPath, onProgress) {
   const res = await fetch(url);
   if (!res.ok) throw new Error(`下载失败 ${res.status}`);
-  const buf = Buffer.from(await res.arrayBuffer());
-  fs.writeFileSync(outPath, buf);
+  const total = parseInt(res.headers.get('content-length') || '0', 10);
+  const buf = [];
+  let received = 0;
+  const reader = res.body.getReader();
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buf.push(value);
+    received += value.length;
+    if (total > 0 && onProgress) {
+      const pct = Math.round((received / total) * 100);
+      onProgress(pct);
+    }
+  }
+  fs.writeFileSync(outPath, Buffer.concat(buf.map(v => Buffer.from(v))));
 }
 
-// ─── 更新进度通知辅助 ───
+// ─── 更新进度通知辅助（同时发给进度浮层 + 宠物气泡）───
 let updateProgressNotification = null;
 
 function showUpdateProgress(title, message) {
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.webContents.send('update-progress', { title, message });
+    // 同时推给宠物气泡
+    mainWindow.webContents.send('update-bubble', { text: message || title });
   }
 }
 
@@ -839,7 +854,9 @@ async function installUpdateFromManifest(manifest) {
     const unpackDir = path.join(tmpRoot, 'unpack');
     fs.mkdirSync(unpackDir, { recursive: true });
 
-    await downloadToFile(packageUrl, zipPath);
+    await downloadToFile(packageUrl, zipPath, (pct) => {
+      showUpdateProgress('正在更新...', `正在下载 ${pct}%`);
+    });
     await new Promise((resolve, reject) => {
       exec(`ditto -xk "${zipPath}" "${unpackDir}"`, (err) => err ? reject(err) : resolve());
     });
@@ -1242,7 +1259,6 @@ ipcMain.handle('open-ai-setup', async () => {
     // 找安装向导路径：开发时用桌面独立开发版，打包后用 Resources/installer
     const candidates = [
       path.join(os.homedir(), 'Desktop', 'qq-pet-installer-dev', 'index.html'),
-      path.join(__dirname, '..', '..', '..', 'installer', 'index.html'),
       path.join(process.resourcesPath || '', 'installer', 'index.html'),
     ];
     let installerPath = null;
@@ -1254,31 +1270,18 @@ ipcMain.handle('open-ai-setup', async () => {
     const installerDir  = path.dirname(installerPath);
     const installerMain = path.join(installerDir, 'main.js');
 
-    if (fs.existsSync(installerMain)) {
-      // 有 main.js → 启动独立 Electron 进程
-      const { spawn } = require('child_process');
-      spawn(process.execPath, [installerDir], {
-        detached: true, stdio: 'ignore', env: { ...process.env },
-      }).unref();
-      return { ok: true, mode: 'subprocess' };
+    // 防止 spawn 自身
+    const selfDir = path.resolve(__dirname, '..');
+    if (path.resolve(installerDir) === selfDir || !fs.existsSync(installerMain)) {
+      return { ok: false, error: 'installer 路径无效' };
     }
 
-    // 无 main.js → 在当前 app 内开子窗口
-    const preloadPath = path.join(installerDir, 'preload.js');
-    aiSetupWindow = new BrowserWindow({
-      width: 1050, height: 750, resizable: true,
-      titleBarStyle: 'hiddenInset',
-      trafficLightPosition: { x: 14, y: 16 },
-      vibrancy: 'under-window', visualEffectState: 'active',
-      backgroundColor: '#F2F2F7',
-      webPreferences: {
-        preload: fs.existsSync(preloadPath) ? preloadPath : undefined,
-        contextIsolation: true, nodeIntegration: false,
-      },
-    });
-    aiSetupWindow.loadFile(installerPath);
-    aiSetupWindow.on('closed', () => { aiSetupWindow = null; });
-    return { ok: true, mode: 'window' };
+    // 启动独立 Electron 进程
+    const { spawn } = require('child_process');
+    spawn(process.execPath, [installerDir], {
+      detached: true, stdio: 'ignore', env: { ...process.env },
+    }).unref();
+    return { ok: true, mode: 'subprocess' };
   } catch (e) {
     return { ok: false, error: e.message };
   }
@@ -2978,28 +2981,20 @@ function copyDirSync(src, dst) {
   }
 }
 
-// ═══════════════════════════════════════════
-// 首次启动判断：检测是否有有效配置
-// ═══════════════════════════════════════════
-
 /**
- * 判断是否已完成过配置（有 ai-config.json 且有 api_url，或者明确标记跳过过）
- * 返回 true = 已配置，可以直接启动宠物
- * 返回 false = 首次启动，需要走配置向导
+ * 判断是否已完成过配置（有 ai-config.json 就认为走过引导）
  */
 function hasExistingConfig() {
   const aiCfgPath = path.join(os.homedir(), '.qq-pet', 'config', 'ai-config.json');
-  // 只要文件存在（即使是离线模式），就认为用户已经走过配置向导
   return fs.existsSync(aiCfgPath);
 }
 
 /**
- * 把 bundled 的 update-config.json 同步到用户配置目录
- * 首次安装时用，确保自动更新能生效，不需要用户手动配置
+ * 把 bundled 的 update-config.json 同步到用户配置目录（仅首次）
  */
 function ensureUpdateConfig() {
   const userPath = path.join(os.homedir(), '.qq-pet', 'config', 'update-config.json');
-  if (fs.existsSync(userPath)) return;  // 已有，不覆盖
+  if (fs.existsSync(userPath)) return;
   const bundledPath = path.join(__dirname, '..', 'release', 'update-config.json');
   if (!fs.existsSync(bundledPath)) return;
   try {
@@ -3011,6 +3006,51 @@ function ensureUpdateConfig() {
   }
 }
 
+/**
+ * 启动安装向导（独立进程，防止重入）
+ * 只找桌面开发版或打包内置的 installer，不会 spawn 自身
+ */
+let aiSetupLaunched = false;
+function launchInstallerIfNeeded() {
+  if (aiSetupLaunched) return;  // 防重入
+  aiSetupLaunched = true;
+
+  const candidates = [
+    path.join(os.homedir(), 'Desktop', 'qq-pet-installer-dev', 'index.html'),
+    path.join(process.resourcesPath || '', 'installer', 'index.html'),
+  ];
+  let installerPath = null;
+  for (const c of candidates) {
+    if (fs.existsSync(c)) { installerPath = c; break; }
+  }
+  if (!installerPath) {
+    console.warn('🐧 未找到安装向导，跳过首次引导');
+    return;
+  }
+
+  const installerDir  = path.dirname(installerPath);
+  const installerMain = path.join(installerDir, 'main.js');
+
+  // 必须有 main.js 才能作为独立 Electron 进程启动，否则跳过（避免 spawn 自身）
+  if (!fs.existsSync(installerMain)) {
+    console.warn('🐧 installer 没有 main.js，跳过');
+    return;
+  }
+
+  // 确认 installerDir 不是当前 app 自身（防循环）
+  const selfDir = path.resolve(__dirname, '..');
+  if (path.resolve(installerDir) === selfDir) {
+    console.warn('🐧 installerDir 指向自身，跳过');
+    return;
+  }
+
+  const { spawn } = require('child_process');
+  spawn(process.execPath, [installerDir], {
+    detached: true, stdio: 'ignore', env: { ...process.env },
+  }).unref();
+  console.log(`🐧 安装向导已启动: ${installerDir}`);
+}
+
 // ─── 应用生命周期 ───
 app.whenReady().then(async () => {
   systemSettings = loadSystemSettings();
@@ -3018,36 +3058,11 @@ app.whenReady().then(async () => {
   // ── 同步内置更新配置（首次安装时建立 update-config.json）
   ensureUpdateConfig();
 
-  // ── 首次启动检测：没有配置时自动打开安装向导
+  // ── 首次启动检测：没有配置时自动打开安装向导（延迟到主窗口就绪后）
   const alreadyConfigured = hasExistingConfig();
   if (!alreadyConfigured) {
-    console.log('🐧 首次启动，自动打开配置向导...');
-    // 延迟 500ms 等窗口准备好再触发
-    setTimeout(async () => {
-      try {
-        await ipcMain.emit('open-ai-setup-internal');
-      } catch {}
-      // 兜底：直接调用函数
-      const candidates = [
-        path.join(os.homedir(), 'Desktop', 'qq-pet-installer-dev', 'index.html'),
-        path.join(__dirname, '..', '..', '..', 'installer', 'index.html'),
-        path.join(process.resourcesPath || '', 'installer', 'index.html'),
-      ];
-      let installerPath = null;
-      for (const c of candidates) {
-        if (fs.existsSync(c)) { installerPath = c; break; }
-      }
-      if (installerPath) {
-        const installerDir = path.dirname(installerPath);
-        const installerMain = path.join(installerDir, 'main.js');
-        if (fs.existsSync(installerMain)) {
-          const { spawn } = require('child_process');
-          spawn(process.execPath, [installerDir], {
-            detached: true, stdio: 'ignore', env: { ...process.env },
-          }).unref();
-        }
-      }
-    }, 500);
+    console.log('🐧 首次启动，将在主窗口就绪后打开配置向导...');
+    setTimeout(() => launchInstallerIfNeeded(), 1500);
   } else {
     console.log('🐧 已有配置，跳过安装向导');
   }
