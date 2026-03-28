@@ -79,6 +79,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onSkillInstalled: (callback) => ipcRenderer.on('skill-installed', (_, data) => callback(data)),
   onSkillConfigureChat: (callback) => ipcRenderer.on('skill-configure-chat', (_, data) => callback(data)),
 
+  // ─── AI 配置向导 ───
+  openAiSetup: () => ipcRenderer.invoke('open-ai-setup'),
+
+  // ─── Agent 自我进化：Soul/Identity/Memory 文件读写 ───
+  agentReadFile:   (filePath)          => ipcRenderer.invoke('agent-read-file',   filePath),
+  agentWriteFile:  (filePath, content) => ipcRenderer.invoke('agent-write-file',  filePath, content),
+  agentAppendFile: (filePath, content) => ipcRenderer.invoke('agent-append-file', filePath, content),
+
   // ─── AI 配置（从 ~/.qq-pet/config/ai-config.json 读取） ───
   getAIConfig: () => ipcRenderer.invoke('get-ai-config'),
   delegateToWorkBuddy: (payload) => ipcRenderer.invoke('workbuddy-delegate', payload),

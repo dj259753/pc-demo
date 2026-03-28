@@ -45,6 +45,11 @@ const PetState = (() => {
   let currentMood = MOODS.PEACEFUL;  // 默认心情：平静
   let stateLockedUntil = 0;
 
+  // ─── prostrate 随机互换（复刻原版 randomProstrateOrHappy） ───
+  // 原版: 当 mood 处于 happy 区间时，60% 概率趴下、40% 站着
+  // 每次 updateMood 计数+1，满10次重置（让概率周期性生效）
+  let prostrateFlipCount = 0;
+
   // ─── 数值衰减配置 ───
   const DECAY_RATES = {
     hunger: 0.8,   // 每分钟下降
@@ -115,7 +120,7 @@ const PetState = (() => {
     updateMood();
   }
 
-  // ─── 心情计算（QC 5级情绪） ───
+  // ─── 心情计算（QC 5级情绪 + prostrate 随机互换） ───
   function updateMood() {
     const { hunger, clean, energy } = stats;
     const avg = (hunger + clean + energy) / 3;
@@ -126,7 +131,27 @@ const PetState = (() => {
     } else if (avg <= 30) {
       newMood = MOODS.UPSET;
     } else if (avg >= 75 && hunger >= 60 && clean >= 60 && energy >= 60) {
-      newMood = MOODS.HAPPY;
+      // ─── 原版 randomProstrateOrHappy ───
+      // happy 区间内，如果当前已经是 happy 或 prostrate 则保持
+      // 否则首次进入时 60% 概率趴下
+      if (currentMood === MOODS.HAPPY || currentMood === MOODS.PROSTRATE) {
+        // 已在该区间内，按计数周期随机互换
+        prostrateFlipCount++;
+        if (prostrateFlipCount === 1) {
+          // 首次：60% prostrate / 40% happy
+          newMood = Math.random() < 0.6 ? MOODS.PROSTRATE : MOODS.HAPPY;
+        } else if (prostrateFlipCount >= 10) {
+          // 满10次重置，重新掷骰
+          prostrateFlipCount = 0;
+          newMood = Math.random() < 0.6 ? MOODS.PROSTRATE : MOODS.HAPPY;
+        } else {
+          newMood = currentMood; // 保持
+        }
+      } else {
+        // 从其他区间首次进入 happy 区间
+        prostrateFlipCount = 1;
+        newMood = Math.random() < 0.6 ? MOODS.PROSTRATE : MOODS.HAPPY;
+      }
     } else {
       newMood = MOODS.PEACEFUL;
     }
@@ -143,7 +168,7 @@ const PetState = (() => {
     if (inventory.cookie <= 0) return false;
     inventory.cookie--;
     setStat('hunger', stats.hunger + 20);
-    setState(STATES.EATING, 1500);
+    setState(STATES.EATING, 8000);  // QC Eat动画约7秒
     emit('action', { type: 'feed' });
     emit('inventory-change', { item: 'cookie', count: inventory.cookie });
     // 接入 AI 驱动系统
@@ -157,7 +182,7 @@ const PetState = (() => {
     if (inventory.soap <= 0) return false;
     inventory.soap--;
     setStat('clean', stats.clean + 25);
-    setState(STATES.WASHING, 1200);
+    setState(STATES.WASHING, 8000);  // QC Clean动画约5-17秒
     emit('action', { type: 'wash' });
     emit('inventory-change', { item: 'soap', count: inventory.soap });
     if (typeof Personality !== 'undefined') Personality.onEvent('washed');
@@ -170,7 +195,7 @@ const PetState = (() => {
     if (inventory.coffee <= 0) return false;
     inventory.coffee--;
     setStat('energy', stats.energy + 30);
-    setState(STATES.HAPPY, 1000);
+    setState(STATES.HAPPY, 6000);  // 给足时间播完动画
     emit('action', { type: 'coffee' });
     emit('inventory-change', { item: 'coffee', count: inventory.coffee });
     return true;
@@ -182,7 +207,7 @@ const PetState = (() => {
     inventory.toy--;
     setStat('hunger', stats.hunger - 5); // 玩耍消耗体力
     setStat('energy', stats.energy - 10);
-    setState(STATES.HAPPY, 2000);
+    setState(STATES.HAPPY, 8000);  // 给足时间播完动画
     emit('action', { type: 'play' });
     emit('inventory-change', { item: 'toy', count: inventory.toy });
     if (typeof Personality !== 'undefined') Personality.onEvent('played');

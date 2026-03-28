@@ -1,14 +1,60 @@
 /* ═══════════════════════════════════════════
    边界感知 & 吸附系统
+   拖拽到屏幕左右边缘时：
+   1. 播放 Hide_left / Hide_right 吸附动画
+   2. 窗口贴到屏幕边缘
+   3. 点击宠物恢复（播 Appear 动画）
    ═══════════════════════════════════════════ */
 
 const EdgeSnap = (() => {
-  const SNAP_THRESHOLD = 30; // 吸附阈值（像素）
+  const SNAP_THRESHOLD = 50;
   let isSnapped = false;
-  let snapSide = null; // 'left' | 'right' | 'top' | 'bottom'
+  let snapSide = null;
+  let isAnimating = false;
+
+  function getPetAnchorMetrics() {
+    const isCompact = typeof TaskbarUI !== 'undefined' && TaskbarUI.isCompact;
+    if (isCompact) {
+      return {
+        winW: 160,
+        winH: 160,
+        petLeft: 0,
+        petTop: 0,
+        petWidth: 160,
+        headTopOffset: 0,
+        snapRightNudge: 0,
+        snapRightReveal: 0,
+      };
+    }
+
+    return {
+      winW: 320,
+      winH: 460,
+      petLeft: 80,
+      petTop: 200,
+      petWidth: 160,
+      headTopOffset: 28,
+      snapRightNudge: 0,
+      snapRightReveal: 0,
+    };
+  }
+
+  function getWinSize() {
+    const { winW, winH } = getPetAnchorMetrics();
+    return { w: winW, h: winH };
+  }
+
+  function getVerticalBounds(screenH) {
+    const metrics = getPetAnchorMetrics();
+    return {
+      minY: -(metrics.petTop + metrics.headTopOffset),
+      maxY: screenH - metrics.winH,
+    };
+  }
 
   async function check() {
     if (!window.electronAPI) return;
+    if (isSnapped || isAnimating) return;
 
     try {
       const [screenSize, winPos] = await Promise.all([
@@ -16,66 +62,128 @@ const EdgeSnap = (() => {
         window.electronAPI.getWindowPosition(),
       ]);
 
-      // 动态获取当前窗口尺寸（适配compact/full模式）
-      const isCompact = typeof TaskbarUI !== 'undefined' && TaskbarUI.isCompact;
-      const winW = isCompact ? 160 : 320;
-      const winH = isCompact ? 160 : 460;
+      const metrics = getPetAnchorMetrics();
+      const { w: winW, h: winH } = getWinSize();
       const { width: sW, height: sH } = screenSize;
       const { x, y } = winPos;
+      const petLeftX = x + metrics.petLeft;
+      const petRightX = petLeftX + metrics.petWidth;
 
-      let snapped = false;
-      let side = null;
-      let newX = x, newY = y;
-
-      // 左边界
-      if (x < SNAP_THRESHOLD) {
-        newX = 0;
-        snapped = true;
-        side = 'left';
-      }
-      // 右边界
-      else if (x + winW > sW - SNAP_THRESHOLD) {
-        newX = sW - winW;
-        snapped = true;
-        side = 'right';
+      if (petLeftX < SNAP_THRESHOLD) {
+        await snapToEdge('left', sW, sH, winW, winH, y);
+        return;
       }
 
-      // 上边界
-      if (y < SNAP_THRESHOLD) {
-        newY = 0;
-        snapped = true;
-        side = side || 'top';
-      }
-      // 下边界
-      else if (y + winH > sH - SNAP_THRESHOLD) {
-        newY = sH - winH;
-        snapped = true;
-        side = side || 'bottom';
+      if (petRightX > sW - SNAP_THRESHOLD) {
+        await snapToEdge('right', sW, sH, winW, winH, y);
+        return;
       }
 
-      if (snapped && (newX !== x || newY !== y)) {
-        window.electronAPI.setWindowPosition({ x: newX, y: newY });
-
-        if (!isSnapped) {
-          SoundEngine.snap();
-          // compact 模式下不显示气泡（简洁）
-          if (!isCompact && (side === 'left' || side === 'right')) {
-            BubbleSystem.show('靠墙休息一下~', 2000);
-          }
-        }
+      // 上下简单贴边
+      const { minY, maxY } = getVerticalBounds(sH);
+      let newY = y;
+      if (y < minY + SNAP_THRESHOLD) newY = minY;
+      else if (y > maxY - SNAP_THRESHOLD) newY = maxY;
+      if (newY !== y) {
+        window.electronAPI.setWindowPosition({ x, y: newY });
       }
+    } catch (err) {}
+  }
 
-      isSnapped = snapped;
-      snapSide = side;
+  async function snapToEdge(side, screenW, screenH, winW, winH, currentY) {
+    isAnimating = true;
+    isSnapped = true;
+    snapSide = side;
 
-    } catch (err) {
-      // 静默
+    if (typeof BehaviorEngine !== 'undefined') BehaviorEngine.pause();
+
+    const hideAnim = side === 'left' ? 'Hide_left' : 'Hide_right';
+
+    const metrics = getPetAnchorMetrics();
+
+    // 窗口定位：按企鹅本体边缘贴屏幕，而不是按整块透明窗口贴边
+    let targetX;
+    if (side === 'left') {
+      targetX = -metrics.petLeft;
+    } else {
+      targetX = screenW - (metrics.petLeft + metrics.petWidth) - metrics.snapRightReveal + metrics.snapRightNudge;
     }
+    const { minY, maxY } = getVerticalBounds(screenH);
+    let targetY = Math.max(minY, Math.min(currentY, maxY));
+    window.electronAPI.setWindowPosition({ x: targetX, y: targetY });
+
+    // 打断当前动画，播放吸附动画
+    if (typeof SpriteRenderer !== 'undefined' && SpriteRenderer.qcLoaded) {
+      await SpriteRenderer.loadQCSheet(hideAnim);
+      SpriteRenderer.forceSetAnimation(hideAnim);
+    }
+
+    isAnimating = false;
+    SoundEngine.snap();
+    console.log(`🐧 吸附到${side === 'left' ? '左' : '右'}边缘`);
+  }
+
+  async function unsnap() {
+    if (!isSnapped || isAnimating) return;
+    if (!window.electronAPI) return;
+
+    isAnimating = true;
+    const side = snapSide;
+
+    try {
+      const [screenSize, winPos] = await Promise.all([
+        window.electronAPI.getScreenSize(),
+        window.electronAPI.getWindowPosition(),
+      ]);
+
+      const metrics = getPetAnchorMetrics();
+      const { width: sW } = screenSize;
+      const mood = (typeof PetState !== 'undefined') ? (PetState.mood || 'peaceful') : 'peaceful';
+
+      // 播出现动画
+      const appearPool = SpriteRenderer.QC_POOLS?.appear?.[mood] || SpriteRenderer.QC_POOLS?.appear?.['peaceful'] || [];
+      const appearName = appearPool.length > 0 ? appearPool[0] : null;
+      if (appearName) {
+        SpriteRenderer.forceSetAnimation(appearName);
+      }
+
+      // 窗口移回屏幕内（以企鹅本体留 10px 边距）
+      let targetX = side === 'left'
+        ? 10 - metrics.petLeft
+        : sW - (metrics.petLeft + metrics.petWidth) - 10 + metrics.snapRightNudge;
+      window.electronAPI.setWindowPosition({ x: targetX, y: winPos.y });
+
+      // 切回 Stand
+      const stand = SpriteRenderer.getQCStand(mood);
+      if (stand) {
+        setTimeout(() => SpriteRenderer.setAnimation(stand), 3000);
+      }
+    } catch (e) {
+      console.warn('unsnap 失败:', e);
+    }
+
+    isSnapped = false;
+    snapSide = null;
+    isAnimating = false;
+
+    // 10秒后恢复行为引擎
+    setTimeout(() => {
+      if (typeof BehaviorEngine !== 'undefined') BehaviorEngine.resume();
+    }, 10000);
+  }
+
+  function resetSnap() {
+    isSnapped = false;
+    snapSide = null;
+    isAnimating = false;
   }
 
   return {
     check,
+    unsnap,
+    resetSnap,
     get isSnapped() { return isSnapped; },
     get snapSide() { return snapSide; },
+    get isAnimating() { return isAnimating; },
   };
 })();

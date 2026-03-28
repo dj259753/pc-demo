@@ -98,7 +98,28 @@ const TaskbarUI = (() => {
             break;
           case 'exit':
             if (window.electronAPI && window.electronAPI.quitApp) {
-              window.electronAPI.quitApp();
+              // ─── 退出动画：从 Exit2/Exit4 随机选一个播放，播完再退出 ───
+              if (typeof SpriteRenderer !== 'undefined' && SpriteRenderer.qcLoaded && SpriteRenderer.QC_COMMON.exit.length > 0) {
+                const exitPool = SpriteRenderer.QC_COMMON.exit.filter(
+                  name => name === 'Exit2' || name === 'Exit4'
+                );
+                const pool = exitPool.length > 0 ? exitPool : SpriteRenderer.QC_COMMON.exit;
+                const exitAnim = pool[Math.floor(Math.random() * pool.length)];
+                console.log('🐧 播放退出动画:', exitAnim);
+
+                SpriteRenderer.loadQCSheet(exitAnim).then(() => {
+                  SpriteRenderer.playOnce(exitAnim, () => {
+                    window.electronAPI.quitApp();
+                  });
+                }).catch(() => {
+                  window.electronAPI.quitApp();
+                });
+
+                // 安全兜底：最多等30秒，动画卡住也要退出
+                setTimeout(() => { window.electronAPI.quitApp(); }, 30000);
+              } else {
+                window.electronAPI.quitApp();
+              }
             }
             break;
         }

@@ -8,15 +8,41 @@
   "scripts": {
     "start": "npx electron .",
     "build": "npx electron-builder --mac",
+    "build:dmg": "npx electron-builder --mac dmg",
+    "build:zip": "npx electron-builder --mac zip",
     "release:summary": "node scripts/release-note-helper.js",
     "release:summary:from-root": "node scripts/release-note-helper.js --from-root"
   },
   "build": {
     "appId": "com.jerry.qq-pet-skills",
-    "productName": "QQ宠物Skills版",
+    "productName": "QQ宠物",
     "mac": {
-      "target": "dir",
-      "category": "public.app-category.entertainment"
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "arm64"
+          ]
+        }
+      ],
+      "category": "public.app-category.entertainment",
+      "hardenedRuntime": false,
+      "gatekeeperAssess": false,
+      "entitlements": null,
+      "entitlementsInherit": null
+    },
+    "dmg": {
+      "title": "QQ宠物 安装程序",
+      "window": {
+        "width": 540,
+        "height": 380
+      }
     },
     "files": [
       "electron/**/*",
@@ -30,7 +56,8 @@
     },
     "directories": {
       "output": "dist"
-    }
+    },
+    "publish": null
   },
   "dependencies": {
     "node-fetch": "^2.7.0",
@@ -38,6 +65,6 @@
   },
   "devDependencies": {
     "electron": "^41.0.4",
-    "electron-builder": "^26.8.1"
+    "electron-builder": "^24.13.3"
   }
 }

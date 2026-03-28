@@ -1,0 +1,42 @@
+<!DOCTYPE html><html><head>
+<script>window.RufflePlayer={};window.RufflePlayer.config={autoplay:"on",logLevel:"error"};</script>
+<script src="ruffle/ruffle.js"></script>
+</head><body><pre id="log"></pre><script>
+const log = document.getElementById('log');
+window.addEventListener('load', async () => {
+  await new Promise(r => setTimeout(r, 800));
+  const ruffle = window.RufflePlayer.newest();
+  const tests = ['Enter1', 'Enter3', 'Exit2', 'happy-Stand', 'peaceful-play-P1', 'Hide_left'];
+  for (const name of tests) {
+    const player = ruffle.createPlayer();
+    player.style.width='1px';player.style.height='1px';player.style.position='absolute';player.style.left='-9999px';
+    document.body.appendChild(player);
+    try {
+      const manifest = await (await fetch('sprites/qc/swf-manifest.json')).json();
+      const resp = await fetch(manifest[name]);
+      const buf = await resp.arrayBuffer();
+      const arr = new Uint8Array(buf);
+      let offset=0;
+      for(let i=0;i<20;i++){const s=String.fromCharCode(arr[i],arr[i+1],arr[i+2]);if(s==='CWS'||s==='FWS'){offset=i;break;}}
+      await player.load({data:arr.slice(offset)});
+      await new Promise(r=>setTimeout(r,300));
+      
+      const total = player.totalFrames;
+      const current = player.currentFrame;
+      const playing = player.isPlaying;
+      log.textContent += `${name}: totalFrames=${total}, currentFrame=${current}, isPlaying=${playing}\n`;
+      
+      // 监控几秒看帧变化
+      let frames = [];
+      for (let i = 0; i < 20; i++) {
+        await new Promise(r => setTimeout(r, 100));
+        frames.push(player.currentFrame);
+      }
+      log.textContent += `  帧序列(2秒): ${frames.join(',')}\n\n`;
+    } catch(e) {
+      log.textContent += `${name}: ERROR ${e.message}\n\n`;
+    }
+    player.remove();
+  }
+});
+</script></body></html>

@@ -31,13 +31,21 @@ const ClickThrough = (() => {
 
     // 监听鼠标移动 → 判断是否在交互区域
     document.addEventListener('mousemove', onMouseMove);
-    // 鼠标离开窗口时恢复穿透
-    document.addEventListener('mouseleave', () => setIgnore(true));
+    // 鼠标离开窗口时恢复穿透；拖拽中保持可交互，避免丢失 mouseup
+    document.addEventListener('mouseleave', () => {
+      if (typeof DragSystem !== 'undefined' && DragSystem.isDragging) return;
+      setIgnore(true);
+    });
 
     console.log('🖱️ 点击穿透管理器就绪');
   }
 
   function onMouseMove(e) {
+    if (typeof DragSystem !== 'undefined' && DragSystem.isDragging) {
+      if (isIgnoring) setIgnore(false);
+      return;
+    }
+
     const shouldInteract = isOverInteractive(e.clientX, e.clientY);
 
     if (shouldInteract && isIgnoring) {

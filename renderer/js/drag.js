@@ -6,6 +6,8 @@ const DragSystem = (() => {
   let isDragging = false;
   let dragTimer = null;       // 持续拖拽定时器
   let dragDuration = 0;       // 拖拽持续时间（秒）
+  let dragPointerOffset = { x: 0, y: 0 };
+  let lastRequestedWindowPos = { x: 0, y: 0 };
 
   // 拖拽时的挣扎台词
   const struggleQuotes = [
@@ -30,6 +32,7 @@ const DragSystem = (() => {
 
   function init() {
     const petContainer = document.getElementById('pet-container');
+    applyPetAnchorPosition(0);
 
     // ─── 企鹅区域拖拽（full模式 + compact模式都生效） ───
     petContainer.addEventListener('mousedown', onDragStart);
@@ -43,48 +46,90 @@ const DragSystem = (() => {
       startDrag(e);
     });
 
-    document.addEventListener('mousemove', (e) => {
+    const onDragMove = (e) => {
       if (!isDragging) return;
-      window.electronAPI.dragMove({
-        mouseX: e.screenX,
-        mouseY: e.screenY,
-      });
-    });
+      updateDragPosition(e.screenX, e.screenY);
+    };
 
-    document.addEventListener('mouseup', () => {
+    const onDragEnd = () => {
       if (!isDragging) return;
-      isDragging = false;
+      finishDrag();
+    };
 
-      // 清除拖拽定时器
-      clearTimeout(dragTimer);
-      clearInterval(dragTimer);
-      dragTimer = null;
+    document.addEventListener('mousemove', onDragMove);
+    window.addEventListener('mousemove', onDragMove);
+    document.addEventListener('mouseup', onDragEnd);
+    window.addEventListener('mouseup', onDragEnd);
+    window.addEventListener('blur', onDragEnd);
+  }
 
-      window.electronAPI.dragEnd();
-      document.getElementById('pet-container').style.cursor = 'grab';
+  function resolveScreenPoint(inputX, inputY, e) {
+    const parsedX = Number(inputX);
+    const parsedY = Number(inputY);
+    const fallbackX = Number(window.screenX || 0) + Number(e?.clientX || 0);
+    const fallbackY = Number(window.screenY || 0) + Number(e?.clientY || 0);
+    const mouseX = Number.isFinite(parsedX) ? parsedX : fallbackX;
+    const mouseY = Number.isFinite(parsedY) ? parsedY : fallbackY;
+    return {
+      mouseX: Math.round(mouseX),
+      mouseY: Math.round(mouseY),
+    };
+  }
 
-      // compact模式下不恢复行为引擎（保持暂停）
-      if (TaskbarUI.isCompact) {
-        SpriteRenderer.setAnimation('idle');
-        enforceScreenBounds();
-        EdgeSnap.check();
-        return;
-      }
+  function updateDragPosition(mouseX, mouseY, e = null) {
+    if (!isDragging) return;
+    const point = resolveScreenPoint(mouseX, mouseY, e);
+    lastRequestedWindowPos = {
+      x: point.mouseX - dragPointerOffset.x,
+      y: point.mouseY - dragPointerOffset.y,
+    };
+    applyPetAnchorPosition(lastRequestedWindowPos.y);
+    window.electronAPI.dragMove(point);
+  }
 
-      // ── 落地动画 ──
-      SpriteRenderer.setAnimation('happy_jump');
-      const quote = landingQuotes[Math.floor(Math.random() * landingQuotes.length)];
-      BubbleSystem.show(quote, 2500);
+  function finishDrag() {
+    isDragging = false;
 
-      // 落地后检查屏幕边界
+    // 清除拖拽定时器
+    clearTimeout(dragTimer);
+    clearInterval(dragTimer);
+    dragTimer = null;
+
+    window.electronAPI.dragEnd();
+    document.getElementById('pet-container').style.cursor = 'grab';
+
+    // compact模式下不恢复行为引擎（保持暂停）
+    if (TaskbarUI.isCompact) {
+      SpriteRenderer.setAnimation('idle');
       enforceScreenBounds();
       EdgeSnap.check();
+      return;
+    }
 
-      setTimeout(() => {
-        SpriteRenderer.setAnimation('idle');
+    // ── 落地：播 QC 互动动画，播完回 Stand ──
+    if (typeof SpriteRenderer !== 'undefined' && SpriteRenderer.qcLoaded) {
+      const mood = (typeof PetState !== 'undefined') ? (PetState.mood || 'peaceful') : 'peaceful';
+      const landAnim = SpriteRenderer.getQCInteract(mood);
+      if (landAnim) {
+        SpriteRenderer.loadQCSheet(landAnim).then(() => {
+          SpriteRenderer.playOnce(landAnim, () => {
+            const stand = SpriteRenderer.getQCStand(mood);
+            SpriteRenderer.setAnimation(stand || 'idle');
+            BehaviorEngine.resume();
+          });
+        });
+      } else {
+        SpriteRenderer.forceSetAnimation('idle');
         BehaviorEngine.resume();
-      }, 1200);
-    });
+      }
+    } else {
+      SpriteRenderer.forceSetAnimation('idle');
+      BehaviorEngine.resume();
+    }
+
+    // 落地后检查屏幕边界
+    enforceScreenBounds();
+    EdgeSnap.check();
   }
 
   function onDragStart(e) {
@@ -95,12 +140,35 @@ const DragSystem = (() => {
   }
 
   function startDrag(e) {
+    if (isDragging) return;
+    if (e?.button != null && e.button !== 0) return;
+    e?.preventDefault?.();
+    e?.stopPropagation?.();
+
     isDragging = true;
     dragDuration = 0;
-    window.electronAPI.dragStart({
-      mouseX: e.screenX,
-      mouseY: e.screenY,
-    });
+
+    // 拖拽期间强制关闭点击穿透，避免窗口移动时丢失 mousemove / mouseup
+    window.electronAPI?.setIgnoreMouse?.(false);
+
+    // 如果处于吸附状态，拖拽立即退出吸附（不播 Appear 动画，直接重置）
+    if (typeof EdgeSnap !== 'undefined' && EdgeSnap.isSnapped) {
+      EdgeSnap.resetSnap();
+    }
+
+    const point = resolveScreenPoint(e?.screenX, e?.screenY, e);
+    const currentLift = getCurrentPetLift();
+    dragPointerOffset = {
+      x: Number(e?.clientX || 0),
+      y: Number(e?.clientY || 0) + currentLift,
+    };
+    lastRequestedWindowPos = {
+      x: point.mouseX - dragPointerOffset.x,
+      y: point.mouseY - dragPointerOffset.y,
+    };
+    applyPetAnchorPosition(lastRequestedWindowPos.y);
+
+    window.electronAPI.dragStart(point);
     document.getElementById('pet-container').style.cursor = 'grabbing';
     SoundEngine.click();
 
@@ -109,26 +177,95 @@ const DragSystem = (() => {
 
     // ── 拖拽立即切换到挣扎动画 ──
     BehaviorEngine.pause();
-    SpriteRenderer.setAnimation('question'); // question 精灵表作为挣扎动画
+    // QC 挣扎动画
+    if (typeof SpriteRenderer !== 'undefined' && SpriteRenderer.qcLoaded) {
+      const struggleAnim = SpriteRenderer.getQCStruggle();
+      if (struggleAnim) {
+        SpriteRenderer.loadQCSheet(struggleAnim).then(() => {
+          if (isDragging) SpriteRenderer.forceSetAnimation(struggleAnim);
+        });
+      } else {
+        SpriteRenderer.forceSetAnimation('question');
+      }
+    } else {
+      SpriteRenderer.forceSetAnimation('question');
+    }
 
-    // 500ms 后开始显示挣扎台词
+    // 2秒 后开始显示挣扎台词
     dragTimer = setTimeout(() => {
       if (isDragging) {
         const msg = struggleQuotes[Math.floor(Math.random() * struggleQuotes.length)];
         BubbleSystem.show(msg, 3000);
 
-        // 持续拖拽：每3秒换一句挣扎台词
+        // 持续拖拽：每6秒换一句挣扎台词
         dragTimer = setInterval(() => {
           if (!isDragging) {
             clearInterval(dragTimer);
             return;
           }
-          dragDuration += 3;
+          dragDuration += 6;
           const msg = struggleQuotes[Math.floor(Math.random() * struggleQuotes.length)];
           BubbleSystem.show(msg, 3000);
-        }, 3000);
+        }, 6000);
       }
-    }, 500);
+    }, 2000);
+  }
+
+  function getPetAnchorMetrics() {
+    const isCompact = typeof TaskbarUI !== 'undefined' && TaskbarUI.isCompact;
+    if (isCompact) {
+      return {
+        winW: 160,
+        winH: 160,
+        petLeft: 0,
+        petTop: 0,
+        petWidth: 160,
+        headTopOffset: 0,
+        snapRightNudge: 0,
+      };
+    }
+
+    return {
+      winW: 320,
+      winH: 460,
+      petLeft: 80,
+      petTop: 200,
+      petWidth: 160,
+      headTopOffset: 28,
+      snapRightNudge: 0,
+    };
+  }
+
+  function getCurrentPetLift() {
+    const petContainer = document.getElementById('pet-container');
+    const metrics = getPetAnchorMetrics();
+    const currentTop = Number.parseFloat(petContainer?.style?.top);
+    const effectiveTop = Number.isFinite(currentTop) ? currentTop : metrics.petTop;
+    return Math.max(0, metrics.petTop - effectiveTop);
+  }
+
+  function applyPetAnchorPosition(requestedWindowY) {
+    const petContainer = document.getElementById('pet-container');
+    if (!petContainer) return;
+
+    const metrics = getPetAnchorMetrics();
+    const desiredY = Number.isFinite(requestedWindowY) ? requestedWindowY : 0;
+    const maxLift = metrics.petTop + metrics.headTopOffset;
+    const lift = desiredY < 0 ? Math.min(maxLift, -desiredY) : 0;
+    petContainer.style.top = `${Math.round(metrics.petTop - lift)}px`;
+  }
+
+  function getDragBounds(screenSize) {
+    const metrics = getPetAnchorMetrics();
+    const minY = -(metrics.petTop + metrics.headTopOffset);
+    const maxY = screenSize.height - metrics.winH;
+    return {
+      ...metrics,
+      minX: -metrics.petLeft,
+      maxX: screenSize.width - (metrics.petLeft + metrics.petWidth) + metrics.snapRightNudge,
+      minY,
+      maxY,
+    };
   }
 
   // ─── 屏幕边界约束（防止拖出屏幕） ───
@@ -139,17 +276,14 @@ const DragSystem = (() => {
         window.electronAPI.getScreenSize(),
         window.electronAPI.getWindowPosition(),
       ]);
-      const isCompact = typeof TaskbarUI !== 'undefined' && TaskbarUI.isCompact;
-      const winW = isCompact ? 160 : 320;
-      const winH = isCompact ? 160 : 460;
-      const { width: sW, height: sH } = screenSize;
+      const bounds = getDragBounds(screenSize);
       let { x, y } = winPos;
       let clamped = false;
 
-      if (x < 0) { x = 0; clamped = true; }
-      if (y < 0) { y = 0; clamped = true; }
-      if (x + winW > sW) { x = sW - winW; clamped = true; }
-      if (y + winH > sH) { y = sH - winH; clamped = true; }
+      if (x < bounds.minX) { x = bounds.minX; clamped = true; }
+      if (y < bounds.minY) { y = bounds.minY; clamped = true; }
+      if (x > bounds.maxX) { x = bounds.maxX; clamped = true; }
+      if (y > bounds.maxY) { y = bounds.maxY; clamped = true; }
 
       if (clamped) {
         window.electronAPI.setWindowPosition({ x, y });
@@ -159,5 +293,29 @@ const DragSystem = (() => {
     }
   }
 
-  return { init, get isDragging() { return isDragging; } };
+  function startExternalDrag(e) {
+    startDrag(e);
+  }
+
+  function moveExternalDrag(e) {
+    if (!isDragging) return;
+    e?.preventDefault?.();
+    e?.stopPropagation?.();
+    updateDragPosition(e?.screenX, e?.screenY, e);
+  }
+
+  function endExternalDrag(e) {
+    e?.preventDefault?.();
+    e?.stopPropagation?.();
+    if (!isDragging) return;
+    finishDrag();
+  }
+
+  return {
+    init,
+    startExternalDrag,
+    moveExternalDrag,
+    endExternalDrag,
+    get isDragging() { return isDragging; }
+  };
 })();

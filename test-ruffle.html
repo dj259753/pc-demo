@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  body { background: #333; margin: 20px; font-family: sans-serif; color: #fff; }
+  .grid { display: flex; flex-wrap: wrap; gap: 10px; }
+  .cell { text-align: center; }
+  .cell canvas, .cell ruffle-embed { width: 160px; height: 160px; }
+  .label { font-size: 11px; margin-top: 4px; }
+</style>
+</head>
+<body>
+<h3>Ruffle 直接播放 QQ宠物 SWF 测试</h3>
+<p>如果下面的动画能正常播放（透明背景、完整动作），就可以直接用 SWF</p>
+<div class="grid" id="grid"></div>
+
+<script>
+  window.RufflePlayer = window.RufflePlayer || {};
+  window.RufflePlayer.config = {
+    autoplay: "on",
+    unmuteOverlay: "hidden",
+    contextMenu: false,
+    splashScreen: false,
+    preloader: false,
+    logLevel: "error",
+    wmode: "transparent",
+  };
+</script>
+<script src="/tools/ruffle.js"></script>
+<script>
+  const base = '/swf-test/';
+  const tests = [
+    { file: 'happy/Stand.swf', label: 'happy-Stand' },
+    { file: 'happy/Speak.swf', label: 'happy-Speak' },
+    { file: 'happy/play/P1.swf', label: 'happy-play-P1' },
+    { file: 'peaceful/Stand.swf', label: 'peaceful-Stand' },
+    { file: 'Eat1.swf', label: 'Eat1' },
+    { file: 'Enter1.swf', label: 'Enter1' },
+    { file: 'Exit2.swf', label: 'Exit2' },
+    { file: 'happy/interact/H1.swf', label: 'interact-H1' },
+  ];
+  
+  const grid = document.getElementById('grid');
+  
+  window.addEventListener('load', async () => {
+    await new Promise(r => setTimeout(r, 500));
+    const ruffle = window.RufflePlayer.newest();
+    
+    for (const t of tests) {
+      const cell = document.createElement('div');
+      cell.className = 'cell';
+      
+      const player = ruffle.createPlayer();
+      player.style.width = '160px';
+      player.style.height = '160px';
+      cell.appendChild(player);
+      
+      const label = document.createElement('div');
+      label.className = 'label';
+      label.textContent = t.label;
+      cell.appendChild(label);
+      
+      grid.appendChild(cell);
+      
+      try {
+        const resp = await fetch(base + t.file);
+        const buf = await resp.arrayBuffer();
+        const arr = new Uint8Array(buf);
+        // 跳过3字节前缀找到CWS/FWS
+        let offset = 0;
+        for (let i = 0; i < 20; i++) {
+          const s = String.fromCharCode(arr[i], arr[i+1], arr[i+2]);
+          if (s === 'CWS' || s === 'FWS' || s === 'ZWS') { offset = i; break; }
+        }
+        const clean = arr.slice(offset);
+        await player.load({ data: clean });
+        label.textContent += ' ✅';
+      } catch(e) {
+        label.textContent += ' ❌ ' + e.message;
+      }
+    }
+  });
+</script>
+</body>
+</html>

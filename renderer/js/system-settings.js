@@ -40,6 +40,7 @@ const SystemSettings = (() => {
   async function init() {
     await loadFromMain();
     await loadAsrFromMain();
+    await renderAiStatus();
     bindEvents();
     render();
     applyToRuntime();
@@ -87,6 +88,26 @@ const SystemSettings = (() => {
       const ok = !!(asrCfg.appId && asrCfg.secretId && asrCfg.secretKeySet);
       statusEl.textContent = ok ? '✅ 已配置' : (asrCfg.appId || asrCfg.secretId ? '⚠️ 配置不完整' : '❌ 未配置');
       statusEl.style.color = ok ? '#4ade80' : (asrCfg.appId || asrCfg.secretId ? '#fbbf24' : '#f87171');
+    }
+  }
+
+  // ─── AI 配置状态显示 ───
+  async function renderAiStatus() {
+    const statusEl = document.getElementById('setting-ai-status');
+    if (!statusEl) return;
+    try {
+      const cfg = await window.electronAPI?.getAIConfig?.();
+      if (cfg && cfg.api_url && cfg.provider !== 'local') {
+        const name = cfg.provider === 'qqclaw' ? 'QQClaw' : 'OpenClaw';
+        statusEl.textContent = `✅ 已连接 ${name}`;
+        statusEl.style.color = '#4ade80';
+      } else {
+        statusEl.textContent = '⚠️ 未配置（离线模式）';
+        statusEl.style.color = '#fbbf24';
+      }
+    } catch {
+      statusEl.textContent = '❌ 读取失败';
+      statusEl.style.color = '#f87171';
     }
   }
 
@@ -164,6 +185,18 @@ const SystemSettings = (() => {
         await persist();
         render();
         BubbleSystem.show('快捷键已保存，立即生效', 2200);
+      });
+    }
+
+    // ─── AI 配置检测 ───
+    const btnAiSetup = document.getElementById('setting-open-ai-setup');
+    if (btnAiSetup) {
+      btnAiSetup.addEventListener('click', async () => {
+        if (window.electronAPI?.openAiSetup) {
+          await window.electronAPI.openAiSetup();
+        } else {
+          BubbleSystem.show('AI 配置向导不可用', 2200);
+        }
       });
     }
 

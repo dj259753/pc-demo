@@ -50,16 +50,16 @@ const BehaviorEngine = (() => {
   let hoverActivateTimer = null;     // 0.6s 激活计时器
   let hoverDeactivateTimer = null;   // 2s 失活计时器
   const ACTIVATE_DELAY = 600;        // 悬浮 0.6s 后激活
-  const DEACTIVATE_DELAY = 2000;     // 离开 2s 后失活
+  const DEACTIVATE_DELAY = 1300;     // 离开 1.3s 后失活
 
   // ─── 定时器 ───
   let behaviorInterval = null;
   let walkAnimFrame = null;
   
-  // ─── QC 自主动画定时器 ───
+  // ─── QC 自主动画定时器（贴近原版 22.5~52.5 秒） ───
   let qcIdleTimer = null;
-  const QC_IDLE_MIN_DELAY = 12000;   // 最短12秒
-  const QC_IDLE_MAX_DELAY = 25000;   // 最长25秒
+  const QC_IDLE_MIN_DELAY = 30000;    // 最短30秒
+  const QC_IDLE_MAX_DELAY = 120000;   // 最长120秒
 
   // 辅助：获取当前心情的 idle/stand 动画名
   function getIdleAnim() {
@@ -131,13 +131,10 @@ const BehaviorEngine = (() => {
     // 启动 QC 自主动画调度
     scheduleQCIdleAnimation();
 
-    // 启动后较长延迟再开始走动，大部分时间原地待命
+    // 启动后延迟，用 QC 自主动画代替原有的走动
     setTimeout(() => {
       if (currentBehavior === BEHAVIOR.IDLE && !isMouseOver) {
-        // 50% 概率开始走动，50% 继续原地待命
-        if (Math.random() < 0.5) {
-          startWalking();
-        }
+        // 不再走动，由 QC 自主动画调度器负责
       }
     }, 10000);
   }
@@ -650,34 +647,76 @@ const BehaviorEngine = (() => {
     const delay = QC_IDLE_MIN_DELAY + Math.random() * (QC_IDLE_MAX_DELAY - QC_IDLE_MIN_DELAY);
     qcIdleTimer = setTimeout(() => {
       playQCIdleAnimation();
-      scheduleQCIdleAnimation();
+      // 注意：不在这里立即 scheduleQCIdleAnimation()
+      // 而是在动画播完的回调里调度下一个，确保间隔是从播完开始算
     }, delay);
   }
 
   function playQCIdleAnimation() {
-    if (currentBehavior !== BEHAVIOR.IDLE && currentBehavior !== BEHAVIOR.PAUSED) return;
-    if (isMouseOver) return;
-    if (typeof SpriteRenderer === 'undefined' || !SpriteRenderer.qcLoaded) return;
+    if (currentBehavior !== BEHAVIOR.IDLE && currentBehavior !== BEHAVIOR.PAUSED) { scheduleQCIdleAnimation(); return; }
+    if (isMouseOver) { scheduleQCIdleAnimation(); return; }
+    if (typeof SpriteRenderer === 'undefined' || !SpriteRenderer.qcLoaded) { scheduleQCIdleAnimation(); return; }
+    // 吸附状态下不触发自主动画
+    if (typeof EdgeSnap !== 'undefined' && EdgeSnap.isSnapped) { scheduleQCIdleAnimation(); return; }
 
     const mood = (typeof PetState !== 'undefined') ? (PetState.mood || 'peaceful') : 'peaceful';
-    const playAnim = SpriteRenderer.getQCPlay(mood);
-    if (!playAnim) return;
 
-    SpriteRenderer.loadQCSheet(playAnim).then((img) => {
-      if (!img) return;
-      if (currentBehavior !== BEHAVIOR.IDLE && currentBehavior !== BEHAVIOR.PAUSED) return;
-      if (isMouseOver) return;
+    // ─── 原版逻辑：30% 说话 + 70% play 动画 ───
+    const roll = Math.random() * 100;
 
-      currentBehavior = BEHAVIOR.PAUSED;
-      SpriteRenderer.setAnimation(playAnim);
+    if (roll < 30) {
+      // 30% 概率：播 Speak 动画 + AI 碎碎念
+      const speakAnim = SpriteRenderer.getQCSpeak(mood);
+      if (!speakAnim) { scheduleQCIdleAnimation(); return; }
 
-      // 播完回到 Stand（最多 8 秒）
-      setTimeout(() => {
-        const stand = SpriteRenderer.getQCStand(mood);
-        SpriteRenderer.setAnimation(stand || 'idle');
-        currentBehavior = BEHAVIOR.IDLE;
-      }, Math.min(8000, 250 * 30));
-    });
+      SpriteRenderer.loadQCSheet(speakAnim).then((img) => {
+        if (!img) return;
+        if (currentBehavior !== BEHAVIOR.IDLE && currentBehavior !== BEHAVIOR.PAUSED) return;
+        if (isMouseOver) return;
+
+        currentBehavior = BEHAVIOR.PAUSED;
+
+        // 播 Speak 动画（播完回 Stand，然后重新调度下一次）
+        SpriteRenderer.playOnce(speakAnim, () => {
+          const stand = SpriteRenderer.getQCStand(mood);
+          SpriteRenderer.setAnimation(stand || 'idle');
+          currentBehavior = BEHAVIOR.IDLE;
+          scheduleQCIdleAnimation(); // 播完后才计时下一次
+        });
+
+        // 同时触发 AI 碎碎念（异步，不阻塞动画）
+        if (typeof AIBrain !== 'undefined') {
+          AIBrain.speak('idle_mumble', {
+            description: `宠物闲着没事自言自语，当前心情:${mood}`,
+            constraint: '一句随机碎碎念，10-25字，可以是吐槽/感叹/自嗨/发呆感悟，不要@主人',
+          }).then(reply => {
+            if (reply && typeof BubbleSystem !== 'undefined') {
+              BubbleSystem.show(reply, 3000);
+            }
+          }).catch(() => {});
+        }
+      });
+    } else {
+      // 70% 概率：播 play 池随机动画
+      const playAnim = SpriteRenderer.getQCPlay(mood);
+      if (!playAnim) { scheduleQCIdleAnimation(); return; }
+
+      SpriteRenderer.loadQCSheet(playAnim).then((img) => {
+        if (!img) return;
+        if (currentBehavior !== BEHAVIOR.IDLE && currentBehavior !== BEHAVIOR.PAUSED) return;
+        if (isMouseOver) return;
+
+        currentBehavior = BEHAVIOR.PAUSED;
+
+        // 用 playOnce 播完一遍后自动回 Stand
+        SpriteRenderer.playOnce(playAnim, () => {
+          const stand = SpriteRenderer.getQCStand(mood);
+          SpriteRenderer.setAnimation(stand || 'idle');
+          currentBehavior = BEHAVIOR.IDLE;
+          scheduleQCIdleAnimation(); // 播完后才计时下一次
+        });
+      });
+    }
   }
 
   return {

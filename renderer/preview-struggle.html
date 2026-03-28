@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<style>
+  body { background: #444; color: #fff; font-family: sans-serif; padding: 10px; }
+  h3 { margin: 10px 0 5px; }
+  .grid { display: flex; flex-wrap: wrap; gap: 8px; }
+  .cell { text-align: center; background: #555; border-radius: 6px; padding: 4px; }
+  .label { font-size: 10px; margin-top: 2px; }
+</style>
+<script>
+  window.RufflePlayer = window.RufflePlayer || {};
+  window.RufflePlayer.config = { autoplay:"on", unmuteOverlay:"hidden", contextMenu:false, splashScreen:false, preloader:false, logLevel:"error", wmode:"transparent" };
+</script>
+<script src="ruffle/ruffle.js"></script>
+</head><body>
+<h2>拖拽挣扎动画候选预览</h2>
+<h3>当前候选 (upset/prostrate 的 BE/LF/RF)</h3>
+<div class="grid" id="current"></div>
+<h3>备选: upset 全部 interact</h3>
+<div class="grid" id="upset-all"></div>
+<h3>备选: sad 全部 interact</h3>
+<div class="grid" id="sad-all"></div>
+<h3>左右隐藏动画</h3>
+<div class="grid" id="hide-lr"></div>
+<script>
+const anims = {
+  current: ["upset-interact-BE1","upset-interact-BE2","upset-interact-LF1","upset-interact-LF2","upset-interact-LF3","prostrate-interact-BE1","prostrate-interact-BE2","prostrate-interact-BE3","prostrate-interact-BE4","prostrate-interact-BE5","prostrate-interact-BE6"],
+  'upset-all': ["upset-interact-BE1","upset-interact-BE2","upset-interact-H1","upset-interact-H2","upset-interact-H3","upset-interact-LF1","upset-interact-LF2","upset-interact-LF3","upset-interact-M1","upset-interact-M2","upset-interact-M3","upset-interact-M4","upset-interact-M5","upset-interact-M6","upset-interact-RH1"],
+  'sad-all': ["sad-interact-BE1","sad-interact-BE2","sad-interact-BE3","sad-interact-E1","sad-interact-E2","sad-interact-E3","sad-interact-E4","sad-interact-F1","sad-interact-F2","sad-interact-H1","sad-interact-H2","sad-interact-H3","sad-interact-H4","sad-interact-LF1","sad-interact-LF2","sad-interact-LH1","sad-interact-M1","sad-interact-M2","sad-interact-M3","sad-interact-M4","sad-interact-RH1","sad-interact-RH2"],
+  'hide-lr': ["Hide_left","Hide_right"]
+};
+
+window.addEventListener('load', async () => {
+  await new Promise(r => setTimeout(r, 800));
+  const ruffle = window.RufflePlayer.newest();
+  const manifest = await (await fetch('sprites/qc/swf-manifest.json')).json();
+
+  for (const [gridId, names] of Object.entries(anims)) {
+    const grid = document.getElementById(gridId);
+    for (const name of names) {
+      const swfPath = manifest[name];
+      if (!swfPath) continue;
+      const cell = document.createElement('div');
+      cell.className = 'cell';
+      const player = ruffle.createPlayer();
+      player.style.width = '120px'; player.style.height = '120px';
+      cell.appendChild(player);
+      const label = document.createElement('div');
+      label.className = 'label';
+      label.textContent = name.split('-').pop();
+      cell.appendChild(label);
+      grid.appendChild(cell);
+      try {
+        const resp = await fetch(swfPath);
+        const buf = await resp.arrayBuffer();
+        const arr = new Uint8Array(buf);
+        let offset = 0;
+        for (let i = 0; i < 20; i++) {
+          const s = String.fromCharCode(arr[i], arr[i+1], arr[i+2]);
+          if (s === 'CWS' || s === 'FWS' || s === 'ZWS') { offset = i; break; }
+        }
+        await player.load({ data: arr.slice(offset) });
+      } catch(e) { label.textContent += ' ❌'; }
+    }
+  }
+});
+</script></body></html>

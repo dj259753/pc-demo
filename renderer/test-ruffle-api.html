@@ -1,0 +1,42 @@
+<!DOCTYPE html><html><head>
+<script>window.RufflePlayer={};window.RufflePlayer.config={autoplay:"on",logLevel:"warn"};</script>
+<script src="ruffle/ruffle.js"></script>
+</head><body><script>
+window.addEventListener('load', async () => {
+  await new Promise(r => setTimeout(r, 500));
+  const ruffle = window.RufflePlayer.newest();
+  const player = ruffle.createPlayer();
+  player.style.width='160px';player.style.height='160px';
+  document.body.appendChild(player);
+  const resp = await fetch('sprites/qc/swf/Hide_right.swf');
+  const buf = await resp.arrayBuffer();
+  const arr = new Uint8Array(buf);
+  let offset=0;
+  for(let i=0;i<20;i++){const s=String.fromCharCode(arr[i],arr[i+1],arr[i+2]);if(s==='CWS'||s==='FWS'){offset=i;break;}}
+  await player.load({data:arr.slice(offset)});
+  await new Promise(r=>setTimeout(r,100));
+  
+  // 列出所有方法和属性
+  const props = [];
+  let obj = player;
+  while(obj && obj !== Object.prototype) {
+    Object.getOwnPropertyNames(obj).forEach(p => {
+      if(!props.includes(p)) props.push(p);
+    });
+    obj = Object.getPrototypeOf(obj);
+  }
+  const relevant = props.filter(p => 
+    /frame|play|pause|stop|goto|rewind|seek/i.test(p)
+  );
+  document.body.innerHTML += '<pre>帧相关属性/方法:\n' + relevant.join('\n') + '</pre>';
+  
+  // 测试各种方式
+  document.body.innerHTML += '<pre>\n测试:\n';
+  try { document.body.innerHTML += 'currentFrame: ' + player.currentFrame + '\n'; } catch(e) { document.body.innerHTML += 'currentFrame: ERROR ' + e.message + '\n'; }
+  try { document.body.innerHTML += 'totalFrames: ' + player.totalFrames + '\n'; } catch(e) { document.body.innerHTML += 'totalFrames: ERROR\n'; }
+  try { document.body.innerHTML += 'typeof GotoFrame: ' + typeof player.GotoFrame + '\n'; } catch(e) {}
+  try { document.body.innerHTML += 'typeof gotoFrame: ' + typeof player.gotoFrame + '\n'; } catch(e) {}
+  try { document.body.innerHTML += 'typeof callFrame: ' + typeof player.callFrame + '\n'; } catch(e) {}
+  document.body.innerHTML += '</pre>';
+});
+</script></body></html>

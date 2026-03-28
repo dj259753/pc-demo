@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<style>
+  body { background: #333; color: #fff; font-family: monospace; padding: 10px; }
+  #player-wrap { width: 300px; height: 300px; border: 1px solid #666; }
+  #error-log { white-space: pre-wrap; color: #f88; margin-top: 10px; }
+</style>
+<script>
+  window.RufflePlayer = window.RufflePlayer || {};
+  window.RufflePlayer.config = { autoplay:"on", unmuteOverlay:"hidden", contextMenu:false, splashScreen:false, preloader:false, logLevel:"warn", wmode:"transparent" };
+</script>
+<script src="ruffle/ruffle.js"></script>
+</head><body>
+<h3>调试: prostrate-interact-BE1</h3>
+<div id="player-wrap"></div>
+<div id="error-log"></div>
+<script>
+window.addEventListener('load', async () => {
+  await new Promise(r => setTimeout(r, 500));
+  const ruffle = window.RufflePlayer.newest();
+  const player = ruffle.createPlayer();
+  player.style.width = '300px'; player.style.height = '300px';
+  document.getElementById('player-wrap').appendChild(player);
+  
+  // 监听 console.error
+  const origError = console.error;
+  console.error = function() {
+    document.getElementById('error-log').textContent += Array.from(arguments).join(' ') + '\n';
+    origError.apply(console, arguments);
+  };
+  const origWarn = console.warn;
+  console.warn = function() {
+    document.getElementById('error-log').textContent += '[warn] ' + Array.from(arguments).join(' ') + '\n';
+    origWarn.apply(console, arguments);
+  };
+  
+  try {
+    const resp = await fetch('sprites/qc/swf/prostrate/interact/BE1.swf');
+    const buf = await resp.arrayBuffer();
+    const arr = new Uint8Array(buf);
+    let offset = 0;
+    for (let i = 0; i < 20; i++) {
+      const s = String.fromCharCode(arr[i], arr[i+1], arr[i+2]);
+      if (s === 'CWS' || s === 'FWS' || s === 'ZWS') { offset = i; break; }
+    }
+    document.getElementById('error-log').textContent += 'SWF offset: ' + offset + ', size: ' + arr.length + '\n';
+    await player.load({ data: arr.slice(offset) });
+    document.getElementById('error-log').textContent += 'Loaded OK\n';
+  } catch(e) {
+    document.getElementById('error-log').textContent += 'LOAD ERROR: ' + e.message + '\n';
+  }
+});
+</script></body></html>

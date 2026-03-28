@@ -275,18 +275,35 @@ function createTray() {
 // ─── IPC 通信 ───
 
 // 拖拽
-ipcMain.on('drag-start', (event, { mouseX, mouseY }) => {
+function normalizeDragPoint(pos) {
+  const x = Number(pos?.mouseX);
+  const y = Number(pos?.mouseY);
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+  return {
+    mouseX: Math.round(x),
+    mouseY: Math.round(y),
+  };
+}
+
+ipcMain.on('drag-start', (event, pos) => {
   if (!mainWindow) return;
+  const point = normalizeDragPoint(pos);
+  if (!point) return;
+
+  mainWindow.setIgnoreMouseEvents(false);
   const [winX, winY] = mainWindow.getPosition();
   isDragging = true;
-  dragOffset.x = mouseX - winX;
-  dragOffset.y = mouseY - winY;
+  dragOffset.x = point.mouseX - winX;
+  dragOffset.y = point.mouseY - winY;
 });
 
-ipcMain.on('drag-move', (event, { mouseX, mouseY }) => {
+ipcMain.on('drag-move', (event, pos) => {
   if (!mainWindow || !isDragging) return;
-  const newX = mouseX - dragOffset.x;
-  const newY = mouseY - dragOffset.y;
+  const point = normalizeDragPoint(pos);
+  if (!point) return;
+
+  const newX = Math.round(point.mouseX - dragOffset.x);
+  const newY = Math.round(point.mouseY - dragOffset.y);
   mainWindow.setPosition(newX, newY);
 });
 
@@ -384,6 +401,70 @@ ipcMain.handle('open-local-path', async (event, filePath) => {
     const target = String(filePath || '').trim().replace(/^~/, os.homedir());
     const err = await shell.openPath(target);
     if (err) return { ok: false, error: err };
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e.message };
+  }
+});
+
+// ═══════════════════════════════════════════
+// 🧠 Agent 自我进化：Soul/Identity/Memory 文件读写
+// 安全限制：只允许读写 ~/.openclaw/agents/qq-pet/ 和 ~/.qq-pet/ 下的文件
+// ═══════════════════════════════════════════
+
+const AGENT_WORKSPACE_DIR = path.join(os.homedir(), '.openclaw', 'agents', 'qq-pet');
+const PET_CONFIG_DIR_PATH  = path.join(os.homedir(), '.qq-pet');
+
+function isPathAllowed(filePath) {
+  const normalized = path.resolve(filePath);
+  return (
+    normalized.startsWith(path.resolve(AGENT_WORKSPACE_DIR)) ||
+    normalized.startsWith(path.resolve(PET_CONFIG_DIR_PATH))
+  );
+}
+
+// 读取 Agent 文件（Soul/Identity/Memory 等）
+ipcMain.handle('agent-read-file', (event, filePath) => {
+  try {
+    const resolved = String(filePath || '').replace(/^~/, os.homedir());
+    if (!isPathAllowed(resolved)) {
+      return { ok: false, error: '路径不在允许范围内' };
+    }
+    if (!fs.existsSync(resolved)) {
+      return { ok: false, error: 'file-not-found' };
+    }
+    const content = fs.readFileSync(resolved, 'utf-8');
+    return { ok: true, content };
+  } catch (e) {
+    return { ok: false, error: e.message };
+  }
+});
+
+// 写入 Agent 文件（Soul/Identity/Memory 等）
+ipcMain.handle('agent-write-file', (event, filePath, content) => {
+  try {
+    const resolved = String(filePath || '').replace(/^~/, os.homedir());
+    if (!isPathAllowed(resolved)) {
+      return { ok: false, error: '路径不在允许范围内' };
+    }
+    fs.mkdirSync(path.dirname(resolved), { recursive: true });
+    fs.writeFileSync(resolved, content, 'utf-8');
+    console.log(`🧠 Agent 文件已更新: ${resolved}`);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e.message };
+  }
+});
+
+// 追加写入（用于 Memory 日志）
+ipcMain.handle('agent-append-file', (event, filePath, content) => {
+  try {
+    const resolved = String(filePath || '').replace(/^~/, os.homedir());
+    if (!isPathAllowed(resolved)) {
+      return { ok: false, error: '路径不在允许范围内' };
+    }
+    fs.mkdirSync(path.dirname(resolved), { recursive: true });
+    fs.appendFileSync(resolved, content, 'utf-8');
     return { ok: true };
   } catch (e) {
     return { ok: false, error: e.message };
@@ -1140,6 +1221,64 @@ ipcMain.handle('workbuddy-delegate', async (event, payload = {}) => {
     if (!reply) return { ok: false, error: '本体返回为空' };
 
     return { ok: true, reply };
+  } catch (e) {
+    return { ok: false, error: e.message };
+  }
+});
+
+// ═══════════════════════════════════════════
+// AI 配置向导窗口（从设置页「配置检测」按钮触发）
+// ═══════════════════════════════════════════
+
+let aiSetupWindow = null;
+
+ipcMain.handle('open-ai-setup', async () => {
+  try {
+    if (aiSetupWindow && !aiSetupWindow.isDestroyed()) {
+      aiSetupWindow.show(); aiSetupWindow.focus();
+      return { ok: true };
+    }
+
+    // 找安装向导路径：开发时用桌面独立开发版，打包后用 Resources/installer
+    const candidates = [
+      path.join(os.homedir(), 'Desktop', 'qq-pet-installer-dev', 'index.html'),
+      path.join(__dirname, '..', '..', '..', 'installer', 'index.html'),
+      path.join(process.resourcesPath || '', 'installer', 'index.html'),
+    ];
+    let installerPath = null;
+    for (const c of candidates) {
+      if (fs.existsSync(c)) { installerPath = c; break; }
+    }
+    if (!installerPath) return { ok: false, error: '未找到安装向导' };
+
+    const installerDir  = path.dirname(installerPath);
+    const installerMain = path.join(installerDir, 'main.js');
+
+    if (fs.existsSync(installerMain)) {
+      // 有 main.js → 启动独立 Electron 进程
+      const { spawn } = require('child_process');
+      spawn(process.execPath, [installerDir], {
+        detached: true, stdio: 'ignore', env: { ...process.env },
+      }).unref();
+      return { ok: true, mode: 'subprocess' };
+    }
+
+    // 无 main.js → 在当前 app 内开子窗口
+    const preloadPath = path.join(installerDir, 'preload.js');
+    aiSetupWindow = new BrowserWindow({
+      width: 1050, height: 750, resizable: true,
+      titleBarStyle: 'hiddenInset',
+      trafficLightPosition: { x: 14, y: 16 },
+      vibrancy: 'under-window', visualEffectState: 'active',
+      backgroundColor: '#F2F2F7',
+      webPreferences: {
+        preload: fs.existsSync(preloadPath) ? preloadPath : undefined,
+        contextIsolation: true, nodeIntegration: false,
+      },
+    });
+    aiSetupWindow.loadFile(installerPath);
+    aiSetupWindow.on('closed', () => { aiSetupWindow = null; });
+    return { ok: true, mode: 'window' };
   } catch (e) {
     return { ok: false, error: e.message };
   }
@@ -2839,9 +2978,80 @@ function copyDirSync(src, dst) {
   }
 }
 
+// ═══════════════════════════════════════════
+// 首次启动判断：检测是否有有效配置
+// ═══════════════════════════════════════════
+
+/**
+ * 判断是否已完成过配置（有 ai-config.json 且有 api_url，或者明确标记跳过过）
+ * 返回 true = 已配置，可以直接启动宠物
+ * 返回 false = 首次启动，需要走配置向导
+ */
+function hasExistingConfig() {
+  const aiCfgPath = path.join(os.homedir(), '.qq-pet', 'config', 'ai-config.json');
+  // 只要文件存在（即使是离线模式），就认为用户已经走过配置向导
+  return fs.existsSync(aiCfgPath);
+}
+
+/**
+ * 把 bundled 的 update-config.json 同步到用户配置目录
+ * 首次安装时用，确保自动更新能生效，不需要用户手动配置
+ */
+function ensureUpdateConfig() {
+  const userPath = path.join(os.homedir(), '.qq-pet', 'config', 'update-config.json');
+  if (fs.existsSync(userPath)) return;  // 已有，不覆盖
+  const bundledPath = path.join(__dirname, '..', 'release', 'update-config.json');
+  if (!fs.existsSync(bundledPath)) return;
+  try {
+    fs.mkdirSync(path.dirname(userPath), { recursive: true });
+    fs.copyFileSync(bundledPath, userPath);
+    console.log('🔄 update-config.json 已从内置配置初始化');
+  } catch (e) {
+    console.warn('🔄 初始化 update-config.json 失败:', e.message);
+  }
+}
+
 // ─── 应用生命周期 ───
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   systemSettings = loadSystemSettings();
+
+  // ── 同步内置更新配置（首次安装时建立 update-config.json）
+  ensureUpdateConfig();
+
+  // ── 首次启动检测：没有配置时自动打开安装向导
+  const alreadyConfigured = hasExistingConfig();
+  if (!alreadyConfigured) {
+    console.log('🐧 首次启动，自动打开配置向导...');
+    // 延迟 500ms 等窗口准备好再触发
+    setTimeout(async () => {
+      try {
+        await ipcMain.emit('open-ai-setup-internal');
+      } catch {}
+      // 兜底：直接调用函数
+      const candidates = [
+        path.join(os.homedir(), 'Desktop', 'qq-pet-installer-dev', 'index.html'),
+        path.join(__dirname, '..', '..', '..', 'installer', 'index.html'),
+        path.join(process.resourcesPath || '', 'installer', 'index.html'),
+      ];
+      let installerPath = null;
+      for (const c of candidates) {
+        if (fs.existsSync(c)) { installerPath = c; break; }
+      }
+      if (installerPath) {
+        const installerDir = path.dirname(installerPath);
+        const installerMain = path.join(installerDir, 'main.js');
+        if (fs.existsSync(installerMain)) {
+          const { spawn } = require('child_process');
+          spawn(process.execPath, [installerDir], {
+            detached: true, stdio: 'ignore', env: { ...process.env },
+          }).unref();
+        }
+      }
+    }, 500);
+  } else {
+    console.log('🐧 已有配置，跳过安装向导');
+  }
+
   createMainWindow();
   createTray();
   startClawMonitor();
@@ -2852,17 +3062,17 @@ app.whenReady().then(() => {
 
   registerGlobalShortcutsFromSettings();
 
-  // 启动自动更新检查（使用 ~/.qq-pet/config/update-config.json 配置）
+  // ── 自动更新检查
   const updateCfg = getUpdateConfig();
   if (updateCfg && updateCfg.enabled) {
-    // 启动后 5 秒做一次检查
-    setTimeout(() => { checkForUpdates('auto'); }, 5000);
-    const intervalMinutes = Math.max(1, updateCfg.checkIntervalMinutes);
+    // 启动后 8 秒做第一次检查（给宠物完全启动的时间）
+    setTimeout(() => { checkForUpdates('auto'); }, 8000);
+    const intervalMinutes = Math.max(30, updateCfg.checkIntervalMinutes); // 最少 30 分钟检查一次
     const intervalMs = intervalMinutes * 60 * 1000;
     updateCheckTimer = setInterval(() => { checkForUpdates('auto'); }, intervalMs);
     console.log(`🔄 自动更新已启用，每 ${intervalMinutes} 分钟检查一次`);
   } else {
-    console.log('🔄 自动更新未启用（缺少 ~/.qq-pet/config/update-config.json）');
+    console.log('🔄 自动更新未启用（缺少 update-config.json）');
   }
 });
 

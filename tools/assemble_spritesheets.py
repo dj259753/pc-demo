@@ -110,20 +110,8 @@ for anim_name in anim_dirs:
             source_info = meta.get('source', '')
     
     # 根据动画类型推断播放速度
-    speed = 250  # 默认
-    name_lower = anim_name.lower()
-    if 'stand' in name_lower:
-        speed = 300
-    elif 'speak' in name_lower:
-        speed = 200
-    elif 'eat' in name_lower or 'clean' in name_lower:
-        speed = 250
-    elif 'sick' in name_lower or 'dying' in name_lower or 'prostrate' in name_lower:
-        speed = 400
-    elif 'happy' in name_lower:
-        speed = 200
-    elif 'play' in name_lower or name_lower.startswith('p'):
-        speed = 250
+    # 原版SWF统一12fps → 83ms/帧
+    speed = 83  # 12fps 统一帧间隔
     
     manifest[anim_name] = {
         'sheet': anim_name,

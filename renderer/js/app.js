@@ -130,7 +130,7 @@
 
     // ─── 事件监听 ───
 
-    // 状态变化 → 同步动画（仅在非行为引擎控制时）
+    // 状态变化 → 同步动画（使用 QC playOnce 机制，动画播完才切换）
     PetState.on('state-change', ({ state }) => {
       const bh = BehaviorEngine.currentBehavior;
       if (bh === BehaviorEngine.BEHAVIOR.WALKING ||
@@ -138,22 +138,100 @@
           bh === BehaviorEngine.BEHAVIOR.SLEEPING) {
         return;
       }
-      // 番茄钟活动时不覆盖
       if (FocusMode.isActive && state !== 'error') return;
 
-      const animMap = {
-        idle: 'idle',
-        eating: 'eating',
-        washing: 'washing',
-        working: 'working_1',
-        sleeping: 'sleeping',
-        happy: 'happy',
-        sad: 'sad',
-        thinking: 'thinking',
-        talking: 'talking',
-        error: 'error',
-      };
-      SpriteRenderer.setAnimation(animMap[state] || 'idle');
+      const mood = PetState.mood || 'peaceful';
+
+      // 回到 Stand 的通用回调
+      function backToStand() {
+        const stand = SpriteRenderer.qcLoaded ? SpriteRenderer.getQCStand(mood) : null;
+        SpriteRenderer.setAnimation(stand || 'idle');
+      }
+
+      if (!SpriteRenderer.qcLoaded) {
+        // 无 QC → 走 legacy 映射
+        SpriteRenderer.setAnimation(state);
+        return;
+      }
+
+      switch (state) {
+        case 'eating': {
+          const anim = SpriteRenderer.getQCCommon('eat');
+          if (anim) {
+            SpriteRenderer.loadQCSheet(anim).then(() => {
+              SpriteRenderer.playOnce(anim, backToStand);
+            });
+          }
+          break;
+        }
+        case 'washing': {
+          const anim = SpriteRenderer.getQCCommon('clean');
+          if (anim) {
+            SpriteRenderer.loadQCSheet(anim).then(() => {
+              SpriteRenderer.playOnce(anim, backToStand);
+            });
+          }
+          break;
+        }
+        case 'talking': {
+          const anim = SpriteRenderer.getQCSpeak(mood);
+          if (anim) {
+            SpriteRenderer.loadQCSheet(anim).then(() => {
+              SpriteRenderer.setAnimation(anim);
+            });
+          }
+          break;
+        }
+        case 'idle':
+        case 'happy':
+        case 'sad':
+        case 'thinking':
+        default:
+          // 这些不播一次性动画，直接切 Stand（不打断正在播的）
+          SpriteRenderer.setAnimation(SpriteRenderer.getQCStand(mood) || 'idle');
+          break;
+      }
+    });
+
+    // 心情变化 → 切换对应心情的 Stand 动画（含站↔趴过渡）
+    PetState.on('mood-change', ({ mood, old }) => {
+      console.log('🐧 心情变化:', old, '→', mood);
+      if (!SpriteRenderer.qcLoaded) return;
+      SpriteRenderer.preloadMoodSheets(mood);
+
+      // ─── happy↔prostrate 过渡动画（复刻原版 Etoj/Jtoc） ───
+      // happy → prostrate: 播 Etoj（站→趴），播完切 prostrate-Stand
+      // prostrate → happy: 播 Jtoc（趴→站），播完切 happy-Stand
+      const isHappyToProstrate = old === 'happy' && mood === 'prostrate';
+      const isProstrateToHappy = old === 'prostrate' && mood === 'happy';
+
+      if (isHappyToProstrate) {
+        const etoj = SpriteRenderer.getQCCommon('etoj');
+        if (etoj) {
+          SpriteRenderer.loadQCSheet(etoj).then(() => {
+            SpriteRenderer.playOnce(etoj, () => {
+              const stand = SpriteRenderer.getQCStand(mood);
+              SpriteRenderer.setAnimation(stand || 'idle');
+            });
+          });
+          return;
+        }
+      } else if (isProstrateToHappy) {
+        const jtoc = SpriteRenderer.getQCCommon('jtoc');
+        if (jtoc) {
+          SpriteRenderer.loadQCSheet(jtoc).then(() => {
+            SpriteRenderer.playOnce(jtoc, () => {
+              const stand = SpriteRenderer.getQCStand(mood);
+              SpriteRenderer.setAnimation(stand || 'idle');
+            });
+          });
+          return;
+        }
+      }
+
+      // 普通心情切换：直接切 Stand（不打断正在播的）
+      const stand = SpriteRenderer.getQCStand(mood);
+      if (stand) SpriteRenderer.setAnimation(stand);
     });
 
     // 每分钟数值衰减
@@ -163,8 +241,36 @@
 
     // 随机冒泡由 ProactiveChat 调度引擎接管（5秒检查一次，AI驱动）
 
-    // 首次打招呼（AI 驱动；无网络则直接睡眠）
+    // 首次入场动画 + 打招呼（AI 驱动；无网络则直接睡眠）
     setTimeout(async () => {
+      // ─── 入场动画：从 Enter1/Enter3 随机选一个播放 ───
+      if (SpriteRenderer.qcLoaded && SpriteRenderer.QC_COMMON.enter.length > 0) {
+        // 只用 Enter1 和 Enter3（Enter2 太简陋）
+        const enterPool = SpriteRenderer.QC_COMMON.enter.filter(
+          name => name === 'Enter1' || name === 'Enter3'
+        );
+        const pool = enterPool.length > 0 ? enterPool : SpriteRenderer.QC_COMMON.enter;
+        const enterAnim = pool[Math.floor(Math.random() * pool.length)];
+
+        console.log('🐧 播放入场动画:', enterAnim);
+
+        try {
+          await SpriteRenderer.loadQCSheet(enterAnim);
+          // 播入场动画，播完后切 Stand → 再打招呼
+          await new Promise(resolve => {
+            SpriteRenderer.playOnce(enterAnim, resolve);
+          });
+        } catch (e) {
+          console.warn('入场动画播放失败:', e);
+        }
+
+        // 入场动画播完，切到站姿
+        const mood = PetState.mood || 'peaceful';
+        const stand = SpriteRenderer.getQCStand(mood);
+        SpriteRenderer.setAnimation(stand || 'idle');
+      }
+
+      // ─── 打招呼 ───
       if (typeof AIBrain !== 'undefined') {
         try {
           const aiGreeting = await AIBrain.speak('startup_greeting', {
@@ -240,18 +346,20 @@
     });
   }
 
-  // ─── 轻拍随机回复 ───
+  // ─── 互动随机回复（单击企鹅时） ───
   const patReplies = [
-    '好喜欢！💕',
-    '嘿嘿~再摸摸！🐧❤️',
-    '❤️❤️❤️',
-    '喜欢主人！💗',
-    '摸摸头好舒服~😊',
-    '嘻嘻，好痒！🤭',
-    '主人最好了！🥰',
-    '再来一下嘛~✨',
-    '爱你哟！💖',
-    '幸福感 MAX！🌟',
+    '嗯？怎么啦~🐧',
+    '主人找我有事吗？',
+    '在呢在呢~✨',
+    '嘿！别拍我啦 😆',
+    '有什么吩咐？🐧',
+    '诶嘿~被发现了！',
+    '主人好~👋',
+    '干嘛干嘛~🐧💦',
+    '我在听呢！',
+    '又来逗我玩~😏',
+    '嗯哼？👀',
+    '主人想我了吧~😊',
   ];
 
   // ─── 抚摸随机回复 ───
@@ -271,9 +379,10 @@
   let strokeStartAt = 0;
   let strokeTriggered = false;
   let lastStrokeTime = 0;
-  const STROKE_MIN_DURATION_MS = 2000; // 连续抚摸至少 2s 才触发
+  const STROKE_MIN_DURATION_MS = 1000;  // 连续抚摸1秒触发
   const STROKE_SESSION_GAP_MS = 450;   // 超过该间隔无移动视为抚摸中断
   const STROKE_COOLDOWN = 3000;        // 抚摸冷却 3s
+  const STROKE_HIT_SHRINK_FACTOR = 1.3; // 抚摸热区缩小 1.3 倍，减少误触
   let isMouseDownOnPet = false;     // 记录鼠标是否按下（按下时不算抚摸）
 
   // ─── 语音模式（Cmd+K 按住说话 / 按钮切换） ───
@@ -455,30 +564,47 @@
     const quickSend = document.getElementById('quick-chat-send');
     const petContainer = document.getElementById('pet-container');
 
-    // 单击企鹅 → 轻拍交互（AI驱动回复 + 情绪联动）
+    // 单击企鹅 → 互动（AI驱动回复 + 情绪联动）
     petContainer.addEventListener('click', (e) => {
       if (DragSystem.isDragging) return;
       if (document.body.classList.contains('soap-cursor')) return;
 
+      // 如果吸附在边缘，点击恢复
+      if (typeof EdgeSnap !== 'undefined' && EdgeSnap.isSnapped) {
+        EdgeSnap.unsnap();
+        return;
+      }
+
       BehaviorEngine.notifyInteraction();
 
-      // 如果对话框开着，不处理轻拍
+      // 如果对话框开着，不处理互动
       if (quickChatVisible) return;
 
       // 通知互动系统
       if (typeof ProactiveChat !== 'undefined') ProactiveChat.notifyInteraction();
-      if (typeof Personality !== 'undefined') Personality.onEvent('patted');
-      if (typeof PetMemory !== 'undefined') PetMemory.addEvent('patted', '被主人摸了摸头~');
+      if (typeof Personality !== 'undefined') Personality.onEvent('interacted');
+      if (typeof PetMemory !== 'undefined') PetMemory.addEvent('interacted', '主人拍了拍我~');
 
-      // 轻拍：播放 happy_jump 动画
+      // 互动：播放 QC 互动动画（播完一遍自动回 Stand）
       SoundEngine.happy();
-      SpriteRenderer.setAnimation('happy_jump');
+      const patMood = PetState.mood || 'peaceful';
+      const patAnim = SpriteRenderer.qcLoaded ? SpriteRenderer.getQCInteract(patMood) : null;
+      if (patAnim) {
+        SpriteRenderer.loadQCSheet(patAnim).then(() => {
+          SpriteRenderer.playOnce(patAnim, () => {
+            const stand = SpriteRenderer.getQCStand(patMood);
+            SpriteRenderer.setAnimation(stand || 'idle');
+          });
+        });
+      } else {
+        SpriteRenderer.forceSetAnimation('happy_jump');
+      }
 
-      // 尝试 AI 生成轻拍回复，失败降级到本地台词
+      // 尝试 AI 生成互动回复，失败降级到本地台词
       if (typeof AIBrain !== 'undefined') {
-        AIBrain.speak('patted', {
-          description: '被主人摸了头',
-            constraint: '一句简短回应，表达放松或感谢，15-30字，emoji可选',
+        AIBrain.speak('interacted', {
+          description: '主人拍了拍宠物，想互动',
+            constraint: '一句简短互动回应，可以是打招呼/撒娇/卖萌/吐槽，15-30字，自然随意',
           }).then(reply => {
             if (reply) {
               BubbleSystem.show(reply, 2500);
@@ -490,10 +616,7 @@
           enterOfflineSleep('没网了，我先睡着了。');
       }
 
-      if (typeof PetDiary !== 'undefined') PetDiary.addEntry('pat', '被主人摸了摸头~');
-      setTimeout(() => {
-        SpriteRenderer.setAnimation('idle');
-      }, 1500);
+      if (typeof PetDiary !== 'undefined') PetDiary.addEntry('interact', '主人拍了拍我~');
     });
 
     // ─── 抚摸检测：鼠标在宠物上滑动（无点击） ───
@@ -505,14 +628,34 @@
       strokeTriggered = false;
     }
 
+    function isInStrokeZone(e) {
+      const rect = petContainer.getBoundingClientRect();
+      const scale = 1 / STROKE_HIT_SHRINK_FACTOR;
+      const insetX = (rect.width * (1 - scale)) / 2;
+      const insetY = (rect.height * (1 - scale)) / 2;
+      return (
+        e.clientX >= rect.left + insetX &&
+        e.clientX <= rect.right - insetX &&
+        e.clientY >= rect.top + insetY &&
+        e.clientY <= rect.bottom - insetY
+      );
+    }
+
     petContainer.addEventListener('mouseleave', () => {
       clearTimeout(strokeTimer);
       resetStrokeSession();
     });
 
-    petContainer.addEventListener('mousemove', () => {
-      // 拖拽中、鼠标按下、肥皂模式 → 不算抚摸
-      if (DragSystem.isDragging || isMouseDownOnPet || document.body.classList.contains('soap-cursor')) {
+    petContainer.addEventListener('mousemove', (e) => {
+      // 拖拽中、鼠标按下、肥皂模式、吸附状态 → 不算抚摸
+      if (DragSystem.isDragging || isMouseDownOnPet || document.body.classList.contains('soap-cursor')
+          || (typeof EdgeSnap !== 'undefined' && EdgeSnap.isSnapped)) {
+        clearTimeout(strokeTimer);
+        resetStrokeSession();
+        return;
+      }
+
+      if (!isInStrokeZone(e)) {
         clearTimeout(strokeTimer);
         resetStrokeSession();
         return;
@@ -539,8 +682,24 @@
         if (typeof Personality !== 'undefined') Personality.onEvent('stroked');
         if (typeof PetMemory !== 'undefined') PetMemory.addEvent('stroked', '被主人抚摸了~');
 
-        // 抚摸动画（温柔版，比轻拍更柔和）
-        SpriteRenderer.setAnimation('happy');
+        // 抚摸动画：固定用 peaceful-interact-H1/H5，立即打断当前动画
+        if (SpriteRenderer.qcLoaded) {
+          const strokeCandidates = ['peaceful-interact-H1', 'peaceful-interact-H5'];
+          const strokeAnim = strokeCandidates[Math.floor(Math.random() * strokeCandidates.length)];
+          if (strokeAnim) {
+            const m2mood = PetState.mood || 'peaceful';
+            SpriteRenderer.loadQCSheet(strokeAnim).then(() => {
+              // forceSetAnimation 先打断，再 playOnce 锁定播完
+              SpriteRenderer.forceSetAnimation(strokeAnim);
+              SpriteRenderer.playOnce(strokeAnim, () => {
+                const stand = SpriteRenderer.getQCStand(m2mood);
+                SpriteRenderer.setAnimation(stand || 'idle');
+              });
+            });
+          }
+        } else {
+          SpriteRenderer.forceSetAnimation('happy');
+        }
 
         // 连续抚摸 2 秒后，仅 50% 概率说话，降低打扰
         if (Math.random() < 0.5 && typeof AIBrain !== 'undefined') {
@@ -555,10 +714,6 @@
         // 抚摸增加清洁值一点点
         PetState.setStat('clean', PetState.stats.clean + 2);
         if (typeof PetDiary !== 'undefined') PetDiary.addEntry('stroke', '被主人温柔地抚摸了~');
-
-        setTimeout(() => {
-          SpriteRenderer.setAnimation('idle');
-        }, 2000);
       }
     });
 

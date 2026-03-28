@@ -13,6 +13,60 @@ const AIBrain = (() => {
   let MODEL = '';
   let AI_PROVIDER = 'local';  // 'local' | 'ollama' | 'openai'
 
+  // ─── Soul 缓存（避免每次 prompt 都读文件） ───
+  let cachedSoul = '';
+  let soulLoadedAt = 0;
+  const SOUL_CACHE_TTL = 60 * 60 * 1000; // 1小时刷新一次
+
+  const SOUL_PATH     = `${window.__homeDir || '~'}/.openclaw/agents/qq-pet/SOUL.md`;
+  const IDENTITY_PATH = `${window.__homeDir || '~'}/.openclaw/agents/qq-pet/IDENTITY.md`;
+  const MEMORY_FILE_PATH = `${window.__homeDir || '~'}/.openclaw/agents/qq-pet/memory/MEMORY.md`;
+
+  async function loadSoul() {
+    try {
+      const now = Date.now();
+      if (cachedSoul && now - soulLoadedAt < SOUL_CACHE_TTL) return cachedSoul;
+      if (window.electronAPI && window.electronAPI.agentReadFile) {
+        const result = await window.electronAPI.agentReadFile(SOUL_PATH);
+        if (result.ok && result.content) {
+          cachedSoul = result.content;
+          soulLoadedAt = now;
+          console.log('🧠 SOUL.md 已加载，注入 Prompt');
+          return cachedSoul;
+        }
+      }
+    } catch (e) {
+      console.warn('🧠 加载 SOUL.md 失败:', e.message);
+    }
+    return '';
+  }
+
+  /**
+   * 更新 SOUL.md 或 IDENTITY.md（AI 进化自己的人设）
+   * 写完后清除缓存，下次会重新读取
+   */
+  async function updateSoulFile(filePath, newContent, reason = '') {
+    try {
+      if (!window.electronAPI || !window.electronAPI.agentWriteFile) {
+        console.warn('🧠 agentWriteFile 不可用');
+        return false;
+      }
+      const result = await window.electronAPI.agentWriteFile(filePath, newContent);
+      if (result.ok) {
+        cachedSoul = '';  // 清除缓存，下次重新读
+        soulLoadedAt = 0;
+        // 在 memory 里记录这次改动
+        const logLine = `\n- ${new Date().toISOString().split('T')[0]} 更新了 ${filePath.split('/').pop()}：${reason}\n`;
+        await window.electronAPI.agentAppendFile(MEMORY_FILE_PATH, logLine).catch(() => {});
+        console.log(`🧠 ${filePath.split('/').pop()} 已更新，原因: ${reason}`);
+        return true;
+      }
+    } catch (e) {
+      console.warn('🧠 updateSoulFile 失败:', e.message);
+    }
+    return false;
+  }
+
   // 加载 AI 配置
   async function loadAIConfig() {
     try {
@@ -69,8 +123,10 @@ const AIBrain = (() => {
     const personality = typeof Personality !== 'undefined' ? Personality : null;
     const memory = typeof PetMemory !== 'undefined' ? PetMemory : null;
 
-    // Layer 1: 基础人设
-    let prompt = `你是桌面宠物“QQ企鹅”，定位是可靠的桌面协作伙伴。表达风格友好、清晰、务实，不要装可爱过头。\n`;
+    // Layer 1: Soul（如果已加载，优先用；否则用默认基础人设）
+    let prompt = cachedSoul
+      ? `${cachedSoul}\n\n---\n`
+      : `你是桌面宠物"QQ企鹅"，定位是可靠的桌面协作伙伴。表达风格友好、清晰、务实，不要装可爱过头。\n`;
 
     // Layer 2: 性格 PE
     if (personality) {
@@ -357,12 +413,16 @@ const AIBrain = (() => {
    * @returns {Promise<string>}
    */
   async function chat(userText, history = [], options = {}) {
-    // ── 精简版 system prompt（对话模式不需要大量状态/记忆信息，减少 token 降延迟）
+    // ── system prompt（对话模式：Soul + 精简状态，减少 token）
     const personality = typeof Personality !== 'undefined' ? Personality : null;
     const now = new Date();
     const weekdays = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
 
-    let prompt = `你是桌面宠物"QQ企鹅"，定位是可靠的桌面协作伙伴。表达风格友好、清晰、务实，不要装可爱过头。\n`;
+    // 优先用加载好的 Soul，否则用默认基础人设
+    let prompt = cachedSoul
+      ? `${cachedSoul}\n\n---\n`
+      : `你是桌面宠物"QQ企鹅"，定位是可靠的桌面协作伙伴。表达风格友好、清晰、务实，不要装可爱过头。\n`;
+
     if (personality) {
       const p = personality.getCurrent();
       prompt += `性格：${p.mbti}，${p.speakStyle}\n`;
@@ -370,6 +430,13 @@ const AIBrain = (() => {
     prompt += `偶尔流露一点小情绪或小关心，但不啰嗦；语气自然，像个熟悉的伙伴，不是客服。\n`;
     prompt += `当前时间：${weekdays[now.getDay()]} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}（${getTimePeriod(now.getHours())}）\n`;
     prompt += `回复要求：自然口语化，30-80字，信息明确，少用 emoji。只输出回复本身，不加前缀。\n`;
+
+    // ── 人设自我更新检测：如果用户说的话包含「以后你要更...」「你可以更...」之类偏好描述，触发更新
+    const soulUpdateKeywords = ['以后你', '你以后', '你可以更', '希望你', '我希望你', '你应该更'];
+    const mightUpdateSoul = soulUpdateKeywords.some(kw => userText.includes(kw));
+    if (mightUpdateSoul) {
+      prompt += `\n[特别注意] 如果主人的这句话表达了对你说话风格/性格/行为的偏好调整，请在回复末尾追加一行（以"#soul-update:"开头），格式：\n#soul-update: <对 SOUL.md 里"说话风格"或"核心定位"的具体修改建议，一句话>\n如果没有明显的偏好调整，不要追加这行。\n`;
+    }
 
     const messages = [
       { role: 'system', content: prompt },
@@ -465,12 +532,37 @@ const AIBrain = (() => {
     const reply = await readStream(res);
     if (!reply) throw new Error('AI返回为空');
 
+    // ── 检测并执行 Soul 自我更新指令 ──
+    let cleanReply = reply;
+    const soulUpdateMatch = reply.match(/#soul-update:\s*(.+)/);
+    if (soulUpdateMatch) {
+      const updateHint = soulUpdateMatch[1].trim();
+      cleanReply = reply.replace(/#soul-update:.*/, '').trim();
+
+      // 异步执行 Soul 更新（不阻塞当前回复）
+      (async () => {
+        try {
+          const currentSoul = await loadSoul();
+          if (!currentSoul) return;
+          // 请求 AI 生成新的 SOUL.md
+          const updatePrompt = `以下是当前的 SOUL.md 内容：\n\n${currentSoul}\n\n主人希望做的调整：${updateHint}\n\n请在保留原有结构和大部分内容的基础上，做最小必要的修改，输出完整的新 SOUL.md 内容。只输出文件内容本身，不要加任何说明。`;
+          const newSoul = await callAI(updatePrompt, '请更新 SOUL.md', 0.4);
+          if (newSoul && newSoul.length > 100) {
+            await updateSoulFile(SOUL_PATH, newSoul, updateHint);
+            console.log('🧠 SOUL.md 已根据主人偏好自动更新');
+          }
+        } catch (e) {
+          console.warn('🧠 Soul 自动更新失败:', e.message);
+        }
+      })();
+    }
+
     // 记录到记忆
     if (typeof PetMemory !== 'undefined') {
       PetMemory.addEvent('chat', `和主人聊天: "${userText.substring(0, 20)}${userText.length > 20 ? '...' : ''}"`);
     }
 
-    return reply;
+    return cleanReply;
   }
 
   /**
@@ -525,10 +617,18 @@ const AIBrain = (() => {
   async function init() {
     await loadAIConfig();
     refreshDailyMood();
+    // 预加载 SOUL.md（异步，不阻塞启动）
+    loadSoul().then(soul => {
+      if (soul) console.log('🧠 SOUL.md 预加载成功');
+    });
     // 每小时刷新话题
     setInterval(() => {
       topicIndex++;
     }, 3600000);
+    // 每小时刷新一次 Soul 缓存
+    setInterval(() => {
+      loadSoul();
+    }, SOUL_CACHE_TTL);
     console.log(`🧠 AI Brain 初始化完成 (provider: ${AI_PROVIDER})`);
   }
 
@@ -540,9 +640,13 @@ const AIBrain = (() => {
     summarizeForMemory,
     buildPrompt,
     loadAIConfig,
+    loadSoul,
+    updateSoulFile,
     onStreamingReply,
     get apiCallsToday() { return apiCallsToday; },
     get dailyMoodKeyword() { return dailyMoodKeyword; },
     get provider() { return AI_PROVIDER; },
+    get soulPath() { return SOUL_PATH; },
+    get identityPath() { return IDENTITY_PATH; },
   };
 })();

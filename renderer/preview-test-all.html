@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<style>
+  body { background: #333; color: #fff; font-family: monospace; padding: 10px; font-size: 12px; }
+  #log { white-space: pre-wrap; }
+</style>
+<script>
+  window.RufflePlayer = window.RufflePlayer || {};
+  window.RufflePlayer.config = { autoplay:"on", unmuteOverlay:"hidden", contextMenu:false, splashScreen:false, preloader:false, logLevel:"error", wmode:"transparent" };
+</script>
+<script src="ruffle/ruffle.js"></script>
+</head><body>
+<h3>批量测试所有SWF兼容性（请等待...）</h3>
+<div id="log"></div>
+<script>
+const log = document.getElementById('log');
+function addLog(text) { log.textContent += text + '\n'; }
+
+window.addEventListener('load', async () => {
+  await new Promise(r => setTimeout(r, 1000));
+  const ruffle = window.RufflePlayer.newest();
+  const manifest = await (await fetch('sprites/qc/swf-manifest.json')).json();
+  const names = Object.keys(manifest).sort();
+  
+  let ok = 0, fail = 0, errors = [];
+  addLog('开始测试 ' + names.length + ' 个SWF...\n');
+  
+  for (let i = 0; i < names.length; i++) {
+    const name = names[i];
+    const swfPath = manifest[name];
+    try {
+      const player = ruffle.createPlayer();
+      player.style.width = '1px'; player.style.height = '1px';
+      player.style.position = 'absolute'; player.style.left = '-9999px';
+      document.body.appendChild(player);
+      
+      const resp = await fetch(swfPath);
+      const buf = await resp.arrayBuffer();
+      const arr = new Uint8Array(buf);
+      let offset = 0;
+      for (let j = 0; j < 20; j++) {
+        const s = String.fromCharCode(arr[j], arr[j+1], arr[j+2]);
+        if (s === 'CWS' || s === 'FWS' || s === 'ZWS') { offset = j; break; }
+      }
+      await player.load({ data: arr.slice(offset) });
+      await new Promise(r => setTimeout(r, 200));
+      
+      // 检查是否有错误
+      const shadow = player.shadowRoot;
+      const hasError = shadow && shadow.querySelector('.panic, .error, [class*="error"]');
+      
+      if (hasError) {
+        fail++;
+        errors.push(name);
+      } else {
+        ok++;
+      }
+      
+      player.remove();
+    } catch(e) {
+      fail++;
+      errors.push(name + ' (exception)');
+    }
+    
+    if ((i+1) % 50 === 0) {
+      addLog('进度: ' + (i+1) + '/' + names.length + ' (✅' + ok + ' ❌' + fail + ')');
+    }
+  }
+  
+  addLog('\n=== 完成 ===');
+  addLog('✅ 正常: ' + ok);
+  addLog('❌ 失败: ' + fail);
+  if (errors.length > 0) {
+    addLog('\n失败列表:');
+    errors.forEach(e => addLog('  ' + e));
+  }
+});
+</script></body></html>
