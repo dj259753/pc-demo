@@ -1251,15 +1251,17 @@ let aiSetupWindow = null;
 
 ipcMain.handle('open-ai-setup', async () => {
   try {
+    // 防重入：窗口已存在就直接聚焦
     if (aiSetupWindow && !aiSetupWindow.isDestroyed()) {
       aiSetupWindow.show(); aiSetupWindow.focus();
       return { ok: true };
     }
 
-    // 找安装向导路径：开发时用桌面独立开发版，打包后用 Resources/installer
+    // 找 installer 的 index.html（优先打包内置的，开发时用桌面版）
     const candidates = [
-      path.join(os.homedir(), 'Desktop', 'qq-pet-installer-dev', 'index.html'),
-      path.join(process.resourcesPath || '', 'installer', 'index.html'),
+      path.join(process.resourcesPath || '', 'installer', 'index.html'),   // 打包后内置
+      path.join(__dirname, '..', '..', 'installer', 'index.html'),         // 开发模式（相对源码）
+      path.join(os.homedir(), 'Desktop', 'qq-pet-installer-dev', 'index.html'), // 桌面开发版兜底
     ];
     let installerPath = null;
     for (const c of candidates) {
@@ -1268,20 +1270,29 @@ ipcMain.handle('open-ai-setup', async () => {
     if (!installerPath) return { ok: false, error: '未找到安装向导' };
 
     const installerDir  = path.dirname(installerPath);
-    const installerMain = path.join(installerDir, 'main.js');
+    const preloadPath   = path.join(installerDir, 'preload.js');
 
-    // 防止 spawn 自身
-    const selfDir = path.resolve(__dirname, '..');
-    if (path.resolve(installerDir) === selfDir || !fs.existsSync(installerMain)) {
-      return { ok: false, error: 'installer 路径无效' };
-    }
-
-    // 启动独立 Electron 进程
-    const { spawn } = require('child_process');
-    spawn(process.execPath, [installerDir], {
-      detached: true, stdio: 'ignore', env: { ...process.env },
-    }).unref();
-    return { ok: true, mode: 'subprocess' };
+    // 在当前 App 内开子窗口（共享同一个 Electron 进程，无需独立 node_modules）
+    aiSetupWindow = new BrowserWindow({
+      width: 1050, height: 750,
+      minWidth: 840, minHeight: 600,
+      resizable: true,
+      frame: true,
+      titleBarStyle: 'hiddenInset',
+      trafficLightPosition: { x: 14, y: 16 },
+      vibrancy: 'under-window',
+      visualEffectState: 'active',
+      backgroundColor: '#F2F2F7',
+      webPreferences: {
+        preload: fs.existsSync(preloadPath) ? preloadPath : undefined,
+        contextIsolation: true,
+        nodeIntegration: false,
+      },
+    });
+    aiSetupWindow.loadFile(installerPath);
+    aiSetupWindow.on('closed', () => { aiSetupWindow = null; });
+    console.log(`🐧 安装向导窗口已打开: ${installerPath}`);
+    return { ok: true, mode: 'window' };
   } catch (e) {
     return { ok: false, error: e.message };
   }
@@ -3007,17 +3018,17 @@ function ensureUpdateConfig() {
 }
 
 /**
- * 启动安装向导（独立进程，防止重入）
- * 只找桌面开发版或打包内置的 installer，不会 spawn 自身
+ * 启动安装向导（作为子窗口，防止重入）
  */
 let aiSetupLaunched = false;
 function launchInstallerIfNeeded() {
-  if (aiSetupLaunched) return;  // 防重入
+  if (aiSetupLaunched) return;
   aiSetupLaunched = true;
 
   const candidates = [
-    path.join(os.homedir(), 'Desktop', 'qq-pet-installer-dev', 'index.html'),
     path.join(process.resourcesPath || '', 'installer', 'index.html'),
+    path.join(__dirname, '..', '..', 'installer', 'index.html'),
+    path.join(os.homedir(), 'Desktop', 'qq-pet-installer-dev', 'index.html'),
   ];
   let installerPath = null;
   for (const c of candidates) {
@@ -3028,27 +3039,27 @@ function launchInstallerIfNeeded() {
     return;
   }
 
-  const installerDir  = path.dirname(installerPath);
-  const installerMain = path.join(installerDir, 'main.js');
+  const installerDir = path.dirname(installerPath);
+  const preloadPath  = path.join(installerDir, 'preload.js');
 
-  // 必须有 main.js 才能作为独立 Electron 进程启动，否则跳过（避免 spawn 自身）
-  if (!fs.existsSync(installerMain)) {
-    console.warn('🐧 installer 没有 main.js，跳过');
-    return;
-  }
+  if (aiSetupWindow && !aiSetupWindow.isDestroyed()) return;
 
-  // 确认 installerDir 不是当前 app 自身（防循环）
-  const selfDir = path.resolve(__dirname, '..');
-  if (path.resolve(installerDir) === selfDir) {
-    console.warn('🐧 installerDir 指向自身，跳过');
-    return;
-  }
-
-  const { spawn } = require('child_process');
-  spawn(process.execPath, [installerDir], {
-    detached: true, stdio: 'ignore', env: { ...process.env },
-  }).unref();
-  console.log(`🐧 安装向导已启动: ${installerDir}`);
+  aiSetupWindow = new BrowserWindow({
+    width: 1050, height: 750,
+    minWidth: 840, minHeight: 600,
+    resizable: true, frame: true,
+    titleBarStyle: 'hiddenInset',
+    trafficLightPosition: { x: 14, y: 16 },
+    vibrancy: 'under-window', visualEffectState: 'active',
+    backgroundColor: '#F2F2F7',
+    webPreferences: {
+      preload: fs.existsSync(preloadPath) ? preloadPath : undefined,
+      contextIsolation: true, nodeIntegration: false,
+    },
+  });
+  aiSetupWindow.loadFile(installerPath);
+  aiSetupWindow.on('closed', () => { aiSetupWindow = null; });
+  console.log(`🐧 首次启动，安装向导已打开: ${installerPath}`);
 }
 
 // ─── 应用生命周期 ───

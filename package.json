@@ -49,7 +49,17 @@
       {
         "from": "../../installer",
         "to": "installer",
-        "filter": ["main.js", "preload.js", "index.html", "package.json", "installer-core.js"]
+        "filter": [
+          "main.js",
+          "preload.js",
+          "index.html",
+          "package.json",
+          "installer-core.js"
+        ]
+      },
+      {
+        "from": "../../agents",
+        "to": "agents"
       }
     ],
     "extraMetadata": {
