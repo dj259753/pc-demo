@@ -1244,6 +1244,172 @@ ipcMain.handle('workbuddy-delegate', async (event, payload = {}) => {
 });
 
 // ═══════════════════════════════════════════
+// AI 配置向导：installer 子窗口所需的 IPC handlers
+// 子窗口共享宿主进程，所有 installer 的 IPC 必须在这里注册
+// ═══════════════════════════════════════════
+
+// ── 端口扫描辅助函数 ──
+async function installerProbePort(port, token = '') {
+  try {
+    const url = `http://127.0.0.1:${port}/v1/models`;
+    const headers = { 'Content-Type': 'application/json' };
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    const res = await fetch(url, { method: 'GET', headers, signal: AbortSignal.timeout(1200) });
+    return res.status === 200 || res.status === 401 || res.status === 403;
+  } catch { return false; }
+}
+
+function installerReadLocalClawConfig() {
+  const candidates = [
+    path.join(os.homedir(), '.qqclaw', 'openclaw.json'),
+    path.join(os.homedir(), '.openclaw', 'openclaw.json'),
+  ];
+  for (const cp of candidates) {
+    if (!fs.existsSync(cp)) continue;
+    try {
+      const cfg = JSON.parse(fs.readFileSync(cp, 'utf-8'));
+      const token = String(cfg?.token || cfg?.gateway?.auth?.token || '').trim();
+      const cfgPort = String(cfg?.gateway?.port || cfg?.gateway?.apiPort || '').trim();
+      const model = String(cfg?.agents?.defaults?.model?.primary || '').trim();
+      if (token || cfgPort) return { token, port: cfgPort, model, source: cp };
+    } catch {}
+  }
+  return { token: '', port: '', model: '', source: '' };
+}
+
+function installerGetAgentSrcDir() {
+  if (process.resourcesPath) {
+    const p = path.join(process.resourcesPath, 'agents', 'qq-pet');
+    if (fs.existsSync(p)) return p;
+  }
+  return path.join(__dirname, '..', '..', 'agents', 'qq-pet');
+}
+
+// scan-ports：扫描本地 QQClaw/OpenClaw 端口
+ipcMain.handle('scan-ports', async () => {
+  const localCfg = installerReadLocalClawConfig();
+  const installed = {
+    qqclaw:  fs.existsSync(path.join(os.homedir(), '.qqclaw',  'openclaw.json')),
+    openclaw: fs.existsSync(path.join(os.homedir(), '.openclaw', 'openclaw.json')),
+  };
+
+  let lsofPorts = [];
+  try {
+    const { stdout } = await execAsync(
+      `lsof -nP -iTCP -sTCP:LISTEN 2>/dev/null | grep -E 'node|claw|openclaw|codebuddy|workbuddy|qqclaw' | awk '{for(i=1;i<=NF;i++) if($i~/\\(LISTEN\\)/){split($(i-1),a,":");print a[length(a)];break}}'`,
+      { env: getFullShellEnv(), timeout: 4000 }
+    );
+    lsofPorts = stdout.trim().split('\n').filter(Boolean).map(Number).filter(n => n > 0);
+  } catch {}
+
+  const DEFAULT_PORTS = [18789, 19789, 19791, 18888, 8080, 3000];
+  const scanPorts = [...new Set([
+    ...(localCfg.port ? [Number(localCfg.port)] : []),
+    ...lsofPorts,
+    ...DEFAULT_PORTS,
+  ])];
+
+  let foundPort = null, foundType = null;
+  for (const port of scanPorts) {
+    const ok = await installerProbePort(port, localCfg.token);
+    if (ok) {
+      foundPort = port;
+      foundType = [18789, 19789].includes(port) ? 'qqclaw' : 'openclaw';
+      break;
+    }
+  }
+
+  return {
+    found:     !!foundPort,
+    port:      foundPort,
+    type:      foundType,
+    token:     localCfg.token,
+    model:     localCfg.model || 'openclaw:main',
+    apiUrl:    foundPort ? `http://127.0.0.1:${foundPort}/v1/chat/completions` : '',
+    installed,
+    lsofPorts,
+  };
+});
+
+// install-skills：写 ai-config.json + Agent workspace
+ipcMain.handle('install-skills', async (event, { apiUrl, token, model, clawType }) => {
+  try {
+    const HOME = os.homedir();
+    const clawHome  = clawType === 'qqclaw' ? path.join(HOME, '.qqclaw') : path.join(HOME, '.openclaw');
+    const agentDir  = path.join(clawHome, 'agents', 'qq-pet');
+    const skillsDir = path.join(clawHome, 'workspace', 'skills', 'qq-pet');
+
+    // 写 ai-config.json
+    const cfgDir = path.join(HOME, '.qq-pet', 'config');
+    fs.mkdirSync(cfgDir, { recursive: true });
+    fs.writeFileSync(path.join(cfgDir, 'ai-config.json'), JSON.stringify({
+      provider: clawType || 'openclaw', api_url: apiUrl || '',
+      api_key: token || '', model: model || 'openclaw:main',
+      claw_home: clawHome, skills_dir: skillsDir, agent_dir: agentDir,
+    }, null, 2));
+
+    // 创建 Agent workspace
+    fs.mkdirSync(path.join(agentDir, 'memory'), { recursive: true });
+
+    // 复制 SOUL.md / IDENTITY.md / AGENTS.yml
+    const agentSrcDir = installerGetAgentSrcDir();
+    const copied = [];
+    for (const f of ['SOUL.md', 'IDENTITY.md', 'AGENTS.yml']) {
+      const src = path.join(agentSrcDir, f);
+      if (fs.existsSync(src)) { fs.copyFileSync(src, path.join(agentDir, f)); copied.push(f); }
+    }
+
+    // 初始化记忆
+    const memFile = path.join(agentDir, 'memory', 'MEMORY.md');
+    if (!fs.existsSync(memFile)) {
+      fs.writeFileSync(memFile, `# 🐧 小Q的记忆\n\n## 关于主人\n- 还不太了解主人，需要多互动！\n\n## 重要的事\n- 今天是我来到主人桌面的第一天！\n`);
+    }
+
+    // Skill 标记
+    fs.mkdirSync(skillsDir, { recursive: true });
+    fs.writeFileSync(path.join(skillsDir, '_skillhub_meta.json'),
+      JSON.stringify({ name: 'qq-pet', installedAt: Date.now(), source: 'bundled', version: '0.2.0' }, null, 2));
+
+    // 随机性格
+    const MBTI = ['ENFP','INFP','ENFJ','INFJ','ENTP','INTP','ENTJ','INTJ','ESFP','ISFP','ESFJ','ISFJ','ESTP','ISTP','ESTJ','ISTJ'];
+    const personality = MBTI[Math.floor(Math.random() * MBTI.length)];
+    fs.writeFileSync(path.join(agentDir, 'personality.json'),
+      JSON.stringify({ assignedMBTI: personality, assignedDate: new Date().toISOString() }, null, 2));
+
+    // 通知主窗口刷新 AI 状态显示
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('ai-config-updated');
+    }
+
+    return { ok: true, personality, copied, agentDir, skillsDir };
+  } catch (e) {
+    return { ok: false, error: e.message };
+  }
+});
+
+// open-url：在默认浏览器打开链接
+ipcMain.handle('open-url', async (_, url) => {
+  try { await shell.openExternal(String(url)); return { ok: true }; }
+  catch (e) { return { ok: false, error: e.message }; }
+});
+
+// launch-pet：安装向导完成后「启动小Q」（仅关闭向导窗口，宿主 App 已在运行）
+ipcMain.on('launch-pet', () => {
+  if (aiSetupWindow && !aiSetupWindow.isDestroyed()) aiSetupWindow.close();
+});
+
+// debug-scan-state：调试用，模拟扫描结果
+ipcMain.handle('debug-scan-state', async (_, state) => {
+  const fakeResults = {
+    'found-qqclaw':   { found: true,  port: 19789, type: 'qqclaw',   token: 'fake-token', model: 'openclaw:main', apiUrl: 'http://127.0.0.1:19789/v1/chat/completions', installed: { qqclaw: true,  openclaw: false }, lsofPorts: [19789] },
+    'found-openclaw': { found: true,  port: 18789, type: 'openclaw', token: '',           model: 'openclaw:main', apiUrl: 'http://127.0.0.1:18789/v1/chat/completions', installed: { qqclaw: false, openclaw: true  }, lsofPorts: [18789] },
+    'offline-qqclaw': { found: false, port: null,  type: null,       token: '',           model: '',              apiUrl: '',                                            installed: { qqclaw: true,  openclaw: false }, lsofPorts: [] },
+    'none':           { found: false, port: null,  type: null,       token: '',           model: '',              apiUrl: '',                                            installed: { qqclaw: false, openclaw: false }, lsofPorts: [] },
+  };
+  return fakeResults[state] || fakeResults['none'];
+});
+
+// ═══════════════════════════════════════════
 // AI 配置向导窗口（从设置页「配置检测」按钮触发）
 // ═══════════════════════════════════════════
 
