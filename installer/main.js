@@ -53,6 +53,8 @@ function getFullEnv() {
   return env;
 }
 
+// 探测端口是否存活，同时尝试从响应体识别 clawType
+// 返回: { alive: bool, detectedType: 'openclaw'|'qqclaw'|null }
 async function probePort(port, token = '') {
   try {
     const url = `http://127.0.0.1:${port}/v1/models`;
@@ -61,41 +63,79 @@ async function probePort(port, token = '') {
     const res = await fetch(url, {
       method: 'GET',
       headers,
-      signal: AbortSignal.timeout(1200),
+      signal: AbortSignal.timeout(1500),
     });
-    return res.status === 200 || res.status === 401 || res.status === 403;
+    const alive = res.status === 200 || res.status === 401 || res.status === 403;
+    if (!alive) return { alive: false, detectedType: null };
+
+    // 尝试解析响应体，从模型列表中识别服务类型
+    let detectedType = null;
+    if (res.status === 200) {
+      try {
+        const body = await res.json();
+        const modelIds = (body?.data || []).map(m => String(m?.id || '').toLowerCase()).join(' ');
+        const bodyStr  = JSON.stringify(body).toLowerCase();
+        if (bodyStr.includes('openclaw') || modelIds.includes('openclaw')) {
+          detectedType = 'openclaw';
+        } else if (bodyStr.includes('qqclaw') || modelIds.includes('qqclaw')) {
+          detectedType = 'qqclaw';
+        }
+        // 也尝试 server_name / server_type 字段（OpenClaw /v1/models 可能带）
+        const serverName = String(body?.server_name || body?.server_type || '').toLowerCase();
+        if (!detectedType && serverName) {
+          if (serverName.includes('openclaw')) detectedType = 'openclaw';
+          else if (serverName.includes('qqclaw')) detectedType = 'qqclaw';
+        }
+      } catch {}
+    }
+    return { alive: true, detectedType };
   } catch {
-    return false;
+    return { alive: false, detectedType: null };
   }
 }
 
-// 读取本地 openclaw.json 里的 token 和端口
-function readLocalClawConfig() {
-  const candidates = [
-    path.join(HOME, '.qqclaw', 'openclaw.json'),
-    path.join(HOME, '.openclaw', 'openclaw.json'),
-  ];
-  for (const cp of candidates) {
-    if (!fs.existsSync(cp)) continue;
-    try {
-      const cfg = JSON.parse(fs.readFileSync(cp, 'utf-8'));
-      const token = String(cfg?.token || cfg?.gateway?.auth?.token || '').trim();
-      const port  = String(cfg?.gateway?.port || cfg?.gateway?.apiPort || '').trim();
-      // Bug fix: model 可能是字符串（如 "openai/gpt-4o"）也可能是对象（含 .primary）
-      const modelRaw = cfg?.agents?.defaults?.model;
-      const model = String(
-        typeof modelRaw === 'string' ? modelRaw :
-        (modelRaw?.primary || modelRaw?.name || '')
-      ).trim();
-      if (token || port) return { token, port, model, source: cp };
-    } catch {}
+// 读取本地 openclaw.json 里的 token / 端口 / model
+// 优先读 .openclaw（更常见），qqclaw 退而次之
+function readClawConfigFrom(configPath) {
+  try {
+    if (!fs.existsSync(configPath)) return null;
+    const cfg = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+    const token = String(cfg?.token || cfg?.gateway?.auth?.token || '').trim();
+    const port  = String(cfg?.gateway?.port || cfg?.gateway?.apiPort || '').trim();
+    const modelRaw = cfg?.agents?.defaults?.model;
+    const model = String(
+      typeof modelRaw === 'string' ? modelRaw :
+      (modelRaw?.primary || modelRaw?.name || '')
+    ).trim();
+    return { token, port, model, source: configPath };
+  } catch {
+    return null;
   }
+}
+
+function readLocalClawConfig() {
+  const ocPath = path.join(HOME, '.openclaw', 'openclaw.json');
+  const qqPath = path.join(HOME, '.qqclaw',  'openclaw.json');
+  // 优先读 .openclaw，其次 .qqclaw
+  const ocCfg = readClawConfigFrom(ocPath);
+  const qqCfg = readClawConfigFrom(qqPath);
+  // 有效配置：有 token 或有 port 的才算
+  const ocValid = ocCfg && (ocCfg.token || ocCfg.port);
+  const qqValid = qqCfg && (qqCfg.token || qqCfg.port);
+  if (ocValid) return ocCfg;   // openclaw 优先
+  if (qqValid) return qqCfg;
   return { token: '', port: '', model: '', source: '' };
 }
 
-// 判断端口归属：优先按配置文件来源路径判断，最准确
-function guessClawType(port, installed, configSource) {
-  // 优先：配置文件来源路径明确归属
+// 判断端口归属：四级优先级
+// 1. API 响应体自报 (最可靠)
+// 2. 配置文件来源路径
+// 3. 只安装了其中一个
+// 4. 端口号兜底
+function guessClawType(port, installed, configSource, detectedType) {
+  // 优先：API 响应体自报（最可靠）
+  if (detectedType) return detectedType;
+  // 次之：配置文件来源路径
   if (configSource) {
     if (configSource.includes('/.openclaw/')) return 'openclaw';
     if (configSource.includes('/.qqclaw/'))  return 'qqclaw';
@@ -144,10 +184,10 @@ ipcMain.handle('scan-ports', async () => {
   let foundPort = null;
   let foundType = null;
   for (const port of scanPorts) {
-    const ok = await probePort(port, localCfg.token);
-    if (ok) {
+    const { alive, detectedType } = await probePort(port, localCfg.token);
+    if (alive) {
       foundPort = port;
-      foundType = guessClawType(port, installed, localCfg.source);
+      foundType = guessClawType(port, installed, localCfg.source, detectedType);
       break;
     }
   }
