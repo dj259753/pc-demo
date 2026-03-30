@@ -305,6 +305,32 @@ body {
         </div>
       </div>
 
+      <!-- 仅有 OpenClaw、未安装 QQClaw 时额外展示：推荐下载 QQClaw -->
+      <div id="offline-guide-qqclaw-rec" style="display:none; width:100%; flex-direction:column; gap:0;">
+        <div class="card" style="padding:16px 18px 14px;">
+          <div style="font-size:14px; font-weight:700; color:#1d1d1f; margin-bottom:6px;">💡 推荐：安装 QQClaw（内网版）</div>
+          <div style="font-size:13px; color:#6c6c70; margin-bottom:12px; line-height:1.5;">
+            你已安装 OpenClaw。若在腾讯内网环境，可额外安装 QQClaw 作为网关，与 q宠 配套使用更便捷。
+          </div>
+          <button
+            type="button"
+            onclick="openUrl('https://drive.weixin.qq.com/s?k=AJEAIQdfAAopChOQP3')"
+            style="
+              width:100%; height:42px;
+              background: linear-gradient(to bottom, #2196ff, #0a7ef0);
+              color:#fff; border:none; border-radius:10px;
+              font-size:14px; font-weight:600; font-family:inherit;
+              cursor:pointer; display:flex; align-items:center; justify-content:center; gap:8px;
+              box-shadow:0 2px 8px rgba(0,120,255,0.22), inset 0 1px 0 rgba(255,255,255,0.15);
+            "
+            onmouseover="this.style.background='linear-gradient(to bottom,#1a8cf0,#0065d0)'"
+            onmouseout="this.style.background='linear-gradient(to bottom,#2196ff,#0a7ef0)'"
+          >
+            <span style="font-size:17px;">⬇️</span> 下载 QQClaw 内网版
+          </button>
+        </div>
+      </div>
+
       <button class="choice sel" id="ch-offline-rescan" onclick="rescan()">
         <span class="ch-icon">🔄</span>
         <div><div class="ch-title">我已启动，重新检测</div><div class="ch-desc">启动 AI 助手后点此重新扫描</div></div>
@@ -417,6 +443,17 @@ body {
       <div class="card-title">⚠️ 网关未运行</div>
       <div class="card-body">请打开 <span id="offline-name2">QQClaw</span>，启动后点「重新检测」，q宠 将自动完成配置。<br>也可以跳过，之后在宠物设置里手动配置 AI 接口。</div>
     </div>
+
+    <div id="offline-page-qqclaw-rec" style="display:none; width:100%; margin-top:10px;">
+      <div class="card">
+        <div class="card-title">💡 推荐：安装 QQClaw（内网版）</div>
+        <div class="card-body">你已安装 OpenClaw。若在腾讯内网环境，可额外安装 QQClaw 作为网关，与 q宠 配套使用更便捷。</div>
+        <div class="card-body" style="padding-top:0;">
+          <a onclick="openUrl('https://drive.weixin.qq.com/s?k=AJEAIQdfAAopChOQP3')" style="display:inline-block; cursor:pointer;">📦 下载 QQClaw 内网版</a>
+        </div>
+        <div class="card-contact">💬 需要配置帮助？请联系企业微信：<strong>riojdai</strong></div>
+      </div>
+    </div>
   </div>
 
   <!-- ══ 未安装 ══ -->
@@ -487,7 +524,8 @@ body {
 <div class="debug-bar" id="debug-bar" style="display:none;">
   <button onclick="debugState('found-qqclaw')">模拟: QQClaw 运行中</button>
   <button onclick="debugState('found-openclaw')">模拟: OpenClaw 运行中</button>
-  <button onclick="debugState('offline-qqclaw')">模拟: 已装未运行</button>
+  <button onclick="debugState('offline-qqclaw')">模拟: QQClaw 已装未运行</button>
+  <button onclick="debugState('offline-openclaw')">模拟: 仅 OpenClaw 已装未运行</button>
   <button onclick="debugState('none')">模拟: 未安装</button>
 </div>
 
@@ -585,6 +623,14 @@ const WS = [
   { to:100, ms:180, lbl:'准备完成 ✓' },
 ];
 
+/** 本机仅有 OpenClaw、未安装 QQClaw 时，展示「推荐下载 QQClaw」区块 */
+function setQQClawRecVisibility(show) {
+  const scanRec = document.getElementById('offline-guide-qqclaw-rec');
+  const pageRec = document.getElementById('offline-page-qqclaw-rec');
+  if (scanRec) scanRec.style.display = show ? 'flex' : 'none';
+  if (pageRec) pageRec.style.display = show ? 'block' : 'none';
+}
+
 function runWelcome() {
   const lbl = document.getElementById('wp-label');
   let step = 0, prev = 0;
@@ -634,6 +680,7 @@ async function runScan(forcedData = null) {
   if (scanData.found) {
     const n = scanData.type==='qqclaw'?'QQClaw':'OpenClaw';
     hint.textContent=`已发现 ${n} 活跃端口 :${scanData.port}，点击「继续」完成配置`;
+    setQQClawRecVisibility(false);
   } else if (scanData.installed&&(scanData.installed.qqclaw||scanData.installed.openclaw)) {
     const n = scanData.installed.qqclaw?'QQClaw':'OpenClaw';
     hint.textContent=`检测到 ${n} 已安装但未运行`;
@@ -643,6 +690,7 @@ async function runScan(forcedData = null) {
     document.getElementById('offline-guide-name2').textContent=n;
     document.getElementById('offline-guide-name3').textContent=n;
     document.getElementById('offline-guide').style.display='flex';
+    setQQClawRecVisibility(scanData.installed.openclaw && !scanData.installed.qqclaw);
   } else {
     hint.textContent='未检测到可用的 AI 助手';
     // 直接在扫描页展开无端口引导，不跳新页面
@@ -651,6 +699,7 @@ async function runScan(forcedData = null) {
     selectChoice('after-install');
     const guide = document.getElementById('no-claw-guide');
     guide.style.display = 'flex';
+    setQQClawRecVisibility(false);
   }
   scanDone=true; updateFooter();
 }
@@ -661,6 +710,7 @@ function routeAfterScan() {
     const n=scanData.installed.qqclaw?'QQClaw':'OpenClaw';
     document.getElementById('offline-name').textContent=n;
     document.getElementById('offline-name2').textContent=n;
+    setQQClawRecVisibility(scanData.installed.openclaw && !scanData.installed.qqclaw);
     showPanel('offline'); return;
   }
   choice='skip'; selectChoice('skip'); showPanel('none');
@@ -707,6 +757,7 @@ async function rescan()  {
   // 隐藏引导区
   document.getElementById('no-claw-guide').style.display='none';
   document.getElementById('offline-guide').style.display='none';
+  setQQClawRecVisibility(false);
   showPanel('scan'); await sleep(150); runScan();
 }
 async function rescanFromFound() { await rescan(); }
@@ -771,12 +822,16 @@ async function debugState(state) {
   // 重置引导区
   document.getElementById('no-claw-guide').style.display='none';
   document.getElementById('offline-guide').style.display='none';
+  setQQClawRecVisibility(false);
   const tQQ=document.getElementById('tag-qqclaw');
   const tOC=document.getElementById('tag-openclaw');
   const hint=document.getElementById('scan-hint');
   if(state==='found-qqclaw'){tQQ.className='tag tag-found';tQQ.textContent='✅ :'+d.port;tOC.className='tag tag-wait';tOC.textContent='已跳过';hint.textContent='[调试] QQClaw 运行中 :'+d.port;}
   else if(state==='found-openclaw'){tQQ.className='tag tag-miss';tQQ.textContent='❌';tOC.className='tag tag-found';tOC.textContent='✅ :'+d.port;hint.textContent='[调试] OpenClaw 运行中 :'+d.port;}
-  else if(state==='offline-qqclaw'){tQQ.className='tag tag-miss';tQQ.textContent='❌ 已装未启动';tOC.className='tag tag-miss';tOC.textContent='❌';hint.textContent='[调试] 已安装未运行';}
+  else if(state==='offline-qqclaw'){tQQ.className='tag tag-miss';tQQ.textContent='❌ 已装未启动';tOC.className='tag tag-miss';tOC.textContent='❌';hint.textContent='[调试] QQClaw 已装未运行';
+    showingOffline=true;document.getElementById('offline-guide-name').textContent='QQClaw';document.getElementById('offline-guide-name2').textContent='QQClaw';document.getElementById('offline-guide-name3').textContent='QQClaw';document.getElementById('offline-guide').style.display='flex';}
+  else if(state==='offline-openclaw'){tQQ.className='tag tag-miss';tQQ.textContent='❌ 未安装';tOC.className='tag tag-miss';tOC.textContent='❌ 已装未启动';hint.textContent='[调试] 仅 OpenClaw 已装未运行';
+    showingOffline=true;document.getElementById('offline-guide-name').textContent='OpenClaw';document.getElementById('offline-guide-name2').textContent='OpenClaw';document.getElementById('offline-guide-name3').textContent='OpenClaw';document.getElementById('offline-guide').style.display='flex';setQQClawRecVisibility(true);}
   else {
     tQQ.className='tag tag-miss';tQQ.textContent='❌';
     tOC.className='tag tag-miss';tOC.textContent='❌';

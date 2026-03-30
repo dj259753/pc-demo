@@ -18,8 +18,18 @@
     "productName": "QQ宠物",
     "mac": {
       "target": [
-        { "target": "dmg", "arch": ["arm64"] },
-        { "target": "zip", "arch": ["arm64"] }
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "arm64"
+          ]
+        }
       ],
       "category": "public.app-category.entertainment",
       "icon": "assets/icon.icns",
@@ -30,10 +40,22 @@
     },
     "dmg": {
       "title": "QQ宠物 安装程序",
-      "window": { "width": 540, "height": 380 },
+      "window": {
+        "width": 540,
+        "height": 380
+      },
       "contents": [
-        { "x": 150, "y": 185, "type": "file" },
-        { "x": 390, "y": 185, "type": "link", "path": "/Applications" }
+        {
+          "x": 150,
+          "y": 185,
+          "type": "file"
+        },
+        {
+          "x": 390,
+          "y": 185,
+          "type": "link",
+          "path": "/Applications"
+        }
       ],
       "iconSize": 80
     },

@@ -254,11 +254,12 @@ ipcMain.on('quit', () => app.quit());
 // IPC: 调试专用 — 强制模拟特定扫描状态（Cmd+D 触发）
 // ══════════════════════════════════════════════════
 ipcMain.handle('debug-scan-state', async (_, state) => {
-  // state: 'found-qqclaw' | 'found-openclaw' | 'offline-qqclaw' | 'none'
+  // state: 'found-qqclaw' | 'found-openclaw' | 'offline-qqclaw' | 'offline-openclaw' | 'none'
   const fakeResults = {
     'found-qqclaw':   { found: true,  port: 19789, type: 'qqclaw',   token: 'fake-token', model: 'openclaw:main', apiUrl: 'http://127.0.0.1:19789/v1/chat/completions', installed: { qqclaw: true,  openclaw: false }, lsofPorts: [19789] },
     'found-openclaw': { found: true,  port: 18789, type: 'openclaw', token: '',           model: 'openclaw:main', apiUrl: 'http://127.0.0.1:18789/v1/chat/completions', installed: { qqclaw: false, openclaw: true  }, lsofPorts: [18789] },
     'offline-qqclaw': { found: false, port: null,  type: null,       token: '',           model: '',              apiUrl: '',                                            installed: { qqclaw: true,  openclaw: false }, lsofPorts: [] },
+    'offline-openclaw': { found: false, port: null, type: null,      token: '',           model: '',              apiUrl: '',                                            installed: { qqclaw: false, openclaw: true  }, lsofPorts: [] },
     'none':           { found: false, port: null,  type: null,       token: '',           model: '',              apiUrl: '',                                            installed: { qqclaw: false, openclaw: false }, lsofPorts: [] },
   };
   return fakeResults[state] || fakeResults['none'];

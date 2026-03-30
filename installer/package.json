@@ -17,7 +17,10 @@
     },
     "dmg": {
       "title": "QQ宠物 安装程序",
-      "window": { "width": 540, "height": 460 }
+      "window": {
+        "width": 540,
+        "height": 460
+      }
     },
     "files": [
       "main.js",
