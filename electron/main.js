@@ -966,16 +966,19 @@ if [ -d "$TARGET" ]; then
   mv "$TARGET" "$BACKUP_DIR"
 fi
 
-# 覆盖：复制新版本到原位置（保持同名）
+# 用 ditto 复制（比 cp -R 更可靠，目标不存在时行为一致）
 echo "📦 复制新版本..."
-cp -R "$NEWAPP" "$TARGET"
+ditto "$NEWAPP" "$TARGET"
+
+# 清除 Gatekeeper 隔离标记
+xattr -dr com.apple.quarantine "$TARGET" 2>/dev/null || true
 
 # 清理构建临时目录
 rm -rf "${escapedTmpRoot}"
 
-# 启动新版本
+# 启动新版本（-F 强制新建进程）
 echo "🚀 启动新版本..."
-open "$TARGET"
+open -F "$TARGET"
 `;
     fs.writeFileSync(scriptPath, script, { mode: 0o755 });
 
@@ -1196,8 +1199,12 @@ if [ -d "$TARGET" ]; then
   mv "$TARGET" "/tmp/qq-pet-backup-$TS"
 fi
 
-# 复制新版本到原位置
-cp -R "$NEWAPP" "$TARGET"
+# 确保目标路径不存在（cp -R 行为在目标存在/不存在时不一致，用 ditto 更可靠）
+# ditto 会保留 macOS 扩展属性，但我们后面会清 quarantine
+ditto "$NEWAPP" "$TARGET"
+
+# 清除 Gatekeeper 隔离标记（避免 macOS 拦截或打开旧版本）
+xattr -dr com.apple.quarantine "$TARGET" 2>/dev/null || true
 
 # 清理更新缓存（zip + 解压的 .app）
 rm -rf "$CACHE"
@@ -1206,8 +1213,8 @@ rm -rf "$CACHE"
 find /tmp -maxdepth 1 -name "qq-pet-backup-*" -mtime +1 -exec rm -rf {} \\; 2>/dev/null || true
 find /tmp -maxdepth 1 -name "qq-pet-update-*" -mtime +1 -exec rm -rf {} \\; 2>/dev/null || true
 
-# 启动新版本
-open "$TARGET"
+# 启动新版本（-F 强制新建进程，不复用已有实例）
+open -F "$TARGET"
 `;
   fs.writeFileSync(scriptPath, script, { mode: 0o755 });
 
