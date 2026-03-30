@@ -68,7 +68,6 @@ async function probePort(port, token = '') {
     const alive = res.status === 200 || res.status === 401 || res.status === 403;
     if (!alive) return { alive: false, detectedType: null };
 
-    // 尝试解析响应体，从模型列表中识别服务类型
     let detectedType = null;
     if (res.status === 200) {
       try {
@@ -80,7 +79,6 @@ async function probePort(port, token = '') {
         } else if (bodyStr.includes('qqclaw') || modelIds.includes('qqclaw')) {
           detectedType = 'qqclaw';
         }
-        // 也尝试 server_name / server_type 字段（OpenClaw /v1/models 可能带）
         const serverName = String(body?.server_name || body?.server_type || '').toLowerCase();
         if (!detectedType && serverName) {
           if (serverName.includes('openclaw')) detectedType = 'openclaw';
@@ -94,13 +92,25 @@ async function probePort(port, token = '') {
   }
 }
 
+function extractTokenFromConfig(cfg) {
+  return String(
+    cfg?.token ||
+    cfg?.api_key ||
+    cfg?.apiKey ||
+    cfg?.auth?.token ||
+    cfg?.gateway?.auth?.token ||
+    cfg?.gateway?.http?.auth?.token ||
+    ''
+  ).trim();
+}
+
 // 读取本地 openclaw.json 里的 token / 端口 / model
 // 优先读 .openclaw（更常见），qqclaw 退而次之
 function readClawConfigFrom(configPath) {
   try {
     if (!fs.existsSync(configPath)) return null;
     const cfg = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
-    const token = String(cfg?.token || cfg?.gateway?.auth?.token || '').trim();
+    const token = extractTokenFromConfig(cfg);
     const port  = String(cfg?.gateway?.port || cfg?.gateway?.apiPort || '').trim();
     const modelRaw = cfg?.agents?.defaults?.model;
     const model = String(
@@ -116,34 +126,87 @@ function readClawConfigFrom(configPath) {
 function readLocalClawConfig() {
   const ocPath = path.join(HOME, '.openclaw', 'openclaw.json');
   const qqPath = path.join(HOME, '.qqclaw',  'openclaw.json');
-  // 优先读 .openclaw，其次 .qqclaw
   const ocCfg = readClawConfigFrom(ocPath);
   const qqCfg = readClawConfigFrom(qqPath);
-  // 有效配置：有 token 或有 port 的才算
   const ocValid = ocCfg && (ocCfg.token || ocCfg.port);
   const qqValid = qqCfg && (qqCfg.token || qqCfg.port);
-  if (ocValid) return ocCfg;   // openclaw 优先
+  if (ocValid) return ocCfg;
   if (qqValid) return qqCfg;
   return { token: '', port: '', model: '', source: '' };
 }
 
+async function probeChatEndpoint(url, token = '', model = 'openclaw:main') {
+  try {
+    const headers = { 'Content-Type': 'application/json' };
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    const res = await fetch(url, {
+      method: 'POST',
+      headers,
+      signal: AbortSignal.timeout(1800),
+      body: JSON.stringify({
+        model,
+        messages: [{ role: 'user', content: 'ping' }],
+        temperature: 0,
+        max_tokens: 1,
+        stream: false,
+      }),
+    });
+    return res.status !== 404;
+  } catch {
+    return false;
+  }
+}
+
+async function detectChatApiUrl(port, token = '', model = 'openclaw:main') {
+  const candidates = [
+    `/v1/chat/completions`,
+    `/openai/v1/chat/completions`,
+    `/api/openai/v1/chat/completions`,
+    `/api/v1/chat/completions`,
+    `/chat/completions`,
+  ];
+  for (const pathname of candidates) {
+    const url = `http://127.0.0.1:${port}${pathname}`;
+    if (await probeChatEndpoint(url, token, model)) return url;
+  }
+  return '';
+}
+
+function ensureChatCompletionsEnabled(configPath) {
+  try {
+    if (!configPath || !fs.existsSync(configPath)) return { changed: false, error: '' };
+    const cfg = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+    cfg.gateway = cfg.gateway || {};
+    cfg.gateway.http = cfg.gateway.http || {};
+    cfg.gateway.http.endpoints = cfg.gateway.http.endpoints || {};
+    const current = cfg.gateway.http.endpoints.chatCompletions;
+    if (current && typeof current === 'object' && current.enabled === true) {
+      return { changed: false, error: '' };
+    }
+    cfg.gateway.http.endpoints.chatCompletions = {
+      ...(current && typeof current === 'object' ? current : {}),
+      enabled: true,
+    };
+    fs.writeFileSync(configPath, JSON.stringify(cfg, null, 2));
+    return { changed: true, error: '' };
+  } catch (e) {
+    return { changed: false, error: e.message };
+  }
+}
+
 // 判断端口归属：四级优先级
-// 1. API 响应体自报 (最可靠)
+// 1. API 响应体自报
 // 2. 配置文件来源路径
 // 3. 只安装了其中一个
 // 4. 端口号兜底
 function guessClawType(port, installed, configSource, detectedType) {
-  // 优先：API 响应体自报（最可靠）
   if (detectedType) return detectedType;
-  // 次之：配置文件来源路径
   if (configSource) {
     if (configSource.includes('/.openclaw/')) return 'openclaw';
     if (configSource.includes('/.qqclaw/'))  return 'qqclaw';
   }
-  // 其次：只安装了其中一个
   if (installed.openclaw && !installed.qqclaw) return 'openclaw';
   if (installed.qqclaw  && !installed.openclaw) return 'qqclaw';
-  // 兜底：18789 是 OpenClaw 默认端口，19789 是 QQClaw 默认端口
   const n = Number(port);
   if (n === 19789) return 'qqclaw';
   if (n === 18789) return 'openclaw';
@@ -192,13 +255,34 @@ ipcMain.handle('scan-ports', async () => {
     }
   }
 
+  const model = localCfg.model || (foundType === 'qqclaw' ? 'qqclaw:main' : 'openclaw:main');
+  let apiUrl = foundPort ? await detectChatApiUrl(foundPort, localCfg.token, model) : '';
+  let needsRestart = false;
+  let repairNote = '';
+
+  // OpenClaw 某些版本只开了 /v1/models，没开 chat endpoint；这里自动修正配置并提示重启
+  if (foundPort && foundType === 'openclaw' && !apiUrl) {
+    const repaired = ensureChatCompletionsEnabled(localCfg.source);
+    if (repaired.changed) {
+      needsRestart = true;
+      repairNote = '已自动开启 OpenClaw 的 HTTP chatCompletions 端点，请重启 OpenClaw 后重新检测';
+    } else if (repaired.error) {
+      repairNote = `未检测到可用对话接口，且自动修复失败：${repaired.error}`;
+    } else {
+      repairNote = '未检测到可用的 OpenAI 兼容对话接口，请检查 OpenClaw 网关配置';
+    }
+  }
+
   return {
     found:     !!foundPort,
     port:      foundPort,
     type:      foundType,          // 'qqclaw' | 'openclaw' | null
     token:     localCfg.token,
-    model:     localCfg.model || (foundType === 'qqclaw' ? 'qqclaw:main' : 'openclaw:main'),
-    apiUrl:    foundPort ? `http://127.0.0.1:${foundPort}/v1/chat/completions` : '',
+    model,
+    apiUrl,
+    chatReady: !!apiUrl,
+    needsRestart,
+    repairNote,
     installed: installed,          // { qqclaw: bool, openclaw: bool }
     lsofPorts,
   };

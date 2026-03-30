@@ -1529,7 +1529,7 @@ ipcMain.handle('workbuddy-delegate', async (event, payload = {}) => {
     const raw = fs.readFileSync(configPath, 'utf-8');
     const openclaw = JSON.parse(raw);
 
-    const token = openclaw?.gateway?.auth?.token;
+    const token = installerExtractTokenFromConfig(openclaw);
     // 从配置文件读取 gateway 端口（不硬编码）
     const cfgPort = openclaw?.gateway?.port || openclaw?.gateway?.apiPort || '';
     let aiCfg = {};
@@ -1539,14 +1539,17 @@ ipcMain.handle('workbuddy-delegate', async (event, payload = {}) => {
         aiCfg = JSON.parse(fs.readFileSync(aiConfigPath, 'utf-8') || '{}');
       }
     } catch {}
-    // 优先级：环境变量 > ai-config.json（安装时探测到的） > 配置文件端口 > 空（让调用方知道没有可用接口）
+    const model = process.env.WORKBUDDY_MODEL || aiCfg.model || 'openclaw:main';
+    // 优先级：环境变量 > ai-config.json（安装时探测到的） > 动态探测 > 空
     const baseUrl = process.env.WORKBUDDY_API_URL
       || aiCfg.api_url
-      || (cfgPort ? `http://127.0.0.1:${cfgPort}/v1/chat/completions` : '');
-    const model = process.env.WORKBUDDY_MODEL || aiCfg.model || 'openclaw:main';
+      || (cfgPort ? await installerDetectChatApiUrl(cfgPort, token, model) : '');
 
     if (!token) {
       return { ok: false, error: '未找到 OpenClaw 网关 token' };
+    }
+    if (!baseUrl) {
+      return { ok: false, error: '未检测到可用的 OpenAI 兼容对话接口' };
     }
 
     const userText = payload.userText || '';
@@ -1627,11 +1630,23 @@ async function installerProbePort(port, token = '') {
   } catch { return { alive: false, detectedType: null }; }
 }
 
+function installerExtractTokenFromConfig(cfg) {
+  return String(
+    cfg?.token ||
+    cfg?.api_key ||
+    cfg?.apiKey ||
+    cfg?.auth?.token ||
+    cfg?.gateway?.auth?.token ||
+    cfg?.gateway?.http?.auth?.token ||
+    ''
+  ).trim();
+}
+
 function installerReadClawConfigFrom(configPath) {
   try {
     if (!fs.existsSync(configPath)) return null;
     const cfg = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
-    const token = String(cfg?.token || cfg?.gateway?.auth?.token || '').trim();
+    const token = installerExtractTokenFromConfig(cfg);
     const cfgPort = String(cfg?.gateway?.port || cfg?.gateway?.apiPort || '').trim();
     const modelRaw = cfg?.agents?.defaults?.model;
     const model = String(
@@ -1645,10 +1660,66 @@ function installerReadLocalClawConfig() {
   const HOME = os.homedir();
   const ocCfg = installerReadClawConfigFrom(path.join(HOME, '.openclaw', 'openclaw.json'));
   const qqCfg = installerReadClawConfigFrom(path.join(HOME, '.qqclaw',  'openclaw.json'));
-  // openclaw 优先
   if (ocCfg && (ocCfg.token || ocCfg.port)) return ocCfg;
   if (qqCfg && (qqCfg.token || qqCfg.port)) return qqCfg;
   return { token: '', port: '', model: '', source: '' };
+}
+
+async function installerProbeChatEndpoint(url, token = '', model = 'openclaw:main') {
+  try {
+    const headers = { 'Content-Type': 'application/json' };
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    const res = await fetch(url, {
+      method: 'POST',
+      headers,
+      signal: AbortSignal.timeout(1800),
+      body: JSON.stringify({
+        model,
+        messages: [{ role: 'user', content: 'ping' }],
+        temperature: 0,
+        max_tokens: 1,
+        stream: false,
+      }),
+    });
+    return res.status !== 404;
+  } catch { return false; }
+}
+
+async function installerDetectChatApiUrl(port, token = '', model = 'openclaw:main') {
+  const candidates = [
+    `/v1/chat/completions`,
+    `/openai/v1/chat/completions`,
+    `/api/openai/v1/chat/completions`,
+    `/api/v1/chat/completions`,
+    `/chat/completions`,
+  ];
+  for (const pathname of candidates) {
+    const url = `http://127.0.0.1:${port}${pathname}`;
+    if (await installerProbeChatEndpoint(url, token, model)) return url;
+  }
+  return '';
+}
+
+function installerEnsureChatCompletionsEnabled(configPath) {
+  try {
+    if (!configPath || !fs.existsSync(configPath)) return { changed: false, error: '' };
+    const cfg = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+    cfg.gateway = cfg.gateway || {};
+    cfg.gateway.http = cfg.gateway.http || {};
+    cfg.gateway.http.endpoints = cfg.gateway.http.endpoints || {};
+    const current = cfg.gateway.http.endpoints.chatCompletions;
+    if (current && typeof current === 'object' && current.enabled === true) {
+      return { changed: false, error: '' };
+    }
+    cfg.gateway.http.endpoints.chatCompletions = {
+      ...(current && typeof current === 'object' ? current : {}),
+      enabled: true,
+    };
+    fs.writeFileSync(configPath, JSON.stringify(cfg, null, 2));
+    return { changed: true, error: '' };
+  } catch (e) {
+    return { changed: false, error: e.message };
+  }
 }
 
 function installerGuessClawType(port, installed, configSource, detectedType) {
@@ -1707,13 +1778,33 @@ ipcMain.handle('scan-ports', async () => {
     }
   }
 
+  const model = localCfg.model || (foundType === 'qqclaw' ? 'qqclaw:main' : 'openclaw:main');
+  let apiUrl = foundPort ? await installerDetectChatApiUrl(foundPort, localCfg.token, model) : '';
+  let needsRestart = false;
+  let repairNote = '';
+
+  if (foundPort && foundType === 'openclaw' && !apiUrl) {
+    const repaired = installerEnsureChatCompletionsEnabled(localCfg.source);
+    if (repaired.changed) {
+      needsRestart = true;
+      repairNote = '已自动开启 OpenClaw 的 HTTP chatCompletions 端点，请重启 OpenClaw 后重新检测';
+    } else if (repaired.error) {
+      repairNote = `未检测到可用对话接口，且自动修复失败：${repaired.error}`;
+    } else {
+      repairNote = '未检测到可用的 OpenAI 兼容对话接口，请检查 OpenClaw 网关配置';
+    }
+  }
+
   return {
     found:     !!foundPort,
     port:      foundPort,
     type:      foundType,
     token:     localCfg.token,
-    model:     localCfg.model || (foundType === 'qqclaw' ? 'qqclaw:main' : 'openclaw:main'),
-    apiUrl:    foundPort ? `http://127.0.0.1:${foundPort}/v1/chat/completions` : '',
+    model,
+    apiUrl,
+    chatReady: !!apiUrl,
+    needsRestart,
+    repairNote,
     installed,
     lsofPorts,
   };
