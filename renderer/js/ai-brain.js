@@ -629,6 +629,22 @@ const AIBrain = (() => {
     setInterval(() => {
       loadSoul();
     }, SOUL_CACHE_TTL);
+
+    // 监听 AI 配置更新（installer 完成安装 or 设置页重新配置后触发）
+    if (window.electronAPI && window.electronAPI.onAiConfigUpdated) {
+      window.electronAPI.onAiConfigUpdated(async () => {
+        console.log('🧠 收到 ai-config-updated，重新加载 AI 配置...');
+        const ok = await loadAIConfig();
+        if (ok) {
+          // 重新加载 Soul（配置可能改变了 Agent 目录）
+          cachedSoul = '';
+          soulLoadedAt = 0;
+          await loadSoul();
+          console.log('🧠 AI 配置已热更新，provider:', AI_PROVIDER);
+        }
+      });
+    }
+
     console.log(`🧠 AI Brain 初始化完成 (provider: ${AI_PROVIDER})`);
   }
 

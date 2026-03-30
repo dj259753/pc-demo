@@ -1,6 +1,6 @@
 {
-  "version": "0.2.0",
-  "release_notes": "支持 Ruffle 动画引擎、AI 对话、拖拽吸附、语音识别，引入经典 QQ 宠物动作",
-  "published_at": "2026-03-29",
-  "package_url": "https://github.com/dj259753/pet-pc-demo/releases/download/v0.2.0/QQ.-0.2.0.-arm64-mac.zip"
+  "version": "0.2.2",
+  "release_notes": "首次安装流程重构（先配置后启动）、静默自动更新、DMG安装引导、文案优化、AI配置热更新修复",
+  "published_at": "2026-03-30",
+  "package_url": "https://github.com/dj259753/pet-pc-demo/releases/download/v0.2.2/QQ.-0.2.2-arm64-mac.zip"
 }

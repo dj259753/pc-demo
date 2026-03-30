@@ -81,6 +81,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // ─── AI 配置向导 ───
   openAiSetup: () => ipcRenderer.invoke('open-ai-setup'),
+  onAiConfigUpdated: (callback) => ipcRenderer.on('ai-config-updated', () => callback()),
 
   // ─── Agent 自我进化：Soul/Identity/Memory 文件读写 ───
   agentReadFile:   (filePath)          => ipcRenderer.invoke('agent-read-file',   filePath),

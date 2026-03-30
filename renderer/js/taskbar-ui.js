@@ -70,8 +70,16 @@ const TaskbarUI = (() => {
                   BubbleSystem.show('检查更新失败，请稍后重试', 2600);
                   return;
                 }
+                if (result.status === 'update-ready') {
+                  BubbleSystem.show(`新版本 v${result.remoteVersion} 已下载就绪，请按弹窗提示升级`, 3200);
+                  return;
+                }
+                if (result.status === 'downloading') {
+                  BubbleSystem.show(`正在后台下载新版本 v${result.remoteVersion}...`, 3200);
+                  return;
+                }
                 if (result.status === 'update-available') {
-                  BubbleSystem.show(`发现新版本 v${result.remoteVersion}，请按弹窗提示更新`, 3200);
+                  BubbleSystem.show(`发现新版本 v${result.remoteVersion}，正在后台下载...`, 3200);
                   return;
                 }
                 if (result.status === 'up-to-date') {

@@ -41,6 +41,8 @@ let lastDiskList = [];
 let updateCheckTimer = null;
 let lastNotifiedVersion = '';
 let isUpdatingNow = false;
+let isDownloadingUpdate = false;  // 静默下载中
+let pendingUpdate = null;          // 已下载就绪的更新 { version, notes, zipPath, newAppPath, tmpRoot }
 let shortcutsRegistered = false;
 const GIT_AUTH_GUIDE_URL = 'https://doc.weixin.qq.com/sheet/e3_AaIAHAZhAG0CN0j2SDZNGRsO5ozrM?scode=AJEAIQdfAAoDICeBgIAaIAHAZhAG0&tab=BB08J2';
 
@@ -631,6 +633,76 @@ function isVersionNewer(remote, local) {
   return false;
 }
 
+/**
+ * 检测是否从 DMG 挂载盘或非 /Applications 目录运行
+ * 如果是，弹窗提示用户先拖入 Applications
+ */
+function checkAndPromptCopyToApplications() {
+  if (process.platform !== 'darwin') return;
+  const appPath = getCurrentAppBundlePath();
+  if (!appPath) return;
+
+  const isInApplications = appPath.startsWith('/Applications/');
+  const isInUserApplications = appPath.startsWith(path.join(os.homedir(), 'Applications'));
+  const isDmgMount = appPath.startsWith('/Volumes/');
+
+  if (isInApplications || isInUserApplications) return; // 已在正确位置
+
+  const appName = path.basename(appPath);
+
+  if (isDmgMount) {
+    // 从 DMG 挂载点直接运行
+    dialog.showMessageBox({
+      type: 'warning',
+      title: '请先安装到应用程序',
+      message: `你正在从安装镜像中直接运行「${appName.replace('.app', '')}」`,
+      detail: '请将应用拖入 Applications（应用程序）文件夹后再打开，否则：\n\n• 聚焦搜索（Spotlight）中找不到\n• 弹出 DMG 后应用会消失\n• 自动更新无法正常工作',
+      buttons: ['我知道了，先这样用', '退出，我去拖'],
+      defaultId: 1,
+      cancelId: 0,
+    }).then(result => {
+      if (result.response === 1) {
+        // 尝试自动打开 DMG 所在的 Finder 窗口
+        const dmgDir = path.dirname(appPath);
+        shell.showItemInFolder(appPath);
+        app.quit();
+      }
+    }).catch(() => {});
+  } else {
+    // 在其他位置（如桌面、Downloads）运行
+    dialog.showMessageBox({
+      type: 'info',
+      title: '建议移到应用程序文件夹',
+      message: `「${appName.replace('.app', '')}」不在应用程序文件夹中`,
+      detail: '建议将应用移到 /Applications 文件夹，这样可以：\n\n• 在聚焦搜索（Spotlight）中找到\n• 开机自启动正常工作\n• 自动更新正常工作',
+      buttons: ['好的，我稍后移动', '帮我移过去'],
+      defaultId: 1,
+      cancelId: 0,
+    }).then(async result => {
+      if (result.response === 1) {
+        try {
+          const dest = path.join('/Applications', appName);
+          if (fs.existsSync(dest)) {
+            fs.rmSync(dest, { recursive: true, force: true });
+          }
+          await execAsync(`cp -R "${appPath}" "${dest}"`);
+          // 启动新位置的 app，退出当前
+          spawn('open', [dest], { detached: true, stdio: 'ignore' }).unref();
+          app.quit();
+        } catch (e) {
+          dialog.showMessageBox({
+            type: 'error',
+            title: '移动失败',
+            message: `无法自动移动：${e.message}`,
+            detail: '请手动将应用拖入 Applications 文件夹',
+            buttons: ['知道了'],
+          }).catch(() => {});
+        }
+      }
+    }).catch(() => {});
+  }
+}
+
 function getCurrentAppBundlePath() {
   const exe = process.execPath; // .../QQ宠物Skills版.app/Contents/MacOS/QQ宠物Skills版
   const idx = exe.indexOf('.app/Contents/');
@@ -840,66 +912,222 @@ open "$TARGET"
 }
 
 /**
- * 从 manifest URL 下载 zip 包更新（保留原有逻辑）
+ * 更新缓存目录（持久化，不用 /tmp）
  */
-async function installUpdateFromManifest(manifest) {
-  if (isUpdatingNow) return;
-  isUpdatingNow = true;
+function getUpdateCacheDir() {
+  return path.join(os.homedir(), '.qq-pet', 'cache', 'updates');
+}
+
+/**
+ * 清理更新缓存（删除所有已下载的更新包）
+ */
+function cleanUpdateCache() {
+  const cacheDir = getUpdateCacheDir();
   try {
-    const packageUrl = manifest.package_url;
+    if (fs.existsSync(cacheDir)) {
+      fs.rmSync(cacheDir, { recursive: true, force: true });
+      console.log('🗑️ 更新缓存已清理');
+    }
+  } catch (e) {
+    console.warn('🗑️ 清理更新缓存失败:', e.message);
+  }
+  // 同时清理 /tmp 中的旧备份
+  try {
+    const tmpDir = os.tmpdir();
+    const entries = fs.readdirSync(tmpDir);
+    for (const name of entries) {
+      if (name.startsWith('qq-pet-backup-') || name.startsWith('qq-pet-update-') || name.startsWith('qq-pet-src-update-')) {
+        const p = path.join(tmpDir, name);
+        try { fs.rmSync(p, { recursive: true, force: true }); } catch {}
+      }
+    }
+  } catch {}
+}
+
+/**
+ * 检查是否有之前下载好但未安装的更新
+ */
+function loadPendingUpdateFromCache() {
+  const cacheDir = getUpdateCacheDir();
+  const metaPath = path.join(cacheDir, 'pending-update.json');
+  try {
+    if (!fs.existsSync(metaPath)) return null;
+    const meta = JSON.parse(fs.readFileSync(metaPath, 'utf-8'));
+    // 验证缓存的 .app 还在
+    if (meta.newAppPath && fs.existsSync(meta.newAppPath)) {
+      // 验证缓存的版本比当前版本新
+      if (isVersionNewer(meta.version, getCurrentVersion())) {
+        return meta;
+      }
+    }
+    // 缓存过期或不完整，清除
+    cleanUpdateCache();
+  } catch {
+    cleanUpdateCache();
+  }
+  return null;
+}
+
+/**
+ * 静默下载 zip 包到缓存目录（后台执行，不阻塞 UI）
+ */
+async function silentDownloadUpdate(manifest) {
+  if (isDownloadingUpdate || isUpdatingNow) return;
+  isDownloadingUpdate = true;
+
+  const packageUrl = manifest.package_url;
+  const version = String(manifest.version || '').trim();
+  const notes = normalizeUpdateNotes(manifest);
+
+  try {
     if (!packageUrl) throw new Error('manifest 缺少 package_url');
 
-    const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'qq-pet-update-'));
-    const zipPath = path.join(tmpRoot, 'update.zip');
-    const unpackDir = path.join(tmpRoot, 'unpack');
+    const cacheDir = getUpdateCacheDir();
+    // 清理旧版缓存（只保留最新版）
+    if (fs.existsSync(cacheDir)) {
+      fs.rmSync(cacheDir, { recursive: true, force: true });
+    }
+    fs.mkdirSync(cacheDir, { recursive: true });
+
+    const zipPath = path.join(cacheDir, `update-${version}.zip`);
+    const unpackDir = path.join(cacheDir, 'unpack');
     fs.mkdirSync(unpackDir, { recursive: true });
 
+    console.log(`🔄 静默下载更新 v${version}...`);
+
     await downloadToFile(packageUrl, zipPath, (pct) => {
-      showUpdateProgress('正在更新...', `正在下载 ${pct}%`);
+      // 静默模式：只在宠物气泡轻量显示进度
+      if (pct % 20 === 0 || pct === 100) {
+        console.log(`🔄 下载进度: ${pct}%`);
+      }
     });
+
+    console.log('🔄 下载完成，解压中...');
     await new Promise((resolve, reject) => {
       exec(`ditto -xk "${zipPath}" "${unpackDir}"`, (err) => err ? reject(err) : resolve());
     });
 
     const newAppPath = findFirstAppBundle(unpackDir);
-    const currentAppPath = getCurrentAppBundlePath();
     if (!newAppPath) throw new Error('更新包里未找到 .app');
-    if (!currentAppPath) throw new Error('无法识别当前 .app 路径');
 
-    const scriptPath = path.join(tmpRoot, 'apply-update.sh');
-    const escapedCurrent = currentAppPath.replace(/"/g, '\\"');
-    const escapedNew = newAppPath.replace(/"/g, '\\"');
-    const script = `#!/bin/bash
+    // 保存元数据
+    const meta = { version, notes, zipPath, newAppPath, downloadedAt: new Date().toISOString() };
+    fs.writeFileSync(path.join(cacheDir, 'pending-update.json'), JSON.stringify(meta, null, 2));
+
+    pendingUpdate = meta;
+    console.log(`✅ 更新 v${version} 已下载就绪`);
+
+    // 弹出就绪通知
+    showUpdateReadyDialog(version, notes);
+
+  } catch (e) {
+    console.warn('🔄 静默下载更新失败:', e.message);
+    // 静默失败，不打扰用户
+  } finally {
+    isDownloadingUpdate = false;
+  }
+}
+
+/**
+ * 弹出"更新已就绪"对话框
+ */
+async function showUpdateReadyDialog(version, notes) {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+
+  // 先在气泡提示
+  mainWindow.webContents.send('update-bubble', { text: `新版本 v${version} 已下载完成` });
+
+  const result = await dialog.showMessageBox({
+    type: 'info',
+    title: `新版本 v${version} 已就绪`,
+    message: `新版本 v${version} 已下载完成，重启即可升级`,
+    detail: `更新内容：\n${notes}`,
+    buttons: ['重启升级', '稍后'],
+    defaultId: 0,
+    cancelId: 1,
+  });
+
+  if (result.response === 0) {
+    applyPendingUpdate();
+  }
+}
+
+/**
+ * 应用已下载的更新（替换 .app + 重启）
+ */
+function applyPendingUpdate() {
+  const update = pendingUpdate || loadPendingUpdateFromCache();
+  if (!update || !update.newAppPath || !fs.existsSync(update.newAppPath)) {
+    dialog.showMessageBox({
+      type: 'warning',
+      title: '更新文件丢失',
+      message: '更新包已损坏或被清理，将在下次检查时重新下载',
+      buttons: ['知道了'],
+    }).catch(() => {});
+    cleanUpdateCache();
+    pendingUpdate = null;
+    return;
+  }
+
+  const currentAppPath = getCurrentAppBundlePath();
+  if (!currentAppPath) {
+    dialog.showMessageBox({ type: 'error', title: '更新失败', message: '无法识别当前 .app 路径', buttons: ['知道了'] }).catch(() => {});
+    return;
+  }
+
+  isUpdatingNow = true;
+  const cacheDir = getUpdateCacheDir();
+  const scriptPath = path.join(cacheDir, 'apply-update.sh');
+  const escapedCurrent = currentAppPath.replace(/"/g, '\\"');
+  const escapedNew = update.newAppPath.replace(/"/g, '\\"');
+  const escapedCacheDir = cacheDir.replace(/"/g, '\\"');
+  const script = `#!/bin/bash
 set -e
 TARGET="${escapedCurrent}"
 NEWAPP="${escapedNew}"
 PID=${process.pid}
+CACHE="${escapedCacheDir}"
+
+# 等待当前进程退出
 while kill -0 "$PID" 2>/dev/null; do sleep 0.5; done
+sleep 1
+
+# 备份旧版本
 TS=$(date +%Y%m%d%H%M%S)
 if [ -d "$TARGET" ]; then
   mv "$TARGET" "/tmp/qq-pet-backup-$TS"
 fi
+
+# 复制新版本到原位置
 cp -R "$NEWAPP" "$TARGET"
+
+# 清理更新缓存（zip + 解压的 .app）
+rm -rf "$CACHE"
+
+# 清理 /tmp 中超过 1 天的旧备份
+find /tmp -maxdepth 1 -name "qq-pet-backup-*" -mtime +1 -exec rm -rf {} \\; 2>/dev/null || true
+find /tmp -maxdepth 1 -name "qq-pet-update-*" -mtime +1 -exec rm -rf {} \\; 2>/dev/null || true
+
+# 启动新版本
 open "$TARGET"
 `;
-    fs.writeFileSync(scriptPath, script, { mode: 0o755 });
+  fs.writeFileSync(scriptPath, script, { mode: 0o755 });
 
-    spawn('/bin/bash', [scriptPath], {
-      detached: true,
-      stdio: 'ignore',
-    }).unref();
+  showUpdateProgress('更新中', `正在重启应用，新版本 v${update.version} 即将生效...`);
 
+  setTimeout(() => {
+    spawn('/bin/bash', [scriptPath], { detached: true, stdio: 'ignore' }).unref();
     app.quit();
-  } catch (e) {
-    console.error('自动更新失败:', e.message);
-    dialog.showMessageBox({
-      type: 'error',
-      title: '更新失败',
-      message: `更新失败：${e.message}`,
-      buttons: ['知道了'],
-    }).catch(() => {});
-    isUpdatingNow = false;
-  }
+  }, 1500);
+}
+
+/**
+ * 从 manifest URL 下载 zip 包更新（兼容手动触发时的直接安装模式）
+ */
+async function installUpdateFromManifest(manifest) {
+  if (isUpdatingNow) return;
+  // 直接触发静默下载 → 完成后弹窗
+  await silentDownloadUpdate(manifest);
 }
 
 async function checkForUpdates(triggeredBy = 'auto') {
@@ -913,7 +1141,7 @@ async function checkForUpdates(triggeredBy = 'auto') {
     return await checkForUpdatesViaGit(cfg, triggeredBy);
   }
 
-  // ─── HTTPS/API 模式（原有逻辑） ───
+  // ─── HTTPS/API 模式（静默下载 + 就绪弹窗） ───
   try {
     let manifest = null;
     if (cfg.manifestUrl) {
@@ -933,34 +1161,49 @@ async function checkForUpdates(triggeredBy = 'auto') {
       return { ok: true, status: 'up-to-date', localVersion, remoteVersion: remoteVersion || localVersion };
     }
 
+    // 检查是否已有更新缓存
+    const cached = loadPendingUpdateFromCache();
+    if (cached && cached.version === remoteVersion) {
+      // 已经下载好了，直接弹窗（手动触发时 or 之前用户点了"稍后"）
+      if (triggeredBy === 'manual' || lastNotifiedVersion !== remoteVersion) {
+        lastNotifiedVersion = remoteVersion;
+        pendingUpdate = cached;
+        showUpdateReadyDialog(remoteVersion, cached.notes || normalizeUpdateNotes(manifest));
+      }
+      return { ok: true, status: 'update-ready', localVersion, remoteVersion };
+    }
+
+    // 缓存的是旧版本 → 清理后下载最新版
+    if (cached && cached.version !== remoteVersion) {
+      console.log(`🔄 缓存版本 v${cached.version} 已过时，删除并下载最新 v${remoteVersion}`);
+      cleanUpdateCache();
+      pendingUpdate = null;
+    }
+
+    // 通知渲染进程
     const notesText = normalizeUpdateNotes(manifest);
     if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send('update-available', {
-        version: remoteVersion,
-        notes: notesText,
-      });
+      mainWindow.webContents.send('update-available', { version: remoteVersion, notes: notesText });
     }
 
-    if (lastNotifiedVersion === remoteVersion && triggeredBy !== 'manual') return;
-    lastNotifiedVersion = remoteVersion;
-
-    const detail = `更新后版本号：v${remoteVersion}\n\n更新内容：\n${notesText}`;
-    const hasPackage = !!manifest.package_url;
-    const result = await dialog.showMessageBox({
-      type: 'info',
-      title: '发现新版本',
-      message: hasPackage
-        ? `发现新版本 v${remoteVersion}，是否立即更新并重启？`
-        : `发现新版本 v${remoteVersion}，当前仅检测到版本更新。`,
-      detail,
-      buttons: hasPackage ? ['立即更新', '稍后'] : ['知道了'],
-      defaultId: 0,
-      cancelId: hasPackage ? 1 : 0,
-    });
-    if (hasPackage && result.response === 0) {
-      await installUpdateFromManifest(manifest);
+    // 有下载地址 → 静默下载
+    if (manifest.package_url) {
+      lastNotifiedVersion = remoteVersion;
+      silentDownloadUpdate(manifest); // 异步，不 await，不阻塞
+      return { ok: true, status: 'downloading', localVersion, remoteVersion };
     }
-    return { ok: true, status: 'update-available', localVersion, remoteVersion, hasPackage };
+
+    // 无下载地址 → 仅通知
+    if (triggeredBy === 'manual') {
+      dialog.showMessageBox({
+        type: 'info',
+        title: '发现新版本',
+        message: `发现新版本 v${remoteVersion}，但当前无可用更新包`,
+        detail: `更新内容：\n${notesText}`,
+        buttons: ['知道了'],
+      }).catch(() => {});
+    }
+    return { ok: true, status: 'update-available', localVersion, remoteVersion, hasPackage: false };
   } catch (e) {
     console.warn('检查更新失败:', e.message);
     return { ok: false, status: 'error', error: e.message };
@@ -1140,6 +1383,11 @@ async function checkForUpdatesViaGit(cfg, triggeredBy) {
 
 ipcMain.handle('check-updates-now', async () => {
   return await checkForUpdates('manual');
+});
+
+ipcMain.handle('apply-pending-update', () => {
+  applyPendingUpdate();
+  return { ok: true };
 });
 
 // 将复杂问题委托给 WorkBuddy/OpenClaw 本体（复用其完整执行链路）
@@ -1362,7 +1610,7 @@ ipcMain.handle('install-skills', async (event, { apiUrl, token, model, clawType 
     // 初始化记忆
     const memFile = path.join(agentDir, 'memory', 'MEMORY.md');
     if (!fs.existsSync(memFile)) {
-      fs.writeFileSync(memFile, `# 🐧 小Q的记忆\n\n## 关于主人\n- 还不太了解主人，需要多互动！\n\n## 重要的事\n- 今天是我来到主人桌面的第一天！\n`);
+      fs.writeFileSync(memFile, `# 🐧 q宠的记忆\n\n## 关于主人\n- 还不太了解主人，需要多互动！\n\n## 重要的事\n- 今天是我来到主人桌面的第一天！\n`);
     }
 
     // Skill 标记
@@ -1393,9 +1641,11 @@ ipcMain.handle('open-url', async (_, url) => {
   catch (e) { return { ok: false, error: e.message }; }
 });
 
-// launch-pet：安装向导完成后「启动小Q」（仅关闭向导窗口，宿主 App 已在运行）
+// launch-pet：安装向导完成后启动宠物（关闭向导窗口 + 创建宠物窗口）
 ipcMain.on('launch-pet', () => {
   if (aiSetupWindow && !aiSetupWindow.isDestroyed()) aiSetupWindow.close();
+  // 首次安装流程：installer 完成后才启动宠物
+  launchPetApp();
 });
 
 // debug-scan-state：调试用，模拟扫描结果
@@ -3201,7 +3451,8 @@ function launchInstallerIfNeeded() {
     if (fs.existsSync(c)) { installerPath = c; break; }
   }
   if (!installerPath) {
-    console.warn('🐧 未找到安装向导，跳过首次引导');
+    console.warn('🐧 未找到安装向导，跳过首次引导，直接启动宠物');
+    launchPetApp();
     return;
   }
 
@@ -3224,8 +3475,54 @@ function launchInstallerIfNeeded() {
     },
   });
   aiSetupWindow.loadFile(installerPath);
-  aiSetupWindow.on('closed', () => { aiSetupWindow = null; });
+  aiSetupWindow.on('closed', () => {
+    aiSetupWindow = null;
+    // 兜底：用户直接关闭 installer 窗口（没点启动按钮），也要启动宠物
+    launchPetApp();
+  });
   console.log(`🐧 首次启动，安装向导已打开: ${installerPath}`);
+}
+
+// ─── 启动宠物主窗口及后续子系统（首次安装完成后 or 非首次直接调用） ───
+function launchPetApp() {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    console.log('🐧 宠物窗口已存在，跳过重复创建');
+    return;
+  }
+
+  createMainWindow();
+  createTray();
+  startClawMonitor();
+  applyAutoLaunchSetting();
+
+  // ── 检测是否从 DMG / 非 Applications 目录运行（延迟 3 秒，不阻塞启动）
+  setTimeout(() => checkAndPromptCopyToApplications(), 3000);
+
+  console.log('🎤 腾讯云 ASR 流式识别就绪（按需连接）');
+  registerGlobalShortcutsFromSettings();
+
+  // ── 自动更新检查
+  const updateCfg = getUpdateConfig();
+  if (updateCfg && updateCfg.enabled) {
+    // 先检查是否有之前下载好但未安装的更新（用户之前点了"稍后"）
+    setTimeout(() => {
+      const cached = loadPendingUpdateFromCache();
+      if (cached) {
+        console.log(`🔄 发现缓存的待安装更新 v${cached.version}`);
+        pendingUpdate = cached;
+        showUpdateReadyDialog(cached.version, cached.notes);
+      } else {
+        // 没有缓存 → 正常检查远程更新
+        checkForUpdates('auto');
+      }
+    }, 8000);
+    const intervalMinutes = Math.max(30, updateCfg.checkIntervalMinutes);
+    const intervalMs = intervalMinutes * 60 * 1000;
+    updateCheckTimer = setInterval(() => { checkForUpdates('auto'); }, intervalMs);
+    console.log(`🔄 自动更新已启用，每 ${intervalMinutes} 分钟检查一次`);
+  } else {
+    console.log('🔄 自动更新未启用（缺少 update-config.json）');
+  }
 }
 
 // ─── 应用生命周期 ───
@@ -3235,36 +3532,15 @@ app.whenReady().then(async () => {
   // ── 同步内置更新配置（首次安装时建立 update-config.json）
   ensureUpdateConfig();
 
-  // ── 首次启动检测：没有配置时自动打开安装向导（延迟到主窗口就绪后）
+  // ── 首次启动检测：没有配置时先走安装向导，完成后再启动宠物
   const alreadyConfigured = hasExistingConfig();
   if (!alreadyConfigured) {
-    console.log('🐧 首次启动，将在主窗口就绪后打开配置向导...');
-    setTimeout(() => launchInstallerIfNeeded(), 1500);
+    console.log('🐧 首次启动，先打开配置向导，完成后再启动宠物...');
+    launchInstallerIfNeeded();
+    // 宠物窗口在 launch-pet IPC 收到后才创建
   } else {
-    console.log('🐧 已有配置，跳过安装向导');
-  }
-
-  createMainWindow();
-  createTray();
-  startClawMonitor();
-  applyAutoLaunchSetting();
-
-  // 腾讯云 ASR 无需预初始化，连接在开始录音时建立
-  console.log('🎤 腾讯云 ASR 流式识别就绪（按需连接）');
-
-  registerGlobalShortcutsFromSettings();
-
-  // ── 自动更新检查
-  const updateCfg = getUpdateConfig();
-  if (updateCfg && updateCfg.enabled) {
-    // 启动后 8 秒做第一次检查（给宠物完全启动的时间）
-    setTimeout(() => { checkForUpdates('auto'); }, 8000);
-    const intervalMinutes = Math.max(30, updateCfg.checkIntervalMinutes); // 最少 30 分钟检查一次
-    const intervalMs = intervalMinutes * 60 * 1000;
-    updateCheckTimer = setInterval(() => { checkForUpdates('auto'); }, intervalMs);
-    console.log(`🔄 自动更新已启用，每 ${intervalMinutes} 分钟检查一次`);
-  } else {
-    console.log('🔄 自动更新未启用（缺少 update-config.json）');
+    console.log('🐧 已有配置，直接启动宠物');
+    launchPetApp();
   }
 });
 
@@ -3283,5 +3559,11 @@ app.on('window-all-closed', () => {
 });
 
 app.on('activate', () => {
-  if (!mainWindow) createMainWindow();
+  // installer 正在运行时聚焦 installer，否则创建/聚焦宠物窗口
+  if (aiSetupWindow && !aiSetupWindow.isDestroyed()) {
+    aiSetupWindow.show();
+    aiSetupWindow.focus();
+  } else if (!mainWindow) {
+    launchPetApp();
+  }
 });
