@@ -1,0 +1,798 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>QQ 宠物 安装程序</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+
+body {
+  font-family: -apple-system, 'PingFang SC', 'Helvetica Neue', sans-serif;
+  background: #F2F2F7;
+  height: 100vh;
+  overflow: hidden;
+  user-select: none;
+  -webkit-user-select: none;
+  display: flex;
+  flex-direction: column;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* 顶部拖拽区 */
+.drag-bar {
+  height: 44px;
+  flex-shrink: 0;
+  -webkit-app-region: drag;
+}
+
+/* 主体 */
+.body {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+  min-height: 0;
+  -webkit-app-region: no-drag;
+}
+
+/* 面板 */
+.panel {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column; align-items: center;
+  padding: 0 48px 16px;
+  opacity: 0; pointer-events: none;
+  transition: opacity 0.18s ease;
+  overflow-y: auto;
+}
+.panel.active  { opacity: 1; pointer-events: auto; }
+.panel.leaving { opacity: 0; pointer-events: none; }
+
+/* 底部 */
+.footer {
+  flex-shrink: 0;
+  height: 56px;
+  background: rgba(0,0,0,0.04);
+  border-top: 0.5px solid rgba(0,0,0,0.1);
+  display: flex; align-items: center; justify-content: flex-end;
+  padding: 0 20px; gap: 8px;
+  -webkit-app-region: no-drag;
+}
+
+/* ═══ 按钮 ═══ */
+.btn {
+  height: 28px; padding: 0 16px;
+  border-radius: 6px; font-size: 13px; font-weight: 400;
+  border: none; cursor: pointer; font-family: inherit;
+  outline: none; letter-spacing: -0.1px;
+  transition: filter 0.08s;
+}
+.btn:active { filter: brightness(0.88); }
+.btn:disabled { opacity: 0.38; cursor: not-allowed; filter: none; }
+
+.btn-gray {
+  background: linear-gradient(to bottom, #fff, #f0f0f0);
+  color: #1d1d1f; border: 0.5px solid #b8b8b8;
+  box-shadow: 0 1px 0 rgba(0,0,0,0.07), inset 0 1px 0 rgba(255,255,255,0.9);
+}
+.btn-blue {
+  background: linear-gradient(to bottom, #2196ff, #0a7ef0);
+  color: #fff; border: 0.5px solid #0060c0;
+  box-shadow: 0 1px 0 rgba(0,0,0,0.14), inset 0 1px 0 rgba(255,255,255,0.18);
+  font-weight: 500;
+}
+.btn-blue:hover:not(:disabled) { background: linear-gradient(to bottom, #1a8cf0, #0070e0); }
+.btn-green {
+  background: linear-gradient(to bottom, #32d74b, #28c040);
+  color: #fff; border: 0.5px solid #1fa033;
+  box-shadow: 0 1px 0 rgba(0,0,0,0.12), inset 0 1px 0 rgba(255,255,255,0.18);
+  font-weight: 500;
+}
+
+/* ═══ 欢迎页 ═══ */
+.welcome-icon {
+  width: 96px; height: 96px; border-radius: 22px;
+  background: linear-gradient(145deg, #2196ff, #0055d4);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 56px;
+  box-shadow: 0 8px 24px rgba(0,100,255,0.22), 0 2px 6px rgba(0,0,0,0.1);
+  flex-shrink: 0;
+}
+.welcome-title { font-size: 24px; font-weight: 700; color: #1d1d1f; letter-spacing: -0.4px; }
+.welcome-sub   { font-size: 13px; color: #8e8e93; }
+
+/* 进度条 —— 纯 JS 驱动宽度，无 CSS transition */
+.pbar-wrap {
+  width: 100%; height: 40px;
+  background: #C6EDD0; border-radius: 20px; overflow: hidden; position: relative;
+}
+.pbar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #32d74b, #25a83b);
+  border-radius: 20px;
+  /* ⚠️ 不加 transition，由 JS requestAnimationFrame 驱动 */
+  width: 0%;
+}
+.pbar-text {
+  position: absolute; right: 16px; top: 50%;
+  transform: translateY(-50%);
+  font-size: 13.5px; font-weight: 600; color: #1a6e2e;
+  pointer-events: none;
+}
+
+/* ═══ 扫描页 ═══ */
+.scan-item {
+  width: 100%; background: #fff;
+  border-radius: 12px; padding: 14px 16px;
+  display: flex; align-items: center; gap: 13px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.07), 0 0 0 0.5px rgba(0,0,0,0.05);
+}
+.si-icon  { font-size: 22px; flex-shrink: 0; }
+.si-name  { font-size: 14px; font-weight: 600; color: #1d1d1f; }
+.si-sub   { font-size: 12px; color: #8e8e93; margin-top: 1px; }
+.tag {
+  font-size: 11.5px; font-weight: 600; padding: 3px 9px;
+  border-radius: 10px; white-space: nowrap; flex-shrink: 0;
+}
+.tag-wait   { background: #E5E5EA; color: #636366; }
+.tag-scan   { background: #FFF3CD; color: #856404; }
+.tag-found  { background: #D4EDDA; color: #155724; }
+.tag-miss   { background: #fdecea; color: #9c2a23; }
+
+@keyframes spin { to { transform: rotate(360deg); } }
+.spin {
+  display: inline-block; width: 10px; height: 10px;
+  border: 1.5px solid rgba(133,100,4,0.25); border-top-color: #856404;
+  border-radius: 50%; animation: spin 0.75s linear infinite;
+  vertical-align: middle; margin-right: 4px;
+}
+
+/* ═══ 信息卡 ═══ */
+.card {
+  width: 100%; background: #fff;
+  border-radius: 12px; padding: 14px 16px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.07), 0 0 0 0.5px rgba(0,0,0,0.05);
+}
+.card.green-tint { background: #F0FAF4; }
+.card.blue-tint  { background: #EBF3FF; }
+.card.warn-tint  { background: #FFFBEB; }
+.card-title {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 14px; font-weight: 600; color: #1d1d1f;
+}
+.card-body { margin-top: 5px; font-size: 13px; color: #6c6c70; line-height: 1.55; }
+.card-code {
+  margin-top: 7px;
+  font-size: 11.5px; font-family: 'SF Mono','Menlo',monospace;
+  color: #1a7f37; background: #edfbf2;
+  padding: 5px 9px; border-radius: 7px; word-break: break-all;
+}
+.card.warn-tint .card-code { background: #fff8dc; color: #856404; }
+.card-contact {
+  margin-top: 8px; padding: 7px 10px;
+  background: #EBF3FF; border-radius: 8px;
+  font-size: 12.5px; color: #004AAD;
+  display: flex; align-items: center; gap: 6px;
+}
+.card a { color: #007AFF; cursor: pointer; }
+.card a:hover { text-decoration: underline; }
+
+/* ═══ 选项按钮 ═══ */
+.choice {
+  width: 100%; background: #fff;
+  border: 1.5px solid transparent; border-radius: 12px;
+  padding: 12px 15px; cursor: pointer; text-align: left;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 0 0 0.5px rgba(0,0,0,0.05);
+  display: flex; align-items: center; gap: 11px;
+  transition: border-color 0.1s, background 0.1s;
+  font-family: inherit;
+}
+.choice:hover { border-color: #007AFF; background: #f2f8ff; }
+.choice.sel   { border-color: #007AFF; background: #EBF3FF; }
+.ch-icon  { font-size: 20px; flex-shrink: 0; }
+.ch-title { font-size: 13.5px; font-weight: 600; color: #1d1d1f; }
+.ch-desc  { font-size: 12px; color: #8e8e93; margin-top: 2px; }
+.radio {
+  width: 16px; height: 16px; border-radius: 50%;
+  border: 1.5px solid #c7c7cc; margin-left: auto; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+}
+.choice.sel .radio { border-color: #007AFF; background: #007AFF; }
+.choice.sel .radio::after { content:''; width:5px; height:5px; background:#fff; border-radius:50%; }
+
+/* ═══ 安装步骤 ═══ */
+.step-row {
+  display: flex; align-items: center; gap: 10px;
+  font-size: 13.5px; color: #aeaeb2;
+  transition: color 0.18s;
+}
+.step-row.active { color: #1d1d1f; font-weight: 500; }
+.step-row.done   { color: #34C759; }
+.step-dot {
+  width: 18px; height: 18px; border-radius: 50%;
+  border: 1.5px solid #d1d1d6; background: #fff;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 10px; flex-shrink: 0;
+  transition: all 0.18s;
+}
+.step-row.active .step-dot { border-color: #007AFF; background: #007AFF; color: #fff; }
+.step-row.done   .step-dot { border-color: #34C759; background: #34C759; color: #fff; }
+
+/* ═══ 完成页 ═══ */
+.done-circle {
+  width: 70px; height: 70px; border-radius: 50%;
+  background: linear-gradient(145deg, #32d74b, #25a83b);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 34px; color: #fff; flex-shrink: 0;
+  box-shadow: 0 6px 20px rgba(50,215,75,0.3);
+}
+.done-detail {
+  width: 100%; background: #fff;
+  border-radius: 12px; padding: 12px 14px;
+  font-size: 12px; line-height: 1.9; color: #3a3a3c;
+  font-family: 'SF Mono','Menlo',monospace;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+}
+
+/* 调试栏 */
+.debug-bar {
+  position: fixed; bottom: 58px; left:0; right:0;
+  display: flex; justify-content: center; gap: 6px;
+  padding: 5px 0; background: rgba(0,0,0,0.05);
+  border-top: 0.5px solid rgba(0,0,0,0.08); z-index: 99;
+}
+.debug-bar button {
+  font-size: 11px; padding: 3px 9px; border-radius: 5px;
+  border: 0.5px solid #aaa; background: #fff;
+  cursor: pointer; font-family: inherit; color: #555;
+}
+.debug-bar button:hover { background: #eee; }
+
+@keyframes fadeIn { from{opacity:0;transform:translateY(5px)} to{opacity:1;transform:none} }
+.fadein { animation: fadeIn 0.18s ease; }
+</style>
+</head>
+<body>
+
+<div class="drag-bar"></div>
+
+<div class="body">
+
+  <!-- ══ 欢迎 ══ -->
+  <div class="panel active" id="p-welcome" style="justify-content:center; gap:16px;">
+    <div class="welcome-icon">🐧</div>
+    <div>
+      <div class="welcome-title" style="text-align:center;">QQ 宠物</div>
+      <div class="welcome-sub"   style="text-align:center; margin-top:4px;">0.1.3 (build 2026)</div>
+    </div>
+    <div class="pbar-wrap" style="margin-top:10px;">
+      <div class="pbar-fill" id="wp-bar"></div>
+      <div class="pbar-text" id="wp-label">准备中...</div>
+    </div>
+  </div>
+
+  <!-- ══ 扫描 ══ -->
+  <div class="panel" id="p-scan" style="padding-top:20px; gap:0; overflow-y:auto;">
+    <div class="welcome-icon" style="width:60px;height:60px;border-radius:14px;font-size:36px;flex-shrink:0;">🐧</div>
+    <div style="margin-top:12px;font-size:18px;font-weight:700;color:#1d1d1f;flex-shrink:0;">检测本地 AI 环境</div>
+    <div style="margin-top:4px;font-size:13px;color:#8e8e93;text-align:center;line-height:1.5;flex-shrink:0;">
+      扫描本机是否有可用的 AI 助手<br>q宠 需要接入 AI 才能与你对话
+    </div>
+
+    <!-- 扫描结果卡片 -->
+    <div style="width:100%;display:flex;flex-direction:column;gap:8px;margin-top:16px;flex-shrink:0;">
+      <div class="scan-item">
+        <span class="si-icon">🐾</span>
+        <div><div class="si-name">QQClaw</div><div class="si-sub">腾讯出品的本地 AI 助手</div></div>
+        <span class="tag tag-wait" id="tag-qqclaw">等待中</span>
+      </div>
+      <div class="scan-item">
+        <span class="si-icon">🤖</span>
+        <div><div class="si-name">OpenClaw</div><div class="si-sub">开源社区版 AI 网关</div></div>
+        <span class="tag tag-wait" id="tag-openclaw">等待中</span>
+      </div>
+    </div>
+
+    <div style="margin-top:10px;font-size:12px;color:#aeaeb2;text-align:center;min-height:16px;flex-shrink:0;" id="scan-hint">
+      正在探测本地端口，请稍候...
+    </div>
+
+    <!-- ══ 已装未运行引导区（扫描完检测到已安装但未启动时展开） ══ -->
+    <div id="offline-guide" style="display:none; width:100%; flex-direction:column; gap:10px; margin-top:10px;">
+      <div class="card warn-tint">
+        <div class="card-title">⚠️ <span id="offline-guide-name">QQClaw</span> 已安装但未运行</div>
+        <div class="card-body">
+          检测到本机已安装 <strong><span id="offline-guide-name2">QQClaw</span></strong>，但网关当前没有启动。<br><br>
+          请先打开 <span id="offline-guide-name3">QQClaw</span> 应用，等待它完全启动后，点击下方「重新检测」。
+        </div>
+      </div>
+
+      <button class="choice sel" id="ch-offline-rescan" onclick="rescan()">
+        <span class="ch-icon">🔄</span>
+        <div><div class="ch-title">我已启动，重新检测</div><div class="ch-desc">启动 AI 助手后点此重新扫描</div></div>
+        <div class="radio"></div>
+      </button>
+      <button class="choice" id="ch-offline-skip" onclick="selectOfflineChoice('skip')">
+        <span class="ch-icon">⏭</span>
+        <div><div class="ch-title">暂时跳过，以离线模式安装</div><div class="ch-desc">之后可在宠物设置里手动配置 AI 接口</div></div>
+        <div class="radio"></div>
+      </button>
+    </div>
+
+    <!-- ══ 未安装引导区（扫描完无结果时展开） ══ -->
+    <div id="no-claw-guide" style="display:none; width:100%; flex-direction:column; gap:10px; margin-top:10px;">
+
+      <!-- 说明：小字，无卡片，顶部提示 -->
+      <p style="font-size:12px; color:#aeaeb2; text-align:center; line-height:1.6; padding:0 8px;">
+        QQ Demo 宠物的 AI 对话能力基于 OpenClaw 架构，需接入本地 AI 助手才能使用智能对话。
+        未配置时将以离线模式运行。
+      </p>
+
+      <!-- 下载主卡：视觉中心 -->
+      <div class="card" style="padding:20px 20px 16px;">
+        <div style="font-size:15px; font-weight:700; color:#1d1d1f; margin-bottom:4px;">推荐安装 QQClaw（内网版）</div>
+        <div style="font-size:13px; color:#6c6c70; margin-bottom:14px;">QQClaw 是腾讯内部版的 OpenClaw，安装后即可作为 AI 网关使用。</div>
+
+        <!-- 大下载按钮 -->
+        <button
+          onclick="openUrl('https://drive.weixin.qq.com/s?k=AJEAIQdfAAopChOQP3')"
+          style="
+            width:100%; height:44px;
+            background: linear-gradient(to bottom, #2196ff, #0a7ef0);
+            color:#fff; border:none; border-radius:10px;
+            font-size:15px; font-weight:600; font-family:inherit;
+            cursor:pointer; display:flex; align-items:center; justify-content:center; gap:8px;
+            box-shadow:0 2px 8px rgba(0,120,255,0.25), inset 0 1px 0 rgba(255,255,255,0.15);
+            letter-spacing:-0.2px;
+          "
+          onmouseover="this.style.background='linear-gradient(to bottom,#1a8cf0,#0065d0)'"
+          onmouseout="this.style.background='linear-gradient(to bottom,#2196ff,#0a7ef0)'"
+        >
+          <span style="font-size:18px;">⬇️</span> 下载 QQClaw 内网版
+        </button>
+
+        <div class="card-contact" style="margin-top:10px;">
+          💬 需要配置帮助？请联系企业微信：<strong>riojdai</strong>
+        </div>
+      </div>
+
+      <!-- 两个操作选项 -->
+      <button class="choice" id="ch-after-install" onclick="selectChoice('after-install')">
+        <span class="ch-icon">✅</span>
+        <div><div class="ch-title">我已安装好 QQClaw，重新检测</div><div class="ch-desc">安装完成后点此扫描并自动完成配置</div></div>
+        <div class="radio"></div>
+      </button>
+      <button class="choice sel" id="ch-skip" onclick="selectChoice('skip')">
+        <span class="ch-icon">⏭</span>
+        <div><div class="ch-title">暂时跳过，以离线模式安装</div><div class="ch-desc">之后可在宠物设置里手动配置 AI 接口</div></div>
+        <div class="radio"></div>
+      </button>
+    </div>
+  </div>
+
+  <!-- ══ 检测到 ══ -->
+  <div class="panel" id="p-found" style="padding-top:20px; gap:0; overflow-y:auto;">
+    <div class="welcome-icon" style="width:60px;height:60px;border-radius:14px;font-size:36px;flex-shrink:0;">🐧</div>
+    <div style="margin-top:12px;font-size:18px;font-weight:700;color:#1d1d1f;flex-shrink:0;">已检测到 AI 助手 ✅</div>
+    <div style="margin-top:4px;font-size:13px;color:#8e8e93;text-align:center;flex-shrink:0;">
+      本地网关正在运行，将自动完成配置
+    </div>
+
+    <!-- 说明放第一行 -->
+    <div class="card blue-tint" style="margin-top:16px;">
+      <div class="card-title">ℹ️ 配置了什么？</div>
+      <div class="card-body">QQ Demo 宠物的 AI 对话能力基于 <strong>OpenClaw 架构</strong>，依赖其 Main Agent 提供语言模型服务。点击下方按钮将把 Agent 配置和 AI 接口地址写入指定目录，宠物启动后即可使用 AI 对话。</div>
+    </div>
+
+    <!-- 检测结果 + 重新检测按钮 -->
+    <div class="card" style="margin-top:9px;">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;">
+        <div style="flex:1;min-width:0;">
+          <div class="card-title"><span id="found-emoji">🐾</span><span id="found-name">QQClaw 已运行</span></div>
+          <div class="card-body" id="found-desc">检测到活跃端口，已读取 AI 接口地址</div>
+          <div class="card-code" id="found-url"></div>
+        </div>
+        <button class="btn btn-gray" style="flex-shrink:0;margin-top:2px;" onclick="rescanFromFound()">重新检测</button>
+      </div>
+    </div>
+
+    <!-- Skills 目录 + 重新检测按钮 -->
+    <div class="card green-tint" style="margin-top:9px;">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;">
+        <div style="flex:1;min-width:0;">
+          <div class="card-title"><span>🧩</span> Skills 配置目录</div>
+          <div class="card-body">Agent 文件将写入对应的 Claw 目录：</div>
+          <div class="card-code" id="found-agent-dir">~/.openclaw/agents/qq-pet/</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ 已装未运行 ══ -->
+  <div class="panel" id="p-offline" style="padding-top:20px; gap:0;">
+    <div class="welcome-icon" style="width:60px;height:60px;border-radius:14px;font-size:36px;background:linear-gradient(145deg,#FF9F0A,#E06000);flex-shrink:0;">🐧</div>
+    <div style="margin-top:12px;font-size:18px;font-weight:700;color:#1d1d1f;flex-shrink:0;">AI 助手未运行</div>
+    <div style="margin-top:4px;font-size:13px;color:#8e8e93;text-align:center;line-height:1.5;flex-shrink:0;">
+      检测到已安装 <span id="offline-name">QQClaw</span>，但网关当前未启动
+    </div>
+    <div class="card warn-tint" style="margin-top:18px;">
+      <div class="card-title">⚠️ 网关未运行</div>
+      <div class="card-body">请打开 <span id="offline-name2">QQClaw</span>，启动后点「重新检测」，q宠 将自动完成配置。<br>也可以跳过，之后在宠物设置里手动配置 AI 接口。</div>
+    </div>
+  </div>
+
+  <!-- ══ 未安装 ══ -->
+  <div class="panel" id="p-none" style="padding-top:16px; gap:0; overflow-y:auto;">
+    <div class="welcome-icon" style="width:56px;height:56px;border-radius:14px;font-size:32px;background:linear-gradient(145deg,#8e8e93,#636366);flex-shrink:0;">🐧</div>
+    <div style="margin-top:10px;font-size:17px;font-weight:700;color:#1d1d1f;flex-shrink:0;">未检测到 AI 助手</div>
+    <div style="margin-top:3px;font-size:13px;color:#8e8e93;flex-shrink:0;">本机未找到正在运行的 OpenClaw 或 QQClaw</div>
+
+    <div class="card" style="margin-top:14px;">
+      <div class="card-title">ℹ️ 为什么需要配置？</div>
+      <div class="card-body">QQ Demo 宠物的 AI 对话能力基于 <strong>OpenClaw 架构</strong>，依赖 OpenClaw 的 Main Agent 提供语言模型服务。没有接入时，q宠 会以<strong>离线模式</strong>运行，无法进行智能对话。</div>
+    </div>
+
+    <div class="card" style="margin-top:9px;">
+      <div class="card-title">⬇️ 推荐安装 QQClaw（内网版）</div>
+      <div class="card-body">QQClaw 是腾讯内部版的 OpenClaw，可直接作为 AI 网关使用。<br>
+        <a onclick="openUrl('https://drive.weixin.qq.com/s?k=AJEAIQdfAAopChOQP3')" style="margin-top:4px;display:inline-block;">📦 下载 QQClaw 内网版</a>
+      </div>
+      <div class="card-contact">💬 需要配置帮助？请联系企业微信：<strong>riojdai</strong></div>
+    </div>
+
+    <div style="width:100%;display:flex;flex-direction:column;gap:7px;margin-top:10px;flex-shrink:0;">
+      <button class="choice" id="ch-after-install" onclick="selectChoice('after-install')">
+        <span class="ch-icon">✅</span>
+        <div><div class="ch-title">我已安装好 QQClaw，重新检测</div><div class="ch-desc">安装完成后点此扫描并自动完成配置</div></div>
+        <div class="radio"></div>
+      </button>
+      <button class="choice sel" id="ch-skip" onclick="selectChoice('skip')">
+        <span class="ch-icon">⏭</span>
+        <div><div class="ch-title">暂时跳过，以离线模式安装</div><div class="ch-desc">之后可在宠物设置里手动配置 AI 接口</div></div>
+        <div class="radio"></div>
+      </button>
+    </div>
+  </div>
+
+  <!-- ══ 安装中 ══ -->
+  <div class="panel" id="p-installing" style="justify-content:center; gap:14px;">
+    <div class="welcome-icon">🐧</div>
+    <div style="font-size:19px;font-weight:700;color:#1d1d1f;">正在完成安装...</div>
+    <div style="width:100%;display:flex;flex-direction:column;gap:9px;">
+      <div class="step-row" id="is-0"><div class="step-dot">1</div>写入 SOUL.md</div>
+      <div class="step-row" id="is-1"><div class="step-dot">2</div>写入 IDENTITY.md / AGENTS.yml</div>
+      <div class="step-row" id="is-2"><div class="step-dot">3</div>初始化记忆文件</div>
+      <div class="step-row" id="is-3"><div class="step-dot">4</div>写入 AI 接口配置</div>
+      <div class="step-row" id="is-4"><div class="step-dot">5</div>随机分配企鹅性格</div>
+    </div>
+    <div class="pbar-wrap" style="margin-top:4px;">
+      <div class="pbar-fill" id="inst-bar"></div>
+      <div class="pbar-text" id="inst-label">0%</div>
+    </div>
+  </div>
+
+  <!-- ══ 完成 ══ -->
+  <div class="panel" id="p-done" style="justify-content:center; gap:13px;">
+    <div class="done-circle">✓</div>
+    <div style="font-size:22px;font-weight:700;color:#1d1d1f;">安装完成！</div>
+    <div style="font-size:13px;color:#8e8e93;text-align:center;" id="done-desc">
+      q宠 已准备好，点击启动让它出现在桌面
+    </div>
+    <div class="done-detail" id="done-detail">
+      ✅ Agent 配置已写入<br>✅ AI 接口已配置<br>✅ 记忆系统已初始化
+    </div>
+  </div>
+
+</div><!-- /body -->
+
+<!-- 调试栏 -->
+<div class="debug-bar" id="debug-bar" style="display:none;">
+  <button onclick="debugState('found-qqclaw')">模拟: QQClaw 运行中</button>
+  <button onclick="debugState('found-openclaw')">模拟: OpenClaw 运行中</button>
+  <button onclick="debugState('offline-qqclaw')">模拟: 已装未运行</button>
+  <button onclick="debugState('none')">模拟: 未安装</button>
+</div>
+
+<!-- 底部按钮 -->
+<div class="footer">
+  <button class="btn btn-gray"  id="btn-back"   onclick="goBack()"        style="display:none;">返回</button>
+  <button class="btn btn-gray"  id="btn-rescan" onclick="rescan()"        style="display:none;">重新检测</button>
+  <button class="btn btn-gray"  id="btn-skip2"  onclick="skipToOffline()" style="display:none;">跳过</button>
+  <button class="btn btn-blue"  id="btn-next"   onclick="goNext()"        disabled>继续</button>
+  <button class="btn btn-green" id="btn-launch" onclick="launchPet()"     style="display:none;">启动q宠</button>
+</div>
+
+<script>
+// ─── 状态 ───
+let curPanel = 'welcome';
+let scanData = null;
+let choice   = 'after-install';  // 默认选中「已安装好，重新检测」
+let scanDone = false;
+let showingNoClaw = false;
+let showingOffline = false;  // 已装未运行引导展开中
+
+// ─── 进度条（RAF 平滑动画，不依赖 CSS transition）───
+function animatePbar(barId, labelId, fromPct, toPct, durationMs, labelText, onDone) {
+  const bar = document.getElementById(barId);
+  const lbl = document.getElementById(labelId);
+  if (!bar) return;
+  const start = performance.now();
+  const delta = toPct - fromPct;
+
+  function tick(now) {
+    const elapsed = now - start;
+    const t = Math.min(elapsed / durationMs, 1);
+    // ease-out
+    const ease = 1 - Math.pow(1 - t, 2);
+    const cur = fromPct + delta * ease;
+    bar.style.width = cur.toFixed(1) + '%';
+    if (lbl) lbl.textContent = labelText || (Math.round(cur) + '%');
+    if (t < 1) requestAnimationFrame(tick);
+    else { if (onDone) onDone(); }
+  }
+  requestAnimationFrame(tick);
+}
+
+// ─── 面板切换 ───
+function showPanel(id) {
+  const prev = document.querySelector('.panel.active');
+  if (prev) { prev.classList.add('leaving'); prev.classList.remove('active'); setTimeout(() => prev.classList.remove('leaving'), 220); }
+  const next = document.getElementById('p-' + id);
+  if (next) { next.classList.add('active','fadein'); setTimeout(() => next.classList.remove('fadein'), 250); }
+  curPanel = id;
+  updateFooter();
+}
+
+function updateFooter() {
+  const elNext   = document.getElementById('btn-next');
+  const elBack   = document.getElementById('btn-back');
+  const elRescan = document.getElementById('btn-rescan');
+  const elSkip2  = document.getElementById('btn-skip2');
+  const elLaunch = document.getElementById('btn-launch');
+
+  [elNext,elBack,elRescan,elSkip2,elLaunch].forEach(b => b.style.display='none');
+  elNext.style.display='inline-block'; elNext.disabled=true; elNext.textContent='继续';
+
+  if (curPanel==='welcome')  { elNext.disabled=true; }
+  if (curPanel==='scan') {
+    if (!scanDone) { elNext.disabled=true; return; }
+    if (showingOffline) {
+      // 已装未运行引导展开：底部显示跳过按钮
+      elNext.style.display='none';
+      elSkip2.style.display='inline-block';
+      return;
+    }
+    if (showingNoClaw) {
+      // 无端口引导展开状态：按钮跟选项走
+      elNext.disabled=false;
+      elNext.textContent=choice==='after-install'?'重新检测':'以离线模式继续';
+    } else {
+      // 有端口：正常继续
+      elNext.disabled=false;
+    }
+  }
+  if (curPanel==='found')    { elNext.disabled=false; elNext.textContent='安装 Skills 并完成配置'; }
+  if (curPanel==='offline')  { elNext.style.display='none'; elRescan.style.display='inline-block'; elSkip2.style.display='inline-block'; }
+  if (curPanel==='installing'){ elNext.disabled=true; elNext.textContent='安装中...'; }
+  if (curPanel==='done')     { elNext.style.display='none'; elLaunch.style.display='inline-block'; }
+}
+
+// ─── 欢迎进度条 ───
+const WS = [
+  { to:18,  ms:220, lbl:'正在复制应用文件...' },
+  { to:38,  ms:200, lbl:'正在配置运行环境...' },
+  { to:58,  ms:210, lbl:'正在加载动画素材...' },
+  { to:76,  ms:200, lbl:'正在生成企鹅性格...' },
+  { to:92,  ms:200, lbl:'正在初始化记忆系统...' },
+  { to:100, ms:180, lbl:'准备完成 ✓' },
+];
+
+function runWelcome() {
+  const lbl = document.getElementById('wp-label');
+  let step = 0, prev = 0;
+
+  function nextStep() {
+    if (step >= WS.length) {
+      setTimeout(() => { showPanel('scan'); runScan(); }, 280);
+      return;
+    }
+    const s = WS[step++];
+    lbl.textContent = s.lbl;
+    animatePbar('wp-bar', null, prev, s.to, s.ms, null, () => {
+      prev = s.to;
+      setTimeout(nextStep, 60);
+    });
+  }
+  setTimeout(nextStep, 100);
+}
+
+// ─── 扫描 ───
+async function runScan(forcedData = null) {
+  scanDone = false;
+  const tQQ = document.getElementById('tag-qqclaw');
+  const tOC = document.getElementById('tag-openclaw');
+  const hint = document.getElementById('scan-hint');
+
+  tQQ.className='tag tag-scan'; tQQ.innerHTML='<span class="spin"></span>扫描中...';
+  tOC.className='tag tag-wait'; tOC.textContent='等待中';
+  hint.textContent='正在探测本地端口，请稍候...';
+
+  scanData = forcedData || await window.installer.scanPorts();
+
+  if (scanData.found && scanData.type==='qqclaw') {
+    tQQ.className='tag tag-found'; tQQ.textContent='✅ 端口 :'+scanData.port;
+    tOC.className='tag tag-wait';  tOC.textContent='已跳过';
+  } else {
+    tQQ.className='tag tag-miss'; tQQ.textContent='❌ 未检测到';
+    tOC.className='tag tag-scan'; tOC.innerHTML='<span class="spin"></span>扫描中...';
+    await sleep(260);
+    if (scanData.found && scanData.type==='openclaw') {
+      tOC.className='tag tag-found'; tOC.textContent='✅ 端口 :'+scanData.port;
+    } else {
+      tOC.className='tag tag-miss'; tOC.textContent='❌ 未检测到';
+    }
+  }
+
+  if (scanData.found) {
+    const n = scanData.type==='qqclaw'?'QQClaw':'OpenClaw';
+    hint.textContent=`已发现 ${n} 活跃端口 :${scanData.port}，点击「继续」完成配置`;
+  } else if (scanData.installed&&(scanData.installed.qqclaw||scanData.installed.openclaw)) {
+    const n = scanData.installed.qqclaw?'QQClaw':'OpenClaw';
+    hint.textContent=`检测到 ${n} 已安装但未运行`;
+    // 直接在扫描页展开"已装未运行"引导区
+    showingOffline = true;
+    document.getElementById('offline-guide-name').textContent=n;
+    document.getElementById('offline-guide-name2').textContent=n;
+    document.getElementById('offline-guide-name3').textContent=n;
+    document.getElementById('offline-guide').style.display='flex';
+  } else {
+    hint.textContent='未检测到可用的 AI 助手';
+    // 直接在扫描页展开无端口引导，不跳新页面
+    showingNoClaw = true;
+    choice = 'after-install';   // 默认选「已安装好，重新检测」
+    selectChoice('after-install');
+    const guide = document.getElementById('no-claw-guide');
+    guide.style.display = 'flex';
+  }
+  scanDone=true; updateFooter();
+}
+
+function routeAfterScan() {
+  if (scanData.found) { fillFound(); showPanel('found'); return; }
+  if (scanData.installed&&(scanData.installed.qqclaw||scanData.installed.openclaw)) {
+    const n=scanData.installed.qqclaw?'QQClaw':'OpenClaw';
+    document.getElementById('offline-name').textContent=n;
+    document.getElementById('offline-name2').textContent=n;
+    showPanel('offline'); return;
+  }
+  choice='skip'; selectChoice('skip'); showPanel('none');
+}
+
+function fillFound() {
+  const isQQ=scanData.type==='qqclaw';
+  document.getElementById('found-emoji').textContent=isQQ?'🐾':'🤖';
+  document.getElementById('found-name').textContent=(isQQ?'QQClaw':'OpenClaw')+' 已运行';
+  document.getElementById('found-desc').textContent=`检测到端口 :${scanData.port} 活跃，已自动读取接口地址`;
+  document.getElementById('found-url').textContent=scanData.apiUrl;
+  document.getElementById('found-agent-dir').textContent=isQQ?'~/.qqclaw/agents/qq-pet/':'~/.openclaw/agents/qq-pet/';
+}
+
+// ─── 三选一 ───
+function selectChoice(id) {
+  choice=id;
+  ['after-install','skip'].forEach(c=>{ const el=document.getElementById('ch-'+c); if(el) el.classList.toggle('sel',c===id); });
+  updateFooter();
+}
+
+// ─── 导航 ───
+// ─── 三选一 ───
+function selectChoice(id) {
+  choice=id;
+  ['after-install','skip'].forEach(c=>{ const el=document.getElementById('ch-'+c); if(el) el.classList.toggle('sel',c===id); });
+  if (curPanel==='scan' && showingNoClaw) updateFooter();
+}
+
+function goNext() {
+  if (curPanel==='scan') {
+    if (showingNoClaw) {
+      // 无端口引导展开中
+      if (choice==='after-install') { rescan(); return; }
+      runInstall({configured:false}); return;
+    }
+    routeAfterScan(); return;
+  }
+  if (curPanel==='found') { runInstall({apiUrl:scanData.apiUrl,token:scanData.token,model:scanData.model,clawType:scanData.type,configured:true}); return; }
+}
+function goBack()        { /* 扫描页无需返回 */ }
+async function rescan()  {
+  scanDone=false; showingNoClaw=false; showingOffline=false;
+  // 隐藏引导区
+  document.getElementById('no-claw-guide').style.display='none';
+  document.getElementById('offline-guide').style.display='none';
+  showPanel('scan'); await sleep(150); runScan();
+}
+async function rescanFromFound() { await rescan(); }
+function skipToOffline() { runInstall({configured:false}); }
+function selectOfflineChoice(id) {
+  if (id==='skip') skipToOffline();
+}
+function openUrl(url)    { window.installer.openUrl(url); }
+
+// ─── 安装 ───
+const IS = [
+  {pct:20,ms:280},{pct:40,ms:260},{pct:60,ms:260},{pct:78,ms:250},{pct:94,ms:230},
+];
+
+async function runInstall({apiUrl='',token='',model='',clawType='',configured=false}) {
+  showPanel('installing');
+  let prev=0;
+  for (let i=0;i<IS.length;i++) {
+    setIS(i,'active');
+    await new Promise(resolve=>animatePbar('inst-bar','inst-label',prev,IS[i].pct,IS[i].ms,IS[i].pct+'%',resolve));
+    prev=IS[i].pct;
+    setIS(i,'done');
+    await sleep(60);
+  }
+
+  const result = await window.installer.installSkills({apiUrl,token,model,clawType});
+  await new Promise(resolve=>animatePbar('inst-bar','inst-label',prev,100,200,'100%',resolve));
+  await sleep(280);
+
+  const name=clawType==='qqclaw'?'QQClaw':clawType==='openclaw'?'OpenClaw':'';
+  const port=apiUrl.match(/:(\d+)\//)?.[1]||'';
+  const desc=document.getElementById('done-desc');
+  const det=document.getElementById('done-detail');
+
+  if (configured&&result.ok) {
+    desc.textContent=`q宠 已接入 ${name}，点击启动让它出现在桌面`;
+    det.innerHTML=`✅ Agent 写入 ${clawType==='qqclaw'?'~/.qqclaw':'~/.openclaw'}/agents/qq-pet/<br>✅ Skills 写入对应 ${name} 目录<br>✅ AI 接口已配置（${name} :${port}）<br>✅ 企鹅性格：${result.personality||'随机'}`;
+  } else if (result.ok) {
+    desc.textContent='q宠 已以离线模式安装完成，之后可在设置里连接 AI';
+    det.innerHTML='✅ Agent 配置已写入<br>✅ 记忆系统已初始化<br>⚠️ AI 接口未配置（离线模式）';
+  } else {
+    desc.textContent='安装时遇到问题，部分功能可能受限';
+    det.innerHTML=`⚠️ ${result.error||'未知错误'}`;
+  }
+  showPanel('done');
+}
+
+function setIS(i,state) {
+  const el=document.getElementById('is-'+i);
+  if(!el) return;
+  el.className='step-row'+(state==='active'?' active':state==='done'?' done':'');
+  const dot=el.querySelector('.step-dot');
+  dot.textContent=state==='done'?'✓':state==='active'?'›':(i+1);
+}
+
+function launchPet() { window.installer.launchPet(); }
+
+// ─── 调试 ───
+async function debugState(state) {
+  const d=await window.installer.debugScanState(state);
+  scanData=d; scanDone=true; showingNoClaw=false; showingOffline=false;
+  // 重置引导区
+  document.getElementById('no-claw-guide').style.display='none';
+  document.getElementById('offline-guide').style.display='none';
+  const tQQ=document.getElementById('tag-qqclaw');
+  const tOC=document.getElementById('tag-openclaw');
+  const hint=document.getElementById('scan-hint');
+  if(state==='found-qqclaw'){tQQ.className='tag tag-found';tQQ.textContent='✅ :'+d.port;tOC.className='tag tag-wait';tOC.textContent='已跳过';hint.textContent='[调试] QQClaw 运行中 :'+d.port;}
+  else if(state==='found-openclaw'){tQQ.className='tag tag-miss';tQQ.textContent='❌';tOC.className='tag tag-found';tOC.textContent='✅ :'+d.port;hint.textContent='[调试] OpenClaw 运行中 :'+d.port;}
+  else if(state==='offline-qqclaw'){tQQ.className='tag tag-miss';tQQ.textContent='❌ 已装未启动';tOC.className='tag tag-miss';tOC.textContent='❌';hint.textContent='[调试] 已安装未运行';}
+  else {
+    tQQ.className='tag tag-miss';tQQ.textContent='❌';
+    tOC.className='tag tag-miss';tOC.textContent='❌';
+    hint.textContent='未检测到可用的 AI 助手';
+    showingNoClaw=true; choice='after-install'; selectChoice('after-install');
+    document.getElementById('no-claw-guide').style.display='flex';
+  }
+  showPanel('scan'); updateFooter();
+}
+
+document.addEventListener('keydown',e=>{
+  if((e.metaKey||e.ctrlKey)&&e.key==='d'){e.preventDefault();const b=document.getElementById('debug-bar');b.style.display=b.style.display==='none'?'flex':'none';}
+});
+
+function sleep(ms){return new Promise(r=>setTimeout(r,ms));}
+window.addEventListener('DOMContentLoaded',()=>{ runWelcome(); });
+</script>
+</body>
+</html>

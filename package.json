@@ -47,7 +47,7 @@
     ],
     "extraResources": [
       {
-        "from": "../../installer",
+        "from": "installer",
         "to": "installer",
         "filter": [
           "main.js",
@@ -58,7 +58,7 @@
         ]
       },
       {
-        "from": "../../agents",
+        "from": "agents",
         "to": "agents"
       }
     ],
