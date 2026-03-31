@@ -14,3 +14,6 @@ tools/ruffle.js
 # Electron 构建产物
 dist/
 release/*.zip
+# Gateway 构建资源（太大，不推 Git，通过 npm run prepare:gateway 本地生成）
+resources/targets/
+dist/

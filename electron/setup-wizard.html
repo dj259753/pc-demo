@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>QQ 宠物 - 配置向导</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+:root {
+  --bg: #f6f8fa;
+  --card: #ffffff;
+  --primary: #1677ff;
+  --primary-hover: #4096ff;
+  --success: #52c41a;
+  --error: #ff4d4f;
+  --border: #e5e7eb;
+  --text: #1f2937;
+  --text-secondary: #6b7280;
+  --text-hint: #9ca3af;
+  --radius: 12px;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  user-select: none;
+  -webkit-app-region: drag;
+}
+
+.wizard {
+  width: 520px;
+  background: var(--card);
+  border-radius: var(--radius);
+  box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+  overflow: hidden;
+  -webkit-app-region: no-drag;
+}
+
+.wizard-header {
+  padding: 28px 32px 0;
+  text-align: center;
+}
+.wizard-header .logo { width: 72px; height: 72px; margin-bottom: 8px; border-radius: 16px; }
+.wizard-header h1 { font-size: 20px; font-weight: 600; color: var(--text); margin-bottom: 4px; }
+.wizard-header p { font-size: 13px; color: var(--text-secondary); }
+
+.steps {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  padding: 20px 32px 0;
+}
+.step-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--border);
+  transition: all 0.3s;
+}
+.step-dot.active { background: var(--primary); width: 24px; border-radius: 4px; }
+.step-dot.done { background: var(--success); }
+
+.wizard-body {
+  padding: 24px 32px 32px;
+}
+
+.step-panel { display: none; }
+.step-panel.active { display: block; }
+
+.form-group {
+  margin-bottom: 16px;
+}
+.form-group label {
+  display: block;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+  margin-bottom: 6px;
+}
+.form-group .hint {
+  font-size: 11px;
+  color: var(--text-hint);
+  margin-top: 4px;
+}
+.form-group input {
+  width: 100%;
+  padding: 10px 14px;
+  font-size: 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  outline: none;
+  transition: border-color 0.2s;
+  background: var(--bg);
+  color: var(--text);
+  -webkit-app-region: no-drag;
+}
+.form-group input:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(22,119,255,0.1);
+}
+.form-group input.error { border-color: var(--error); }
+
+.msg { font-size: 12px; margin-top: 8px; padding: 8px 12px; border-radius: 6px; display: none; }
+.msg.error { display: block; background: #fff2f0; color: var(--error); border: 1px solid #ffccc7; }
+.msg.success { display: block; background: #f6ffed; color: var(--success); border: 1px solid #b7eb8f; }
+.msg.info { display: block; background: #e6f4ff; color: var(--primary); border: 1px solid #91caff; }
+
+.actions {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+  margin-top: 24px;
+}
+
+button {
+  padding: 10px 24px;
+  font-size: 14px;
+  font-weight: 500;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+  -webkit-app-region: no-drag;
+}
+button.primary {
+  background: var(--primary);
+  color: #fff;
+}
+button.primary:hover { background: var(--primary-hover); }
+button.primary:disabled { background: #d1d5db; cursor: not-allowed; }
+button.secondary {
+  background: transparent;
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+}
+button.secondary:hover { background: #f3f4f6; }
+
+.loading-spinner {
+  display: inline-block;
+  width: 14px; height: 14px;
+  border: 2px solid #fff;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+  margin-right: 6px;
+  vertical-align: middle;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* macOS 窗口标题栏区域 */
+.titlebar {
+  height: 28px;
+  -webkit-app-region: drag;
+  background: transparent;
+}
+</style>
+</head>
+<body>
+<div class="titlebar"></div>
+<div class="wizard">
+  <div class="wizard-header">
+    <img class="logo" src="../assets/icon-96.png" alt="QQ宠物">
+    <h1>配置 QQ 宠物</h1>
+    <p>Demo 版本，请先配置 API Key 和模型</p>
+  </div>
+
+  <div class="steps">
+    <div class="step-dot active" id="dot-0"></div>
+    <div class="step-dot" id="dot-1"></div>
+  </div>
+
+  <div class="wizard-body">
+    <!-- Step 1: AI 接口配置 -->
+    <div class="step-panel active" id="step-0">
+      <div class="form-group">
+        <label>接口地址</label>
+        <input type="url" id="baseURL" placeholder="https://api.example.com/v1" value="">
+        <div class="hint">OpenAI 兼容的 API 地址，如火山引擎、DeepSeek 等</div>
+      </div>
+      <div class="form-group">
+        <label>API Key</label>
+        <input type="password" id="apiKey" placeholder="sk-...">
+      </div>
+      <div class="form-group">
+        <label>模型名称</label>
+        <input type="text" id="modelID" placeholder="doubao-seed-2-0-pro" value="">
+        <div class="hint">可在对应平台查看可用模型名称</div>
+      </div>
+      <div class="msg" id="step0-msg"></div>
+      <div class="actions">
+        <button class="secondary" id="btn-verify">验证连接</button>
+        <button class="primary" id="btn-next-0" disabled>下一步 →</button>
+      </div>
+    </div>
+
+    <!-- Step 2: ASR 语音配置 -->
+    <div class="step-panel" id="step-1">
+      <div class="form-group">
+        <label>腾讯云 AppId</label>
+        <input type="text" id="asrAppId" placeholder="1234567890">
+      </div>
+      <div class="form-group">
+        <label>SecretId</label>
+        <input type="text" id="asrSecretId" placeholder="AKIDxxxxxxxxxxxxxxxx">
+      </div>
+      <div class="form-group">
+        <label>SecretKey</label>
+        <input type="password" id="asrSecretKey" placeholder="xxxxxxxxxxxxxxxx">
+        <div class="hint">用于语音识别功能，可跳过（语音功能不可用）</div>
+      </div>
+      <div class="msg" id="step1-msg"></div>
+      <div class="actions">
+        <button class="secondary" id="btn-back-1">← 上一步</button>
+        <button class="secondary" id="btn-skip">跳过</button>
+        <button class="primary" id="btn-finish">完成启动 🐧</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+
+let currentStep = 0;
+let providerVerified = false;
+
+// ── Step 导航 ──
+
+function showStep(idx) {
+  document.querySelectorAll('.step-panel').forEach((p, i) => {
+    p.classList.toggle('active', i === idx);
+  });
+  document.querySelectorAll('.step-dot').forEach((d, i) => {
+    d.classList.remove('active', 'done');
+    if (i < idx) d.classList.add('done');
+    else if (i === idx) d.classList.add('active');
+  });
+  currentStep = idx;
+}
+
+function showMsg(id, type, text) {
+  const el = $(id);
+  el.className = `msg ${type}`;
+  el.textContent = text;
+  el.style.display = 'block';
+}
+function hideMsg(id) {
+  $(id).style.display = 'none';
+}
+
+// ── Step 1: 验证 AI 接口 ──
+
+$('btn-verify').addEventListener('click', async () => {
+  const apiKey = $('apiKey').value.trim();
+  const baseURL = $('baseURL').value.trim();
+  const modelID = $('modelID').value.trim();
+
+  if (!baseURL) { showMsg('step0-msg', 'error', '请输入接口地址'); return; }
+  if (!apiKey) { showMsg('step0-msg', 'error', '请输入 API Key'); return; }
+  if (!modelID) { showMsg('step0-msg', 'error', '请输入模型名称'); return; }
+
+  hideMsg('step0-msg');
+  $('btn-verify').disabled = true;
+  $('btn-verify').innerHTML = '<span class="loading-spinner"></span>验证中...';
+
+  try {
+    const result = await window.electronAPI.backendVerifyProvider({ apiKey, baseURL, modelID });
+    if (result.success) {
+      showMsg('step0-msg', 'success', '✅ 连接验证成功！');
+      providerVerified = true;
+      $('btn-next-0').disabled = false;
+    } else {
+      showMsg('step0-msg', 'error', `❌ 验证失败: ${result.message}`);
+    }
+  } catch (err) {
+    showMsg('step0-msg', 'error', `❌ 验证出错: ${err.message}`);
+  } finally {
+    $('btn-verify').disabled = false;
+    $('btn-verify').textContent = '验证连接';
+  }
+});
+
+$('btn-next-0').addEventListener('click', () => {
+  if (!providerVerified) return;
+  showStep(1);
+});
+
+// ── Step 2: ASR 配置 + 完成 ──
+
+$('btn-back-1').addEventListener('click', () => showStep(0));
+
+async function finishSetup() {
+  const apiKey = $('apiKey').value.trim();
+  const baseURL = $('baseURL').value.trim();
+  const modelID = $('modelID').value.trim();
+
+  // 保存 AI 配置并启动 Gateway
+  showMsg('step1-msg', 'info', '正在启动 AI 引擎...');
+  $('btn-finish').disabled = true;
+  $('btn-skip').disabled = true;
+
+  try {
+    const result = await window.electronAPI.backendSaveProvider({ apiKey, baseURL, modelID });
+    if (!result.success) {
+      showMsg('step1-msg', 'error', `保存配置失败: ${result.message}`);
+      $('btn-finish').disabled = false;
+      $('btn-skip').disabled = false;
+      return;
+    }
+
+    // 保存 ASR 配置（如果有填写）
+    const asrAppId = $('asrAppId').value.trim();
+    const asrSecretId = $('asrSecretId').value.trim();
+    const asrSecretKey = $('asrSecretKey').value.trim();
+    if (asrAppId && asrSecretId && asrSecretKey) {
+      try {
+        await window.electronAPI.saveAsrConfig({ appId: asrAppId, secretId: asrSecretId, secretKey: asrSecretKey });
+      } catch (e) {
+        console.warn('保存 ASR 配置失败:', e.message);
+      }
+    }
+
+    // 通知主进程启动宠物
+    showMsg('step1-msg', 'success', '🎉 配置完成，小 Q 正在出生...');
+    setTimeout(() => {
+      window.electronAPI.launchPet && window.electronAPI.launchPet();
+      // 兼容旧 IPC
+      const { ipcRenderer } = require('electron');
+      ipcRenderer.send('launch-pet');
+    }, 800);
+
+  } catch (err) {
+    showMsg('step1-msg', 'error', `启动失败: ${err.message}`);
+    $('btn-finish').disabled = false;
+    $('btn-skip').disabled = false;
+  }
+}
+
+$('btn-finish').addEventListener('click', finishSetup);
+$('btn-skip').addEventListener('click', finishSetup);  // 跳过也走同一流程，只是不保存 ASR
+
+// ── 输入变化时重置验证状态 ──
+['baseURL', 'apiKey', 'modelID'].forEach(id => {
+  $(id).addEventListener('input', () => {
+    providerVerified = false;
+    $('btn-next-0').disabled = true;
+    hideMsg('step0-msg');
+  });
+});
+</script>
+</body>
+</html>

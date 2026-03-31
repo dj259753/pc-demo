@@ -299,15 +299,21 @@ const VoiceMode = (() => {
       }
 
       // 把 int16 追加到 pcmBuffer，按 FRAME_SIZE 切帧发给主进程
-      const bytes = Buffer.from(int16.buffer);
+      const bytes = new Uint8Array(int16.buffer);
       pcmBuffer.push(bytes);
 
-      let combined = Buffer.concat(pcmBuffer);
+      // 合并所有 buffer
+      let totalLen = 0;
+      for (const b of pcmBuffer) totalLen += b.length;
+      const combined = new Uint8Array(totalLen);
+      let offset = 0;
+      for (const b of pcmBuffer) { combined.set(b, offset); offset += b.length; }
       pcmBuffer = [];
 
-      while (combined.length >= FRAME_SIZE) {
-        const frame = combined.slice(0, FRAME_SIZE);
-        combined = combined.slice(FRAME_SIZE);
+      let pos = 0;
+      while (combined.length - pos >= FRAME_SIZE) {
+        const frame = combined.slice(pos, pos + FRAME_SIZE);
+        pos += FRAME_SIZE;
         micChunks++;
         micBytesSent += frame.length;
 
@@ -317,7 +323,7 @@ const VoiceMode = (() => {
       }
 
       // 剩余不满帧的字节留到下次
-      if (combined.length > 0) pcmBuffer.push(combined);
+      if (pos < combined.length) pcmBuffer.push(combined.slice(pos));
 
       if (micChunks > 0 && micChunks % 50 === 0) {
         console.log(`🎤 WebAudio→ASR: ${micChunks} frames, ${micBytesSent}B sent`);

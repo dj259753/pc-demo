@@ -90,11 +90,11 @@ const BubbleSystem = (() => {
       arrow.textContent = '›';
       item.appendChild(arrow);
 
-      // 点击可展开气泡 → 打开 CMD 终端面板
+      // 点击可展开气泡 → 打开独立快捷对话窗口
       item.addEventListener('click', (e) => {
         e.stopPropagation();
-        if (typeof PanelManager !== 'undefined' && PanelManager.togglePanel) {
-          PanelManager.togglePanel('chat');
+        if (window.electronAPI && window.electronAPI.openQuickChat) {
+          window.electronAPI.openQuickChat();
         }
       });
     }

@@ -6,6 +6,9 @@ const { exec, execSync, spawn } = require('child_process');
 const { promisify } = require('util');
 const execAsync = promisify(exec);
 
+// ─── Backend 引擎（Gateway 生命周期 + Provider 配置） ───
+const backend = require('./backend');
+
 // ─── 持久化日志系统 ───
 const LOG_DIR = path.join(os.homedir(), '.qq-pet', 'logs');
 const MAX_LOG_SIZE = 5 * 1024 * 1024; // 5MB 单文件上限
@@ -572,10 +575,29 @@ ipcMain.handle('agent-append-file', (event, filePath, content) => {
 });
 
 // ═══════════════════════════════════════════
-// AI 配置读取（从 ~/.qq-pet/config/ai-config.json）
+// AI 配置读取（优先从内嵌 Gateway 获取，回退到 ai-config.json）
 // ═══════════════════════════════════════════
 
 ipcMain.handle('get-ai-config', () => {
+  // 优先从 openclaw.json 读取用户配置的 AI Provider（直接调用，不经过 Gateway WebSocket）
+  try {
+    const gwInfo = backend.getGatewayInfo();
+    if (gwInfo.running && gwInfo.directUrl) {
+      const directBase = gwInfo.directUrl.replace(/\/$/, '');
+      return {
+        provider: 'openclaw',
+        api_url: `${directBase}/chat/completions`,
+        api_key: gwInfo.directKey,
+        model: gwInfo.directModel,
+        // agent_dir 指向 ~/.qq-pet/workspace（供 ai-brain.js 读写 SOUL.md 等）
+        agent_dir: path.join(os.homedir(), '.qq-pet', 'workspace'),
+      };
+    }
+  } catch (e) {
+    console.warn('读取 Gateway 配置失败:', e.message);
+  }
+
+  // 回退：从旧版 ai-config.json 读取（兼容旧安装）
   const configPath = path.join(os.homedir(), '.qq-pet', 'config', 'ai-config.json');
   try {
     if (fs.existsSync(configPath)) {
@@ -1943,11 +1965,34 @@ ipcMain.handle('open-ai-setup', async () => {
       return { ok: true };
     }
 
-    // 找 installer 的 index.html（优先打包内置的，开发时用桌面版）
+    // 优先使用新版配置向导
+    const newWizardPath = path.join(__dirname, 'setup-wizard.html');
+    const newPreloadPath = path.join(__dirname, 'preload-setup.js');
+    if (fs.existsSync(newWizardPath)) {
+      aiSetupWindow = new BrowserWindow({
+        width: 580, height: 640,
+        minWidth: 520, minHeight: 580,
+        resizable: false, frame: true,
+        titleBarStyle: 'hiddenInset',
+        trafficLightPosition: { x: 14, y: 16 },
+        vibrancy: 'under-window', visualEffectState: 'active',
+        webPreferences: {
+          preload: newPreloadPath,
+          contextIsolation: true,
+          nodeIntegration: false,
+        },
+      });
+      aiSetupWindow.loadFile(newWizardPath);
+      aiSetupWindow.on('closed', () => { aiSetupWindow = null; });
+      console.log('🐧 新版 AI 配置向导已打开');
+      return { ok: true, mode: 'window' };
+    }
+
+    // 回退到旧版 installer
     const candidates = [
-      path.join(process.resourcesPath || '', 'installer', 'index.html'),   // 打包后内置
-      path.join(__dirname, '..', 'installer', 'index.html'),               // 开发模式（bundle/pc-pet-demo/installer）
-      path.join(os.homedir(), 'Desktop', 'qq-pet-installer-dev', 'index.html'), // 桌面开发版兜底
+      path.join(process.resourcesPath || '', 'installer', 'index.html'),
+      path.join(__dirname, '..', 'installer', 'index.html'),
+      path.join(os.homedir(), 'Desktop', 'qq-pet-installer-dev', 'index.html'),
     ];
     let installerPath = null;
     for (const c of candidates) {
@@ -2328,7 +2373,11 @@ function createQuickChatWindow() {
     return;
   }
 
-  const { width: screenW, height: screenH } = screen.getPrimaryDisplay().workAreaSize;
+  // 获取当前鼠标所在的显示器（拓展屏支持）
+  const cursorPoint = screen.getCursorScreenPoint();
+  const currentDisplay = screen.getDisplayNearestPoint(cursorPoint);
+  const { width: screenW, height: screenH } = currentDisplay.workAreaSize;
+  const { x: workX, y: workY } = currentDisplay.workArea;
   const qcW = 680, qcH = 520;
 
   quickChatWindow = new BrowserWindow({
@@ -2336,8 +2385,8 @@ function createQuickChatWindow() {
     height: qcH,
     minWidth: 420,
     minHeight: 360,
-    x: Math.round((screenW - qcW) / 2),
-    y: Math.round((screenH - qcH) / 2),  // 屏幕正中央
+    x: workX + Math.round((screenW - qcW) / 2),
+    y: workY + Math.round((screenH - qcH) / 2),
     transparent: true,
     frame: false,          // 无系统标题栏，自绘标题栏
     resizable: true,       // 可拖动调整大小
@@ -3216,16 +3265,18 @@ function sanitizeSkillText(text, fallback = '') {
  */
 function resolveAllSkillsDirs() {
   const candidates = [];
-  // 优先从 ai-config.json 读取用户实际配置的 claw_home
+  // 最高优先：内嵌 Gateway 的 workspace/skills（~/.qq-pet/workspace/skills）
+  candidates.push(path.join(os.homedir(), '.qq-pet', 'workspace', 'skills'));
+  // 从 ai-config.json 读取用户实际配置的 claw_home（旧版兼容）
   try {
     const aiCfgPath = path.join(os.homedir(), '.qq-pet', 'config', 'ai-config.json');
     if (fs.existsSync(aiCfgPath)) {
       const aiCfg = JSON.parse(fs.readFileSync(aiCfgPath, 'utf-8'));
-      if (aiCfg.skills_dir) candidates.push(path.dirname(aiCfg.skills_dir)); // skills_dir 包含 qq-pet，取上层
+      if (aiCfg.skills_dir) candidates.push(path.dirname(aiCfg.skills_dir));
       if (aiCfg.claw_home) candidates.push(path.join(String(aiCfg.claw_home).replace(/^~/, os.homedir()), 'workspace', 'skills'));
     }
   } catch {}
-  // 默认候选路径
+  // 默认候选路径（独立 QQClaw/OpenClaw 兼容）
   candidates.push(path.join(os.homedir(), '.qqclaw', 'workspace', 'skills'));
   candidates.push(path.join(os.homedir(), '.openclaw', 'workspace', 'skills'));
   // 去重 + 存在性检查
@@ -3561,8 +3612,8 @@ ipcMain.handle('skills-install', async (event, { skillId, source }) => {
   console.log(`🧩 安装 Skill: ${skillId} (来源: ${source})`);
 
   try {
-    // 优先从 ai-config 读取已配置的 skills 目录
-    let skillsBaseDir = path.join(os.homedir(), '.qqclaw', 'workspace', 'skills');
+    // 优先安装到 ~/.qq-pet/workspace/skills，回退到 ai-config 配置的目录
+    let skillsBaseDir = path.join(os.homedir(), '.qq-pet', 'workspace', 'skills');
     try {
       const aiCfgPath = path.join(os.homedir(), '.qq-pet', 'config', 'ai-config.json');
       if (fs.existsSync(aiCfgPath)) {
@@ -3826,9 +3877,13 @@ ipcMain.handle('write-clipboard', (event, text) => {
 });
 
 /**
- * 判断是否已完成过配置（有 ai-config.json 就认为走过引导）
+ * 判断是否已完成过配置
+ * 优先检查新版 backend 配置（openclaw.json），回退到旧版 ai-config.json
  */
 function hasExistingConfig() {
+  // 新版：检查 openclaw.json 是否有 provider 配置
+  if (backend.constants.isSetupComplete()) return true;
+  // 旧版兼容：检查 ai-config.json
   const aiCfgPath = path.join(os.homedir(), '.qq-pet', 'config', 'ai-config.json');
   return fs.existsSync(aiCfgPath);
 }
@@ -3852,6 +3907,7 @@ function ensureUpdateConfig() {
 
 /**
  * 启动安装向导（作为子窗口，防止重入）
+ * 优先使用新版 setup-wizard.html（内嵌 Backend），回退到旧版 installer
  */
 let aiSetupLaunched = false;
 let installerCompleted = false;  // 用户完成配置并点了「启动q宠」才为 true
@@ -3859,6 +3915,42 @@ function launchInstallerIfNeeded() {
   if (aiSetupLaunched) return;
   aiSetupLaunched = true;
 
+  // 优先使用新版配置向导
+  const newWizardPath = path.join(__dirname, 'setup-wizard.html');
+  const newPreloadPath = path.join(__dirname, 'preload-setup.js');
+
+  if (fs.existsSync(newWizardPath)) {
+    console.log('🐧 使用新版配置向导:', newWizardPath);
+    if (aiSetupWindow && !aiSetupWindow.isDestroyed()) return;
+
+    aiSetupWindow = new BrowserWindow({
+      width: 580, height: 640,
+      minWidth: 520, minHeight: 580,
+      resizable: false, frame: true,
+      titleBarStyle: 'hiddenInset',
+      trafficLightPosition: { x: 14, y: 16 },
+      vibrancy: 'under-window', visualEffectState: 'active',
+      webPreferences: {
+        preload: newPreloadPath,
+        contextIsolation: true,
+        nodeIntegration: false,
+      },
+    });
+    aiSetupWindow.loadFile(newWizardPath);
+    aiSetupWindow.on('closed', () => {
+      aiSetupWindow = null;
+      if (installerCompleted) {
+        // launch-pet IPC 已经触发了 launchPetApp()
+      } else {
+        console.log('🐧 安装向导被取消，退出 App');
+        app.quit();
+      }
+    });
+    console.log('🐧 首次启动，新版配置向导已打开');
+    return;
+  }
+
+  // 回退到旧版 installer
   const candidates = [
     path.join(process.resourcesPath || '', 'installer', 'index.html'),
     path.join(__dirname, '..', 'installer', 'index.html'),
@@ -3952,17 +4044,23 @@ function launchPetApp() {
 app.whenReady().then(async () => {
   systemSettings = loadSystemSettings();
 
+  // ── 注册 Backend IPC Handlers（Gateway 控制、Provider 配置等）
+  backend.registerIPC();
+
   // ── 同步内置更新配置（首次安装时建立 update-config.json）
   ensureUpdateConfig();
 
+  // ── 初始化 Backend（Workspace + 配置检测）
+  const { setupRequired } = await backend.init();
+
   // ── 首次启动检测：没有配置时先走安装向导，完成后再启动宠物
-  const alreadyConfigured = hasExistingConfig();
+  const alreadyConfigured = !setupRequired && hasExistingConfig();
   if (!alreadyConfigured) {
     console.log('🐧 首次启动，先打开配置向导，完成后再启动宠物...');
     launchInstallerIfNeeded();
     // 宠物窗口在 launch-pet IPC 收到后才创建
   } else {
-    console.log('🐧 已有配置，直接启动宠物');
+    console.log('🐧 已有配置，Gateway 已启动，直接启动宠物');
     launchPetApp();
   }
 });
@@ -3972,6 +4070,9 @@ app.whenReady().then(async () => {
  * （before-quit 在关闭窗口之前触发，适合先杀掉麦克风采集）
  */
 function disposeQuitSidecars() {
+  // 停止 Gateway 子进程
+  try { backend.stopGateway(); } catch {}
+
   stopClawMonitor();
   stopFocusMonitor();
   stopClipboardMonitor();

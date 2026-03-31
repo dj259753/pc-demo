@@ -132,4 +132,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // ─── 点击穿透 ───
   setIgnoreMouse: (ignore) => ipcRenderer.send('set-ignore-mouse', { ignore }),
+
+  // ─── Backend Gateway 控制 ───
+  backendVerifyProvider: (params) => ipcRenderer.invoke('backend-verify-provider', params),
+  backendSaveProvider: (params) => ipcRenderer.invoke('backend-save-provider', params),
+  backendGetProviderConfig: () => ipcRenderer.invoke('backend-get-provider-config'),
+  backendGetGatewayInfo: () => ipcRenderer.invoke('backend-get-gateway-info'),
+  backendGetGatewayState: () => ipcRenderer.invoke('backend-get-gateway-state'),
+  backendRestartGateway: () => ipcRenderer.invoke('backend-restart-gateway'),
+  backendIsSetupComplete: () => ipcRenderer.invoke('backend-is-setup-complete'),
+  onGatewayStateChanged: (callback) => ipcRenderer.on('gateway-state-changed', (_, state) => callback(state)),
 });

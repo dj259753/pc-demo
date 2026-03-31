@@ -114,14 +114,30 @@ const SystemSettings = (() => {
     const statusEl = document.getElementById('setting-ai-status');
     if (!statusEl) return;
     try {
-      const cfg = await window.electronAPI?.getAIConfig?.();
-      if (cfg && cfg.api_url && cfg.provider !== 'local') {
-        const name = cfg.provider === 'qqclaw' ? 'QQClaw' : 'OpenClaw';
-        statusEl.textContent = `✅ 已连接 ${name}`;
+      // 优先显示 Gateway + Provider 状态
+      const gwState = await window.electronAPI?.backendGetGatewayState?.();
+      const providerCfg = await window.electronAPI?.backendGetProviderConfig?.();
+
+      if (gwState === 'running' && providerCfg?.hasConfig) {
+        const modelDisplay = providerCfg.modelID || '未知模型';
+        statusEl.textContent = `✅ AI 引擎运行中（${modelDisplay}）`;
         statusEl.style.color = '#4ade80';
+      } else if (gwState === 'starting') {
+        statusEl.textContent = '🔄 AI 引擎启动中...';
+        statusEl.style.color = '#facc15';
+      } else if (providerCfg?.hasConfig) {
+        statusEl.textContent = '⚠️ 已配置但引擎未运行';
+        statusEl.style.color = '#fb923c';
       } else {
-        statusEl.textContent = '⚠️ 未配置（离线模式）';
-        statusEl.style.color = '#fbbf24';
+        // 回退到旧版检测
+        const cfg = await window.electronAPI?.getAIConfig?.();
+        if (cfg && cfg.api_url && cfg.provider !== 'local') {
+          statusEl.textContent = `✅ 已连接`;
+          statusEl.style.color = '#4ade80';
+        } else {
+          statusEl.textContent = '⚠️ 未配置';
+          statusEl.style.color = '#fb923c';
+        }
       }
     } catch {
       statusEl.textContent = '❌ 读取失败';
@@ -130,6 +146,33 @@ const SystemSettings = (() => {
   }
 
   function bindEvents() {
+    // ─── 面板拖拽（标题栏拖拽移动整个面板） ───
+    const settingsPanel = document.getElementById('system-settings-panel');
+    const titlebar = settingsPanel?.querySelector('.settings-titlebar');
+    if (titlebar && settingsPanel) {
+      let dragging = false, startX = 0, startY = 0, origLeft = 0, origTop = 0;
+      titlebar.addEventListener('mousedown', (e) => {
+        if (e.target.closest('.panel-close')) return; // 不拦截关闭按钮
+        dragging = true;
+        const rect = settingsPanel.getBoundingClientRect();
+        startX = e.clientX; startY = e.clientY;
+        origLeft = rect.left; origTop = rect.top;
+        // 首次拖拽时切换为 fixed 定位（脱离 transform 居中）
+        settingsPanel.style.position = 'fixed';
+        settingsPanel.style.transform = 'none';
+        settingsPanel.style.left = `${origLeft}px`;
+        settingsPanel.style.top = `${origTop}px`;
+        e.preventDefault();
+      });
+      document.addEventListener('mousemove', (e) => {
+        if (!dragging) return;
+        const dx = e.clientX - startX, dy = e.clientY - startY;
+        settingsPanel.style.left = `${origLeft + dx}px`;
+        settingsPanel.style.top = `${origTop + dy}px`;
+      });
+      document.addEventListener('mouseup', () => { dragging = false; });
+    }
+
     const btnTop = document.getElementById('setting-always-on-top');
     const btnAutoLaunch = document.getElementById('setting-auto-launch');
     const btnProactive = document.getElementById('setting-proactive-chat');

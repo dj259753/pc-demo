@@ -726,6 +726,22 @@ const AIBrain = (() => {
       });
     }
 
+    // 监听 Gateway 状态变化（内嵌 Gateway 启动完成后重新加载配置）
+    if (window.electronAPI && window.electronAPI.onGatewayStateChanged) {
+      window.electronAPI.onGatewayStateChanged(async (state) => {
+        console.log(`🧠 Gateway 状态变更: ${state}`);
+        if (state === 'running') {
+          const ok = await loadAIConfig();
+          if (ok) {
+            cachedSoul = '';
+            soulLoadedAt = 0;
+            await loadSoul();
+            console.log('🧠 Gateway 就绪，AI 配置已更新');
+          }
+        }
+      });
+    }
+
     console.log(`🧠 AI Brain 初始化完成 (provider: ${AI_PROVIDER})`);
   }
 

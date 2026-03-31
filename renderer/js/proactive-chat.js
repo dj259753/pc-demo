@@ -373,10 +373,8 @@ const ProactiveChat = (() => {
   }
 
   function isDialogOpen() {
-    const chatPanel = document.getElementById('chat-panel');
     const quickChat = document.getElementById('quick-chat');
-    return (chatPanel && !chatPanel.classList.contains('hidden')) ||
-           (quickChat && !quickChat.classList.contains('hidden'));
+    return (quickChat && !quickChat.classList.contains('hidden'));
   }
 
   // ═══════════════════════════════════════════

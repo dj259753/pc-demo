@@ -222,8 +222,8 @@ const PanelManager = (() => {
 
     // ─── 全局点击：点击面板/菜单外部自动关闭 ───
     // 注意：system-settings-panel 和 feedback-panel 是表单型面板，不应被点击外部关闭
-    const AUTO_CLOSE_PANEL_IDS = ['backpack-panel', 'chat-panel', 'process-panel', 'diary-panel'];
-    const ALL_PANEL_IDS = ['backpack-panel', 'chat-panel', 'process-panel', 'diary-panel', 'system-settings-panel', 'feedback-panel'];
+    const AUTO_CLOSE_PANEL_IDS = ['backpack-panel', 'process-panel', 'diary-panel'];
+    const ALL_PANEL_IDS = ['backpack-panel', 'process-panel', 'diary-panel', 'system-settings-panel', 'feedback-panel'];
     const ALL_PANEL_SELECTORS = ALL_PANEL_IDS.map(id => `#${id}`).join(',');
 
     function closeAllPanelsAndMenus() {
@@ -275,15 +275,11 @@ const PanelManager = (() => {
       closeAllPanelsAndMenus();
     });
 
-    // ─── 双击宠物打开独立对话终端窗口 ───
+    // ─── 双击宠物打开独立对话窗口 ───
     document.getElementById('pet-container').addEventListener('dblclick', () => {
       BehaviorEngine.notifyInteraction();
-      // 优先打开独立的对话终端窗口（而不是内嵌的 CMD 面板）
       if (window.electronAPI && window.electronAPI.openQuickChat) {
         window.electronAPI.openQuickChat();
-      } else {
-        // 非 Electron 环境降级到内嵌面板
-        togglePanel('chat');
       }
     });
 
@@ -334,9 +330,8 @@ const PanelManager = (() => {
   }
 
   function togglePanel(name) {
-    const panels = ['backpack-panel', 'chat-panel', 'process-panel', 'diary-panel', 'system-settings-panel', 'feedback-panel'];
+    const panels = ['backpack-panel', 'process-panel', 'diary-panel', 'system-settings-panel', 'feedback-panel'];
     const targetId = name === 'backpack' ? 'backpack-panel' :
-                     name === 'chat' ? 'chat-panel' :
                      name === 'process' ? 'process-panel' :
                      name === 'diary' ? 'diary-panel' :
                      name === 'system-settings' ? 'system-settings-panel' :
@@ -356,9 +351,6 @@ const PanelManager = (() => {
     if (!isVisible) {
       target.classList.remove('hidden');
       SoundEngine.menuOpen();
-      if (targetId === 'chat-panel') {
-        document.getElementById('chat-input').focus();
-      }
       if (targetId === 'backpack-panel') {
         ClipboardBag.updateClipboardPanel();
       }
