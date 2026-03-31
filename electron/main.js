@@ -3052,7 +3052,27 @@ ipcMain.handle('asr-start', async () => {
       }
     }
     try {
-      const ffmpegPath = '/opt/homebrew/bin/ffmpeg';
+      // 动态查找 ffmpeg 路径（兼容 Homebrew arm64/x86、PATH 安装等）
+      function resolveFfmpegPath() {
+        const candidates = [
+          '/opt/homebrew/bin/ffmpeg',        // macOS arm64 Homebrew
+          '/usr/local/bin/ffmpeg',           // macOS x86 Homebrew / 手动安装
+          '/usr/bin/ffmpeg',                 // Linux 系统 ffmpeg
+          'ffmpeg',                          // PATH 中
+        ];
+        for (const p of candidates) {
+          try {
+            if (p === 'ffmpeg') {
+              require('child_process').execSync('which ffmpeg', { stdio: 'pipe' });
+              return p;
+            }
+            if (require('fs').existsSync(p)) return p;
+          } catch {}
+        }
+        return 'ffmpeg'; // 兜底，让系统 PATH 去找
+      }
+      const ffmpegPath = resolveFfmpegPath();
+      console.log(`🎤 使用 ffmpeg 路径: ${ffmpegPath}`);
       micProcess = spawn(ffmpegPath, [
         '-f', 'avfoundation',
         '-i', ':default',           // 使用默认音频输入设备
@@ -3552,33 +3572,58 @@ async function installViaSkillhubCli(skillId, skillsDir) {
   });
 }
 
-// 降级方案：直接从 lightmake.site 下载 zip 解压
+// 降级方案：直接从 lightmake.site 下载 zip 解压（用系统 unzip，不依赖 adm-zip）
 async function installViaDirectDownload(skillId, skillsDir) {
+  const tmpZip = path.join(os.tmpdir(), `skill-${skillId}-${Date.now()}.zip`);
   try {
     const downloadUrl = `https://lightmake.site/api/v1/download?slug=${encodeURIComponent(skillId)}`;
-    const AdmZip = require('adm-zip');
-    const tmpZip = path.join(os.tmpdir(), `skill-${skillId}-${Date.now()}.zip`);
+    console.log(`🧩 直接下载 skill: ${downloadUrl}`);
 
-    // 下载 zip
+    // 下载 zip（支持 301/302 重定向）
     await new Promise((resolve, reject) => {
-      const https = require('https');
-      const file = require('fs').createWriteStream(tmpZip);
-      https.get(downloadUrl, res => {
-        if (res.statusCode !== 200) { reject(new Error(`HTTP ${res.statusCode}`)); return; }
-        res.pipe(file);
-        file.on('finish', () => { file.close(); resolve(); });
-      }).on('error', reject);
+      function doGet(url, redirects) {
+        if (redirects > 5) { reject(new Error('too many redirects')); return; }
+        const mod = url.startsWith('https') ? require('https') : require('http');
+        mod.get(url, { timeout: 30000 }, res => {
+          if (res.statusCode === 301 || res.statusCode === 302) {
+            doGet(res.headers.location, redirects + 1);
+            return;
+          }
+          if (res.statusCode !== 200) {
+            reject(new Error(`HTTP ${res.statusCode}`));
+            return;
+          }
+          const file = fs.createWriteStream(tmpZip);
+          res.pipe(file);
+          file.on('finish', () => { file.close(); resolve(); });
+          file.on('error', reject);
+        }).on('error', reject);
+      }
+      doGet(downloadUrl, 0);
     });
 
-    // 解压
-    const zip = new AdmZip(tmpZip);
-    zip.extractAllTo(skillsDir, true);
-    fs.unlinkSync(tmpZip);
+    // 用系统 unzip 解压到 skillsDir 下（macOS / Linux 均有）
+    const skillDstDir = path.join(skillsDir, skillId);
+    fs.mkdirSync(skillDstDir, { recursive: true });
+    await new Promise((resolve, reject) => {
+      exec(`unzip -o "${tmpZip}" -d "${skillDstDir}"`, { timeout: 30000 }, (err, stdout, stderr) => {
+        if (err) reject(new Error(err.message || stderr));
+        else resolve();
+      });
+    });
+
+    // 写 meta 标记
+    fs.writeFileSync(
+      path.join(skillDstDir, '_skillhub_meta.json'),
+      JSON.stringify({ name: skillId, installedAt: Date.now(), source: 'skillhub-store' }, null, 2)
+    );
     console.log(`✅ 直接下载安装成功: ${skillId}`);
     return { ok: true };
   } catch (e) {
     console.error('❌ 直接下载安装失败:', e.message);
     return { ok: false, error: e.message };
+  } finally {
+    try { if (fs.existsSync(tmpZip)) fs.unlinkSync(tmpZip); } catch {}
   }
 }
 const SKILLHUB_API_BASE = 'https://lightmake.site';
@@ -3679,8 +3724,14 @@ ipcMain.handle('skills-install', async (event, { skillId, source }) => {
     fs.mkdirSync(skillsBaseDir, { recursive: true });
 
     if (source === 'skillhub-store') {
-      // 公开商店 skill：调用内置 skillhub Python CLI 安装
-      return await installViaSkillhubCli(skillId, skillsBaseDir);
+      // 公开商店 skill：调用内置 skillhub Python CLI 安装（降级到直接下载）
+      const result = await installViaSkillhubCli(skillId, skillsBaseDir);
+      if (result && result.ok) {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send('skill-installed', { skillId });
+        }
+      }
+      return result;
     } else if (source === 'marketplace-available') {
       // 旧版本地 marketplace（离线包）
       const marketplaceBases = [
