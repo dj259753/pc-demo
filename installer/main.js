@@ -170,7 +170,7 @@ async function probeChatEndpoint(url, token = '', model = 'openclaw:main') {
     const res = await fetch(url, {
       method: 'POST',
       headers,
-      signal: AbortSignal.timeout(2500),
+      signal: AbortSignal.timeout(15000),  // QQClaw 首次响应可能需要 5-10s
       body: JSON.stringify({
         model,
         messages: [{ role: 'user', content: 'ping' }],
