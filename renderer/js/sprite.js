@@ -317,27 +317,29 @@ const SpriteRenderer = (() => {
     }
   }
 
-  /** 强制隐藏 Ruffle shadow DOM 内的所有覆盖层元素 */
+  /** 强制隐藏 Ruffle shadow DOM 内的 play-button / splash-screen 等 UI，保留 unmute-overlay */
   function hideRuffleOverlays() {
     if (!rufflePlayer) return;
     try {
       const shadow = rufflePlayer.shadowRoot;
       if (!shadow) return;
-      // 隐藏所有非 canvas 的可见元素（播放按钮、splash、unmute 等）
-      const allEls = shadow.querySelectorAll('div, button, .play-button, .splash-screen, .unmute-overlay, .context-menu-overlay');
+      // 只隐藏 play-button 和 splash-screen，不隐藏 unmute-overlay（音频解锁需要）
+      const allEls = shadow.querySelectorAll('div, button, .play-button, .splash-screen, .context-menu-overlay');
       allEls.forEach(el => {
-        // 不隐藏包含 canvas 的容器
         if (el.querySelector('canvas') || el.tagName === 'CANVAS') return;
+        // 保留 unmute-overlay
+        if (el.className && String(el.className).includes('unmute')) return;
         el.style.display = 'none';
       });
-      // 同时注入 style 到 shadow DOM
+      // 注入 style：只隐藏 play-button / splash，不碰 unmute
       if (!shadow.querySelector('#ruffle-hide-style')) {
         const style = document.createElement('style');
         style.id = 'ruffle-hide-style';
         style.textContent = `
-          .play-button, .splash-screen, .unmute-overlay,
-          .context-menu-overlay, [class*="play"], [class*="splash"],
-          [class*="unmute"] { display: none !important; opacity: 0 !important; }
+          .play-button, .splash-screen,
+          .context-menu-overlay, [class*="play"], [class*="splash"] {
+            display: none !important; opacity: 0 !important;
+          }
         `;
         shadow.appendChild(style);
       }
@@ -667,6 +669,12 @@ const SpriteRenderer = (() => {
     forceSetAnimation,
     registerSheet,
     getFrameIndex,
+    /** 设置音量 0=静音, 1=正常 */
+    setVolume(vol) {
+      try {
+        if (rufflePlayer) rufflePlayer.volume = vol;
+      } catch (e) {}
+    },
     /** 退出前调用，锁定后所有动画替换均拒绝 */
     setExiting() { isExiting = true; },
     get isExiting() { return isExiting; },

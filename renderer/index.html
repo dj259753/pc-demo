@@ -10,18 +10,16 @@
   <link rel="stylesheet" href="css/effects.css">
   <!-- Ruffle Flash 模拟器（直接播放 SWF 动画） -->
   <style>
-    /* 强制隐藏 Ruffle 的播放按钮/splash screen 覆盖层 */
+    /* 隐藏 Ruffle 的播放按钮和 splash，但保留 unmute-overlay（音频解锁需要） */
     #ruffle-container ruffle-player::part(play-button),
-    #ruffle-container ruffle-player::part(splash-screen),
-    #ruffle-container ruffle-player::part(unmute-overlay) { display: none !important; }
-    ruffle-player .play-button, ruffle-player .splash-screen,
-    ruffle-player .unmute-overlay { display: none !important; }
+    #ruffle-container ruffle-player::part(splash-screen) { display: none !important; }
+    ruffle-player .play-button, ruffle-player .splash-screen { display: none !important; }
   </style>
   <script>
     window.RufflePlayer = window.RufflePlayer || {};
     window.RufflePlayer.config = {
       autoplay: "on",
-      unmuteOverlay: "hidden",
+      unmuteOverlay: "visible",
       contextMenu: false,
       splashScreen: false,
       preloader: false,
@@ -235,6 +233,14 @@
         <div class="settings-item">
           <span>窗口置顶（默认开）</span>
           <button id="setting-always-on-top" class="settings-toggle-btn">开</button>
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <div class="settings-section-title">🔊 声音</div>
+        <div class="settings-item">
+          <span>宠物音效（SWF 内嵌）</span>
+          <button id="setting-sound-mute" class="settings-toggle-btn">开</button>
         </div>
       </div>
 

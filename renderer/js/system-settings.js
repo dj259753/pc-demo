@@ -10,6 +10,7 @@ const SystemSettings = (() => {
     autoLaunch: false,
     proactiveChat: true,
     layerMode: 'normal',
+    soundMuted: false,
     shortcuts: {
       voice: 'CommandOrControl+K',
       talk: 'CommandOrControl+U',
@@ -30,6 +31,7 @@ const SystemSettings = (() => {
       autoLaunch: !!state.autoLaunch,
       proactiveChat: !!state.proactiveChat,
       layerMode: state.layerMode || 'normal',
+      soundMuted: !!state.soundMuted,
       shortcuts: {
         voice: state.shortcuts?.voice || DEFAULTS.shortcuts.voice,
         talk: state.shortcuts?.talk || DEFAULTS.shortcuts.talk,
@@ -133,6 +135,7 @@ const SystemSettings = (() => {
     const btnProactive = document.getElementById('setting-proactive-chat');
     const btnVoiceNoise = document.getElementById('setting-voice-noise');
     const btnSaveShortcuts = document.getElementById('setting-save-shortcuts');
+    const btnSoundMute = document.getElementById('setting-sound-mute');
 
     if (btnTop) {
       btnTop.addEventListener('click', async () => {
@@ -154,6 +157,15 @@ const SystemSettings = (() => {
       btnProactive.addEventListener('click', async () => {
         state.proactiveChat = !state.proactiveChat;
         applyProactiveChat();
+        await persist();
+        render();
+      });
+    }
+
+    if (btnSoundMute) {
+      btnSoundMute.addEventListener('click', async () => {
+        state.soundMuted = !state.soundMuted;
+        applySoundMute();
         await persist();
         render();
       });
@@ -342,6 +354,7 @@ const SystemSettings = (() => {
 
   function applyToRuntime() {
     applyProactiveChat();
+    applySoundMute();
     syncShortcutLabels();
   }
 
@@ -349,6 +362,15 @@ const SystemSettings = (() => {
     if (typeof ProactiveChat !== 'undefined' && ProactiveChat.setMuted) {
       ProactiveChat.setMuted(!state.proactiveChat);
     }
+  }
+
+  function applySoundMute() {
+    // 通过 Ruffle player 的 volume 属性控制静音
+    try {
+      if (typeof SpriteRenderer !== 'undefined' && SpriteRenderer.setVolume) {
+        SpriteRenderer.setVolume(state.soundMuted ? 0 : 1);
+      }
+    } catch (e) {}
   }
 
   function syncShortcutLabels() {
@@ -368,6 +390,8 @@ const SystemSettings = (() => {
     renderToggle(document.getElementById('setting-always-on-top'), state.alwaysOnTop);
     renderToggle(document.getElementById('setting-auto-launch'), state.autoLaunch);
     renderToggle(document.getElementById('setting-proactive-chat'), state.proactiveChat);
+    // 声音：soundMuted=true → 按钮显示"关"；soundMuted=false → "开"
+    renderToggle(document.getElementById('setting-sound-mute'), !state.soundMuted);
 
     const voiceInput = document.getElementById('setting-voice-shortcut');
     const talkInput = document.getElementById('setting-talk-shortcut');
