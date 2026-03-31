@@ -242,7 +242,7 @@ ipcMain.handle('scan-ports', async () => {
   try {
     const env = getFullEnv();
     const { stdout } = await execAsync(
-      `lsof -nP -iTCP -sTCP:LISTEN 2>/dev/null | grep -E 'node|claw|openclaw|codebuddy|workbuddy|qqclaw' | awk '{for(i=1;i<=NF;i++) if($i~/\\(LISTEN\\)/){split($(i-1),a,":");print a[length(a)];break}}'`,
+      `lsof -nP -iTCP -sTCP:LISTEN 2>/dev/null | grep -iE 'node|claw|openclaw|codebuddy|workbuddy|qqclaw' | awk '{for(i=1;i<=NF;i++) if($i~/\\(LISTEN\\)/){split($(i-1),a,":");print a[length(a)];break}}'`,
       { env, timeout: 4000 }
     );
     lsofPorts = stdout.trim().split('\n').filter(Boolean).map(Number).filter(n => n > 0);
