@@ -53,7 +53,33 @@ function getFullEnv() {
   return env;
 }
 
-// 探测端口是否存活，同时尝试从响应体识别 clawType
+// 比较版本号，返回 1 / 0 / -1（a > b / a == b / a < b）
+function compareVersion(a, b) {
+  const pa = String(a || '').split('.').map(Number);
+  const pb = String(b || '').split('.').map(Number);
+  const len = Math.max(pa.length, pb.length);
+  for (let i = 0; i < len; i++) {
+    const na = pa[i] || 0;
+    const nb = pb[i] || 0;
+    if (na > nb) return 1;
+    if (na < nb) return -1;
+  }
+  return 0;
+}
+
+// 从 /Applications/QQClaw.app/Contents/Info.plist 读版本号
+function getQQClawInstalledVersion() {
+  try {
+    const plist = path.join('/Applications', 'QQClaw.app', 'Contents', 'Info.plist');
+    if (!fs.existsSync(plist)) return null;
+    const content = fs.readFileSync(plist, 'utf-8');
+    const m = content.match(/<key>CFBundleShortVersionString<\/key>\s*<string>([^<]+)<\/string>/);
+    return m ? m[1].trim() : null;
+  } catch { return null; }
+}
+
+const QQCLAW_MIN_VERSION = '1.0.76';
+
 // 返回: { alive: bool, detectedType: 'openclaw'|'qqclaw'|null }
 async function probePort(port, token = '') {
   try {
@@ -237,6 +263,12 @@ ipcMain.handle('scan-ports', async () => {
   const localCfg   = readLocalClawConfig();
   const installed  = detectLocalInstall();
 
+  // ── 检测 QQClaw 版本（版本过低则提示更新）──
+  const qqclawVersion = getQQClawInstalledVersion();
+  const qqclawNeedsUpdate = qqclawVersion
+    ? compareVersion(qqclawVersion, QQCLAW_MIN_VERSION) < 0
+    : false;
+
   // lsof 扫描正在监听的 node/claw 相关端口
   let lsofPorts = [];
   try {
@@ -309,6 +341,9 @@ ipcMain.handle('scan-ports', async () => {
     chatReady: !!apiUrl && !permissionDenied,
     needsRestart,
     repairNote,
+    qqclawVersion,
+    qqclawNeedsUpdate,
+    minQQClawVersion: QQCLAW_MIN_VERSION,
     permissionDenied,
     permissionDetail,
     installed: installed,          // { qqclaw: bool, openclaw: bool }

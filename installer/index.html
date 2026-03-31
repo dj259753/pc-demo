@@ -136,6 +136,7 @@ body {
 .tag-scan   { background: #FFF3CD; color: #856404; }
 .tag-found  { background: #D4EDDA; color: #155724; }
 .tag-miss   { background: #fdecea; color: #9c2a23; }
+.tag-warn   { background: #FFF3CD; color: #856404; border: 1px solid #FBBF24; }
 
 @keyframes spin { to { transform: rotate(360deg); } }
 .spin {
@@ -293,6 +294,26 @@ body {
 
     <div style="margin-top:10px;font-size:12px;color:#aeaeb2;text-align:center;min-height:16px;flex-shrink:0;" id="scan-hint">
       正在探测本地端口，请稍候...
+    </div>
+
+    <!-- ══ QQClaw 版本过低引导区 ══ -->
+    <div id="qqclaw-update-guide" style="display:none; width:100%; flex-direction:column; gap:10px; margin-top:10px;">
+      <div class="card warn-tint">
+        <div class="card-title">⬆️ QQClaw 需要更新</div>
+        <div class="card-body">
+          检测到本机的 QQClaw 版本过低，与 q宠 不兼容。<br><br>
+          请打开 QQClaw 应用，更新至最新版本后，点击下方「重新检测」。<br><br>
+          如暂时无法更新，也可以选择「离线安装」，等更新完成后在设置里重新配置 AI。
+        </div>
+        <div style="display:flex; gap:10px; margin-top:12px; flex-wrap:wrap;">
+          <button class="choice sel" onclick="rescan()" style="flex:1; min-width:160px;">
+            <div class="ch-title">已更新 QQClaw，重新检测</div>
+          </button>
+          <button class="choice" onclick="runInstall({configured:false})" style="flex:1; min-width:120px;">
+            <div class="ch-title">暂时跳过，离线安装</div>
+          </button>
+        </div>
+      </div>
     </div>
 
     <!-- ══ 已装未运行引导区（扫描完检测到已安装但未启动时展开） ══ -->
@@ -667,6 +688,18 @@ async function runScan(forcedData = null) {
 
   scanData = forcedData || await window.installer.scanPorts();
 
+  // ── 版本检测：QQClaw 版本过低时优先展示更新提示 ──
+  if (scanData.qqclawNeedsUpdate) {
+    tQQ.className='tag tag-warn'; tQQ.textContent=`⚠️ v${scanData.qqclawVersion} 版本过低`;
+    tOC.className='tag tag-wait'; tOC.textContent='等待中';
+    hint.innerHTML=`QQClaw 当前版本 <strong>v${scanData.qqclawVersion}</strong> 过低，与 q宠 不兼容。<br>请更新至 <strong>v${scanData.minQQClawVersion}</strong> 或以上版本后再重新检测。`;
+    // 展示更新引导区
+    const guide = document.getElementById('qqclaw-update-guide');
+    if (guide) guide.style.display = 'flex';
+    scanDone=true; updateFooter();
+    return;
+  }
+
   if (scanData.found && scanData.type==='qqclaw') {
     tQQ.className='tag tag-found'; tQQ.textContent='✅ 端口 :'+scanData.port;
     tOC.className='tag tag-wait';  tOC.textContent='已跳过';
@@ -789,6 +822,7 @@ async function rescan()  {
   // 隐藏引导区
   document.getElementById('no-claw-guide').style.display='none';
   document.getElementById('offline-guide').style.display='none';
+  document.getElementById('qqclaw-update-guide').style.display='none';
   setQQClawRecVisibility(false);
   showPanel('scan'); await sleep(150); runScan();
 }
