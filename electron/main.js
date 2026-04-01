@@ -2984,6 +2984,7 @@ const WebSocket = require('ws');
 
 let asrAvailable = true;  // 腾讯云 ASR 无需本地模型，始终可用
 let asrWs = null;          // WebSocket 连接
+let micProcess = null;     // 麦克风采集子进程
 let asrSessionText = '';   // 当前会话累计文本
 let asrCurrentText = '';   // 当前句子的流式中间结果
 let asrFinalText = '';     // 所有已确认的最终文本

@@ -63,7 +63,7 @@ ACTUAL_VERSION=$(node -p "require('./package.json').version")
 # ========== 阶段 2: 签名公证 ==========
 echo ""
 echo "╔══════════════════════════════════════════════════════════╗"
-echo "║  ✍️  阶段 2/2: 签名公证                                ║"
+echo "║  ✍️  阶段 2/3: 签名公证                                ║"
 echo "╚══════════════════════════════════════════════════════════╝"
 echo ""
 
@@ -73,14 +73,28 @@ if ! bash "$SCRIPT_DIR/sign-and-notarize.sh" --version "$ACTUAL_VERSION"; then
   exit 1
 fi
 
+# ========== 阶段 3: 上传 GitHub Release ==========
+echo ""
+echo "╔══════════════════════════════════════════════════════════╗"
+echo "║  📤 阶段 3/3: 上传 GitHub Release                       ║"
+echo "╚══════════════════════════════════════════════════════════╝"
+echo ""
+
+if ! bash "$SCRIPT_DIR/upload-release.sh" --version "$ACTUAL_VERSION"; then
+  echo ""
+  echo "❌ GitHub Release 上传失败。请检查网络和 gh CLI 认证状态。"
+  exit 1
+fi
+
 # ========== 最终报告 ==========
 echo ""
 echo "╔══════════════════════════════════════════════════════════╗"
-echo "║  🎉 QQ宠物 v${ACTUAL_VERSION} 构建 + 签名公证全部完成！    ║"
+echo "║  🎉 QQ宠物 v${ACTUAL_VERSION} 全流程发布完成！               ║"
 echo "╚══════════════════════════════════════════════════════════╝"
 echo ""
 echo "  📁 未签名产物:  dist/${ACTUAL_VERSION}/"
 echo "  📁 签名产物:    dist/${ACTUAL_VERSION}-signed/"
+echo "  📦 GitHub Release: https://github.com/dj259753/pc-demo/releases/tag/v${ACTUAL_VERSION}"
 echo ""
 
 ls -lhR "dist/${ACTUAL_VERSION}-signed/" 2>/dev/null || true
