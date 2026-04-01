@@ -72,6 +72,11 @@ const TaskbarUI = (() => {
               window.electronAPI.openSkillsWindow();
             }
             break;
+          case 'onboarding':
+            if (typeof NewUserGuide !== 'undefined' && NewUserGuide.open) {
+              NewUserGuide.open({ manual: true });
+            }
+            break;
           case 'check-update':
             if (window.electronAPI && window.electronAPI.checkUpdatesNow) {
               BubbleSystem.show('正在检查更新...', 1800);

@@ -14,6 +14,8 @@ const SystemSettings = (() => {
     shortcuts: {
       voice: 'CommandOrControl+K',
       talk: 'CommandOrControl+U',
+      quickInput: 'CommandOrControl+I',
+      globalVoiceInput: 'CommandOrControl+O',
     },
   };
   const NOISE_LABELS = {
@@ -35,6 +37,8 @@ const SystemSettings = (() => {
       shortcuts: {
         voice: state.shortcuts?.voice || DEFAULTS.shortcuts.voice,
         talk: state.shortcuts?.talk || DEFAULTS.shortcuts.talk,
+        quickInput: state.shortcuts?.quickInput || DEFAULTS.shortcuts.quickInput,
+        globalVoiceInput: state.shortcuts?.globalVoiceInput || DEFAULTS.shortcuts.globalVoiceInput,
       },
     };
   }
@@ -245,14 +249,20 @@ const SystemSettings = (() => {
       btnSaveShortcuts.addEventListener('click', async () => {
         const voiceInput = document.getElementById('setting-voice-shortcut');
         const talkInput = document.getElementById('setting-talk-shortcut');
+        const quickInputEl = document.getElementById('setting-quick-input-shortcut');
+        const globalVoiceInputEl = document.getElementById('setting-global-voice-input-shortcut');
         const voiceParsed = parseShortcutInput(voiceInput ? voiceInput.value : '');
         const talkParsed = parseShortcutInput(talkInput ? talkInput.value : '');
-        if (!voiceParsed || !talkParsed) {
+        const quickInputParsed = parseShortcutInput(quickInputEl ? quickInputEl.value : '');
+        const globalVoiceInputParsed = parseShortcutInput(globalVoiceInputEl ? globalVoiceInputEl.value : '');
+        if (!voiceParsed || !talkParsed || !quickInputParsed || !globalVoiceInputParsed) {
           BubbleSystem.show('快捷键格式错误，请用 cmd/ctrl+字母', 2600);
           return;
         }
         state.shortcuts.voice = voiceParsed;
         state.shortcuts.talk = talkParsed;
+        state.shortcuts.quickInput = quickInputParsed;
+        state.shortcuts.globalVoiceInput = globalVoiceInputParsed;
         await persist();
         render();
         BubbleSystem.show('快捷键已保存，立即生效', 2200);
@@ -448,8 +458,12 @@ const SystemSettings = (() => {
 
     const voiceInput = document.getElementById('setting-voice-shortcut');
     const talkInput = document.getElementById('setting-talk-shortcut');
+    const quickInputEl = document.getElementById('setting-quick-input-shortcut');
+    const globalVoiceInputEl = document.getElementById('setting-global-voice-input-shortcut');
     if (voiceInput) voiceInput.value = formatShortcutForDisplay(state.shortcuts.voice);
     if (talkInput) talkInput.value = formatShortcutForDisplay(state.shortcuts.talk);
+    if (quickInputEl) quickInputEl.value = formatShortcutForDisplay(state.shortcuts.quickInput);
+    if (globalVoiceInputEl) globalVoiceInputEl.value = formatShortcutForDisplay(state.shortcuts.globalVoiceInput);
 
     const radios = document.querySelectorAll('input[name="layer-mode"]');
     radios.forEach((r) => { r.checked = r.value === state.layerMode; });

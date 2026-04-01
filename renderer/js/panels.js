@@ -3,10 +3,16 @@
    ═══════════════════════════════════════════ */
 
 const PanelManager = (() => {
-  let soapMode = false;
 
   function init() {
     const voiceModeMenu = document.getElementById('voice-mode-menu');
+    const skillModeMenu = document.getElementById('skill-mode-menu');
+    const translatePill = document.getElementById('translate-pill');
+    const translateToggleBtn = document.getElementById('skill-translate-toggle');
+    let translateMode = false;
+    let translating = false;
+    let lastSelectionText = '';
+    let selectionPollTimer = null;
     const feedbackLink = document.getElementById('feedback-link');
     if (feedbackLink) {
       feedbackLink.addEventListener('click', async (e) => {
@@ -56,7 +62,7 @@ const PanelManager = (() => {
       updateInventoryUI();
     });
 
-    // 🧼 用肥皂
+    // 🧼 点击洗澡按钮立即洗澡（简化模式）
     document.getElementById('btn-soap').addEventListener('click', (e) => {
       e.stopPropagation();
       BehaviorEngine.notifyInteraction();
@@ -69,34 +75,21 @@ const PanelManager = (() => {
         setTimeout(() => BehaviorEngine.resume(), 1000);
         return;
       }
-      soapMode = true;
-      document.body.classList.add('soap-cursor');
-      btn.classList.add('item-active');
-      BubbleSystem.show('在我身上搓搓吧！🧼', 3000);
-    });
-
-    // 肥皂模式：点击宠物完成清洗
-    document.getElementById('pet-container').addEventListener('click', () => {
-      if (soapMode) {
-        soapMode = false;
-        document.body.classList.remove('soap-cursor');
-        document.getElementById('btn-soap').classList.remove('item-active');
-        if (PetState.wash()) {
-          SoundEngine.wash();
-          animateItemBtn(document.getElementById('btn-soap'));
-          // 不在这里手动设置动画，由 app.js 的 state-change: washing 监听统一处理（QC Clean SWF）
-          EffectsEngine.startRain(3500);
-          BubbleSystem.show('下雨啦~洗得干干净净！🌧️✨', 3000);
-          if (typeof PetDiary !== 'undefined') PetDiary.addEntry('wash', '洗了个舒服的澡，清爽！');
-          setTimeout(() => {
-            BubbleSystem.show('洗完啦！好清爽！✨', 2000);
-            BehaviorEngine.resume();
-          }, 3500);
-        } else {
-          setTimeout(() => BehaviorEngine.resume(), 1000);
-        }
-        updateInventoryUI();
+      if (PetState.wash()) {
+        SoundEngine.wash();
+        animateItemBtn(btn);
+        // 不在这里手动设置动画，由 app.js 的 state-change: washing 监听统一处理（QC Clean SWF）
+        EffectsEngine.startRain(3500);
+        BubbleSystem.show('下雨啦~洗得干干净净！🌧️✨', 3000);
+        if (typeof PetDiary !== 'undefined') PetDiary.addEntry('wash', '洗了个舒服的澡，清爽！');
+        setTimeout(() => {
+          BubbleSystem.show('洗完啦！好清爽！✨', 2000);
+          BehaviorEngine.resume();
+        }, 3500);
+      } else {
+        setTimeout(() => BehaviorEngine.resume(), 1000);
       }
+      updateInventoryUI();
     });
 
     // 💬 对讲 → 打开屏幕居中独立快捷对话窗口
@@ -120,56 +113,78 @@ const PanelManager = (() => {
       });
     }
 
-    // 🎤 语音对讲 → 切换录音状态
-    const btnVoice = document.getElementById('btn-voice');
-    if (btnVoice) {
-      // 默认快捷键提示（若有系统设置，会由 SystemSettings 再次覆盖）
-      const voiceShortcutEl = document.getElementById('voice-shortcut');
-      if (voiceShortcutEl) {
-        voiceShortcutEl.textContent = 'cmd/ctrl+k';
-      }
-
-      btnVoice.addEventListener('click', async (e) => {
+    // 🧩 技能按钮：拉起技能菜单（语音对讲/翻译）
+    const btnSkill = document.getElementById('btn-skill');
+    if (btnSkill) {
+      btnSkill.addEventListener('click', (e) => {
         e.stopPropagation();
         BehaviorEngine.notifyInteraction();
-
-        if (typeof VoiceMode !== 'undefined' && VoiceMode.isSupported) {
-          // toggle() 是 async 的，await 拿到真实结果
-          const nowRecording = await VoiceMode.toggle();
-
-          // 更新按钮状态
-          const voiceIcon = document.getElementById('voice-icon');
-          const voiceLabel = document.getElementById('voice-label');
-          if (nowRecording) {
-            btnVoice.classList.add('recording');
-            if (voiceIcon) voiceIcon.textContent = '\u25A0';  // ■ 方块
-            if (voiceLabel) voiceLabel.textContent = '结束';
-          } else {
-            btnVoice.classList.remove('recording');
-            if (voiceIcon) voiceIcon.textContent = '\u25CF';  // ● 圆点
-            if (voiceLabel) voiceLabel.textContent = getIdleVoiceLabel();
-          }
-        } else {
-          BubbleSystem.show('这个浏览器不支持语音功能', 3000);
+        if (!skillModeMenu) return;
+        const hidden = skillModeMenu.classList.contains('hidden');
+        if (!hidden) {
+          skillModeMenu.classList.add('hidden');
+          return;
         }
+        skillModeMenu.classList.remove('hidden');
+        const rect = btnSkill.getBoundingClientRect();
+        skillModeMenu.style.left = `${Math.max(8, rect.left - 14)}px`;
+        skillModeMenu.style.top = `${Math.max(8, rect.top - 146)}px`;
       });
+    }
 
-      // 右键语音按钮：打开模式菜单
-      btnVoice.addEventListener('contextmenu', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        if (!voiceModeMenu || typeof VoiceMode === 'undefined') return;
-        updateVoiceMenuActive();
-        voiceModeMenu.classList.remove('hidden');
-        // 边缘避让：靠近屏幕边缘时自动向内偏移，避免菜单被裁切
-        const menuRect = voiceModeMenu.getBoundingClientRect();
-        const margin = 8;
-        const maxLeft = window.innerWidth - menuRect.width - margin;
-        const maxTop = window.innerHeight - menuRect.height - margin;
-        const left = Math.max(margin, Math.min(e.clientX, maxLeft));
-        const top = Math.max(margin, Math.min(e.clientY, maxTop));
-        voiceModeMenu.style.left = `${left}px`;
-        voiceModeMenu.style.top = `${top}px`;
+    async function toggleVoiceBySkill() {
+      if (typeof VoiceMode === 'undefined' || !VoiceMode.isSupported) {
+        BubbleSystem.show('语音功能不可用', 2200);
+        return;
+      }
+      const nowRecording = await VoiceMode.toggle();
+      BubbleSystem.show(nowRecording ? '语音对讲已开启' : '语音对讲已关闭', 1500);
+    }
+
+    function setTranslateMode(enabled) {
+      translateMode = !!enabled;
+      if (typeof BubbleSystem !== 'undefined' && BubbleSystem.setTranslatePriority) {
+        BubbleSystem.setTranslatePriority(translateMode);
+      }
+      if (translateToggleBtn) {
+        translateToggleBtn.textContent = `翻译模式：${translateMode ? '开启' : '关闭'}`;
+        translateToggleBtn.classList.toggle('active', translateMode);
+      }
+      if (translatePill) translatePill.classList.toggle('hidden', !translateMode);
+      if (selectionPollTimer) {
+        clearInterval(selectionPollTimer);
+        selectionPollTimer = null;
+      }
+      if (translateMode) {
+        // 划词翻译：轮询前台选中文本（高频短轮询，接近“即时”）
+        selectionPollTimer = setInterval(() => {
+          triggerTranslateSelection();
+        }, 450);
+      } else {
+        lastSelectionText = '';
+      }
+      BubbleSystem.showTranslate?.(translateMode ? '翻译模式已开启' : '翻译模式已关闭', 1200);
+    }
+    translatePill?.addEventListener('click', () => setTranslateMode(false));
+    document.addEventListener('mouseup', () => {
+      if (translateMode) triggerTranslateSelection();
+    }, true);
+
+    if (skillModeMenu) {
+      skillModeMenu.querySelectorAll('.voice-mode-item').forEach((item) => {
+        item.addEventListener('click', async () => {
+          const action = item.dataset.action;
+          if (action === 'voice-toggle') {
+            await toggleVoiceBySkill();
+          } else if (action === 'translate-toggle') {
+            setTranslateMode(!translateMode);
+          }
+          skillModeMenu.classList.add('hidden');
+        });
+      });
+      // 从技能按钮移动到菜单时，保持菜单可用
+      skillModeMenu.addEventListener('mouseenter', () => {
+        skillModeMenu.classList.remove('hidden');
       });
     }
 
@@ -187,6 +202,16 @@ const PanelManager = (() => {
       });
     }
 
+    // 当窗口进入点击穿透（鼠标离开交互区）时，自动关闭右键菜单
+    document.addEventListener('click-through:ignored', () => {
+      if (voiceModeMenu && !voiceModeMenu.classList.contains('hidden')) {
+        voiceModeMenu.classList.add('hidden');
+      }
+      if (skillModeMenu && !skillModeMenu.classList.contains('hidden')) {
+        skillModeMenu.classList.add('hidden');
+      }
+    });
+
     if (typeof VoiceMode !== 'undefined' && VoiceMode.onModeChange) {
       VoiceMode.onModeChange(() => {
         syncVoiceIdleLabel();
@@ -194,6 +219,28 @@ const PanelManager = (() => {
       });
     }
     syncVoiceIdleLabel();
+
+    async function triggerTranslateSelection() {
+      if (!translateMode || translating) return;
+      const pick = await window.electronAPI?.getFrontSelectedText?.();
+      const src = String(pick?.text || '').trim();
+      if (!src || src.length < 1 || src === lastSelectionText) return;
+      lastSelectionText = src;
+      translating = true;
+      try {
+        if (typeof AIBrain === 'undefined' || !AIBrain.translateDirect) {
+          BubbleSystem.showTranslate?.('翻译功能暂不可用', 1400);
+          return;
+        }
+        const translated = await AIBrain.translateDirect(src);
+        if (!translated) return;
+        BubbleSystem.showTranslate?.(translated, 5200);
+      } catch {
+        BubbleSystem.showTranslate?.('翻译失败，请检查模型配置', 1600);
+      } finally {
+        translating = false;
+      }
+    }
 
     // ⚙️ 设置 → 打开开始菜单
     const btnSettings = document.getElementById('btn-settings');
@@ -235,12 +282,18 @@ const PanelManager = (() => {
       if (voiceModeMenu && !voiceModeMenu.classList.contains('hidden')) {
         voiceModeMenu.classList.add('hidden');
       }
+      if (skillModeMenu && !skillModeMenu.classList.contains('hidden')) {
+        skillModeMenu.classList.add('hidden');
+      }
     }
 
     document.addEventListener('click', (e) => {
       // 关闭语音模式菜单
-      if (voiceModeMenu && !e.target.closest('#voice-mode-menu') && !e.target.closest('#btn-voice')) {
+      if (voiceModeMenu && !e.target.closest('#voice-mode-menu') && !e.target.closest('#btn-skill')) {
         voiceModeMenu.classList.add('hidden');
+      }
+      if (skillModeMenu && !e.target.closest('#skill-mode-menu') && !e.target.closest('#btn-skill')) {
+        skillModeMenu.classList.add('hidden');
       }
       // 关闭所有 retro-panel：点击不在面板内、不在触发按钮内
       // 设置面板和反馈面板除外（需要手动关闭）
@@ -253,14 +306,6 @@ const PanelManager = (() => {
             el.classList.add('hidden');
           }
         });
-      }
-      // 取消肥皂模式
-      if (soapMode && !e.target.closest('#pet-container') && !e.target.closest('#btn-soap')) {
-        soapMode = false;
-        document.body.classList.remove('soap-cursor');
-        document.getElementById('btn-soap').classList.remove('item-active');
-        BubbleSystem.show('肥皂放回去了~', 1500);
-        BehaviorEngine.resume();
       }
     });
 

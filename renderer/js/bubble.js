@@ -10,7 +10,7 @@ const BubbleSystem = (() => {
   const listEl = document.getElementById('bubble-list');
 
   const MAX_VISIBLE = 3;     // 最多同时显示 3 条
-  const MAX_CHARS = 100;     // 超过 100 字截断
+  const MAX_CHARS = 200;     // 超过 200 字截断
   const DEFAULT_DURATION = 8000;  // 默认显示时长 8 秒
   const FADE_DURATION = 10000;    // 旧消息额外存活时长
   const THROTTLE_MS = 3000;       // 全局节流：3秒内只允许1条新消息
@@ -21,6 +21,7 @@ const BubbleSystem = (() => {
   let lastShowTime = 0;      // 上次 show() 的时间戳
   let pendingText = null;    // 节流期间暂存的消息
   let pendingTimer = null;   // 节流延迟定时器
+  let translatePriority = false; // 翻译模式优先级（开启时屏蔽其他气泡）
 
   // 消息队列（每条 { text, fullText, el, timer } ）
   const messages = [];
@@ -101,8 +102,7 @@ const BubbleSystem = (() => {
   function createBubbleEl(displayText, fullText, isExpandable, isTruncated = false) {
     const item = document.createElement('div');
     item.className = 'bubble-item';
-    // 所有气泡都可点击，进入对话窗口
-    item.classList.add('expandable');
+    if (isExpandable) item.classList.add('expandable');
 
     const textSpan = document.createElement('span');
     textSpan.className = 'bubble-text-content';
@@ -111,20 +111,22 @@ const BubbleSystem = (() => {
     item.appendChild(textSpan);
 
     // 截断文本才显示 › 箭头指示符
-    if (isTruncated || isExpandable) {
+    if (isExpandable && (isTruncated || isExpandable)) {
       const arrow = document.createElement('span');
       arrow.className = 'bubble-arrow';
       arrow.textContent = '›';
       item.appendChild(arrow);
     }
 
-    // 点击任意气泡 → 打开独立快捷对话窗口
-    item.addEventListener('click', (e) => {
-      e.stopPropagation();
-      if (window.electronAPI && window.electronAPI.openQuickChat) {
-        window.electronAPI.openQuickChat();
-      }
-    });
+    if (isExpandable) {
+      // 点击可展开气泡 → 打开独立快捷对话窗口
+      item.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (window.electronAPI && window.electronAPI.openQuickChat) {
+          window.electronAPI.openQuickChat();
+        }
+      });
+    }
 
     return { el: item, textSpan };
   }
@@ -137,11 +139,18 @@ const BubbleSystem = (() => {
 
   // ─── 更新旧消息样式（变淡） ───
   function updateFadeStyles() {
+    messages.forEach((msg) => {
+      msg.el.classList.remove('faded', 'stack-old-1', 'stack-old-2');
+    });
+
     messages.forEach((msg, i) => {
-      if (i < messages.length - 1) {
-        msg.el.classList.add('faded');
+      const depthFromNewest = (messages.length - 1) - i;
+      if (depthFromNewest <= 0) return; // 最新一条不降级
+      msg.el.classList.add('faded');
+      if (depthFromNewest === 1) {
+        msg.el.classList.add('stack-old-1');
       } else {
-        msg.el.classList.remove('faded');
+        msg.el.classList.add('stack-old-2');
       }
     });
   }
@@ -162,7 +171,7 @@ const BubbleSystem = (() => {
   }
 
   // ─── 添加一条消息到堆叠 ───
-  function pushMessage(text, duration = DEFAULT_DURATION, isAI = false) {
+  function pushMessage(text, duration = DEFAULT_DURATION, isAI = false, opts = {}) {
     // 清掉思考气泡
     hideThinking();
     clearInterval(typeTimer);
@@ -170,7 +179,8 @@ const BubbleSystem = (() => {
     const fullText = isAI ? `🐧 ${text}` : text;
     const { display, truncated } = truncate(fullText);
 
-    const { el, textSpan } = createBubbleEl('', fullText, truncated, truncated);
+    const isExpandable = opts.expandable !== false;
+    const { el, textSpan } = createBubbleEl('', fullText, isExpandable, truncated);
 
     // 如果已经达到上限，移掉最旧的
     while (messages.length >= MAX_VISIBLE) {
@@ -231,6 +241,7 @@ const BubbleSystem = (() => {
   // show(text, duration, opts)
   // opts.force = true → 专注模式下也强制显示（AI回复、专注提醒等）
   function show(text, duration = 8000, opts = {}) {
+    if (translatePriority && !opts.translate) return;
     // 专注模式下屏蔽所有非关键气泡
     if (!opts.force && typeof FocusMode !== 'undefined' && FocusMode.isActive) return;
 
@@ -248,8 +259,9 @@ const BubbleSystem = (() => {
             pendingText = null;
             // 再次检查专注状态
             if (!p.opts.force && typeof FocusMode !== 'undefined' && FocusMode.isActive) return;
+            if (translatePriority && !p.opts.translate) return;
             lastShowTime = Date.now();
-            pushMessage(p.text, p.duration, false);
+            pushMessage(p.text, p.duration, false, p.opts || {});
           }
         }, THROTTLE_MS - elapsed);
       }
@@ -260,7 +272,7 @@ const BubbleSystem = (() => {
     pendingText = null;
     clearTimeout(pendingTimer);
     pendingTimer = null;
-    pushMessage(text, duration, false);
+    pushMessage(text, duration, false, opts);
   }
 
   // ─── 根据状态随机冒泡 ───
@@ -283,6 +295,7 @@ const BubbleSystem = (() => {
 
   // ─── 思考中气泡（循环跳动的 ...） ───
   function showThinking() {
+    if (translatePriority) return;
     clearInterval(typeTimer);
     clearInterval(thinkingInterval);
 
@@ -326,6 +339,7 @@ const BubbleSystem = (() => {
   let streamingMsg = null;
 
   function updateStreamingBubble(text) {
+    if (translatePriority) return;
     if (!text || !text.trim()) return;
     const display = text.length > MAX_CHARS ? text.substring(0, MAX_CHARS) : text;
 
@@ -361,7 +375,10 @@ const BubbleSystem = (() => {
   }
 
   // ─── 显示 AI 回复（流式结束后调用，做最终确认） ───
+  const AI_REPLY_DURATION = 7000;  // 用户对话回复停留 7 秒
+
   function showAIReply(text) {
+    if (translatePriority) return;
     hideThinking();
 
     if (streamingMsg && streamingMsg.el && streamingMsg.el.parentNode) {
@@ -376,19 +393,20 @@ const BubbleSystem = (() => {
       streamingMsg.timer = setTimeout(() => {
         removeMessage(streamingMsg);
         streamingMsg = null;
-      }, DEFAULT_DURATION);
+      }, AI_REPLY_DURATION);
       return;
     }
 
     // 没有流式气泡（非流式回复）→ 正常创建
     streamingMsg = null;
-    pushMessage(text, DEFAULT_DURATION, true);
+    pushMessage(text, AI_REPLY_DURATION, true);
   }
 
   // ─── 显示语音识别中的文字（实时更新，不节流） ───
   let voiceRecognizingMsg = null;
 
   function showVoiceRecognizing(text) {
+    if (translatePriority) return;
     hideThinking();
 
     const displayText = '[听] ' + text;
@@ -487,6 +505,7 @@ const BubbleSystem = (() => {
   let updateProgressMsg = null;
 
   function showUpdateProgress(text) {
+    if (translatePriority) return;
     const display = text.length > MAX_CHARS ? text.substring(0, MAX_CHARS) : text;
 
     if (updateProgressMsg && updateProgressMsg.el && updateProgressMsg.el.parentNode) {
@@ -542,6 +561,7 @@ const BubbleSystem = (() => {
   let toolProgressMsg = null;
 
   function showToolProgress(evt) {
+    if (translatePriority) return;
     if (!evt) return;
 
     // agent_end → 清除进度气泡
@@ -601,5 +621,14 @@ const BubbleSystem = (() => {
     }
   }
 
-  return { show, hide, randomBubble, showAIReply, showThinking, hideThinking, showVoiceRecognizing, hideVoiceRecognizing, showSubtitle, hideSubtitle, updateStreamingBubble, showUpdateProgress, showToolProgress };
+  function setTranslatePriority(enabled) {
+    translatePriority = !!enabled;
+  }
+
+  function showTranslate(text, duration = 4800) {
+    if (!text || !String(text).trim()) return;
+    show(String(text).trim(), duration, { force: true, translate: true, expandable: false });
+  }
+
+  return { show, hide, randomBubble, showAIReply, showThinking, hideThinking, showVoiceRecognizing, hideVoiceRecognizing, showSubtitle, hideSubtitle, updateStreamingBubble, showUpdateProgress, showToolProgress, setTranslatePriority, showTranslate };
 })();

@@ -8,6 +8,7 @@ const execAsync = promisify(exec);
 
 // ─── Backend 引擎（Gateway 生命周期 + Provider 配置） ───
 const backend = require('./backend');
+const { resolveRuntimeAgentProfile } = require('./backend/agent-profile');
 
 // ─── 持久化日志系统 ───
 const LOG_DIR = path.join(os.homedir(), '.qq-pet', 'logs');
@@ -76,7 +77,9 @@ app.commandLine.appendSwitch('disable-gpu-rasterization');
 
 let mainWindow = null;
 let quickChatWindow = null;  // 屏幕居中的快捷对话窗口
+let quickChatMode = 'full';  // 'full' | 'compact'
 let skillsWindow = null;     // Skills 接入窗口
+let globalVoiceInputArmed = false; // 全局语音输入是否已开始（等待二次按键停止）
 let subtitleWindow = null;   // 语音识别字幕窗口（屏幕中下方）
 let tray = null;
 let isDragging = false;
@@ -115,6 +118,8 @@ const SYSTEM_SETTINGS_DEFAULTS = {
   shortcuts: {
     voice: 'CommandOrControl+K',
     talk: 'CommandOrControl+U',
+    quickInput: 'CommandOrControl+I',
+    globalVoiceInput: 'CommandOrControl+O',
   },
 };
 let systemSettings = JSON.parse(JSON.stringify(SYSTEM_SETTINGS_DEFAULTS));
@@ -202,6 +207,8 @@ function registerGlobalShortcutsFromSettings() {
   globalShortcut.unregisterAll();
   const talkShortcut = systemSettings.shortcuts?.talk || 'CommandOrControl+U';
   const voiceShortcut = systemSettings.shortcuts?.voice || 'CommandOrControl+K';
+  const quickInputShortcut = systemSettings.shortcuts?.quickInput || 'CommandOrControl+I';
+  const globalVoiceInputShortcut = systemSettings.shortcuts?.globalVoiceInput || 'CommandOrControl+O';
   const forceUpdateShortcut = process.platform === 'darwin' ? 'Command+Shift+U' : 'Control+Shift+U';
 
   const talkRegistered = globalShortcut.register(talkShortcut, () => {
@@ -214,25 +221,58 @@ function registerGlobalShortcutsFromSettings() {
       mainWindow.webContents.send('toggle-voice-mode');
     }
   });
+  const quickInputRegistered = globalShortcut.register(quickInputShortcut, () => {
+    console.log(`⌨️ 全局快捷键 ${quickInputShortcut} 触发`);
+    // Cmd/Ctrl + I 始终呼出迷你输入框
+    openQuickChatWindow('compact');
+  });
+  const globalVoiceInputRegistered = globalShortcut.register(globalVoiceInputShortcut, () => {
+    console.log(`⌨️ 全局快捷键 ${globalVoiceInputShortcut} 触发`);
+    globalVoiceInputArmed = !globalVoiceInputArmed;
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('global-voice-input-toggle', {
+        action: globalVoiceInputArmed ? 'start' : 'stop',
+      });
+    }
+  });
   const forceUpdateRegistered = globalShortcut.register(forceUpdateShortcut, () => {
     console.log('⌨️ 全局快捷键 Cmd/Ctrl+Shift+U 触发 → 强制检查更新');
     checkForUpdates('manual');
   });
-  shortcutsRegistered = talkRegistered && voiceRegistered;
+  shortcutsRegistered = talkRegistered && voiceRegistered && quickInputRegistered && globalVoiceInputRegistered;
   console.log(`⌨️ 全局快捷键 ${talkShortcut} 注册${talkRegistered ? '成功 ✅' : '失败 ❌'}`);
   console.log(`⌨️ 全局快捷键 ${voiceShortcut} 注册${voiceRegistered ? '成功 ✅' : '失败 ❌'}`);
+  console.log(`⌨️ 全局快捷键 ${quickInputShortcut} 注册${quickInputRegistered ? '成功 ✅' : '失败 ❌'}`);
+  console.log(`⌨️ 全局快捷键 ${globalVoiceInputShortcut} 注册${globalVoiceInputRegistered ? '成功 ✅' : '失败 ❌'}`);
   console.log(`⌨️ 全局快捷键 ${forceUpdateShortcut} 注册${forceUpdateRegistered ? '成功 ✅' : '失败 ❌'}`);
+}
+
+function pasteTextToFrontmostApp(text) {
+  const t = String(text || '').trim();
+  if (!t) return;
+  try {
+    clipboard.writeText(t);
+    exec(`osascript -e 'tell application "System Events" to keystroke "v" using command down'`, (err) => {
+      if (err) console.warn('全局语音输入粘贴失败:', err.message);
+    });
+  } catch (e) {
+    console.warn('全局语音输入写剪贴板失败:', e.message);
+  }
 }
 
 // ─── 窗口创建 ───
 function createMainWindow() {
-  const { width: screenW, height: screenH } = screen.getPrimaryDisplay().workAreaSize;
+  // 启动时优先放到当前焦点显示器（以鼠标所在屏幕近似）
+  const cursorPoint = screen.getCursorScreenPoint();
+  const targetDisplay = screen.getDisplayNearestPoint(cursorPoint);
+  const { width: screenW, height: screenH } = targetDisplay.workAreaSize;
+  const { x: workX, y: workY } = targetDisplay.workArea;
 
   const winW = 320, winH = 460;
-  let posX = screenW - winW - 60;
-  let posY = screenH - winH - 60;
-  if (posX < 0) posX = 20;
-  if (posY < 0) posY = 20;
+  let posX = workX + screenW - winW - 60;
+  let posY = workY + screenH - winH - 60;
+  if (posX < workX) posX = workX + 20;
+  if (posY < workY) posY = workY + 20;
 
   mainWindow = new BrowserWindow({
     width: winW,
@@ -596,6 +636,16 @@ ipcMain.handle('agent-append-file', (event, filePath, content) => {
 // ═══════════════════════════════════════════
 
 ipcMain.handle('get-ai-config', () => {
+  const agentProfile = resolveRuntimeAgentProfile();
+  console.log('🧠 Agent Profile:', JSON.stringify({
+    source: agentProfile.source,
+    agentDir: agentProfile.agentDir,
+    soulPath: agentProfile.soulPath,
+    identityPath: agentProfile.identityPath,
+    hasSoul: agentProfile.hasSoul,
+    hasIdentity: agentProfile.hasIdentity,
+  }));
+
   // 优先从 openclaw.json 读取用户配置的 AI Provider（直接调用，不经过 Gateway WebSocket）
   try {
     const gwInfo = backend.getGatewayInfo();
@@ -606,8 +656,8 @@ ipcMain.handle('get-ai-config', () => {
         api_url: `${directBase}/chat/completions`,
         api_key: gwInfo.directKey,
         model: gwInfo.directModel,
-        // agent_dir 指向 ~/.qq-pet/workspace（供 ai-brain.js 读写 SOUL.md 等）
-        agent_dir: path.join(os.homedir(), '.qq-pet', 'workspace'),
+        // 由 AGENTS.yml / fallback 规则动态解析，供 ai-brain.js 读写 SOUL.md 等
+        agent_dir: agentProfile.agentDir,
       };
     }
   } catch (e) {
@@ -620,13 +670,15 @@ ipcMain.handle('get-ai-config', () => {
     if (fs.existsSync(configPath)) {
       const raw = fs.readFileSync(configPath, 'utf-8');
       const config = JSON.parse(raw);
+      // 统一用解析出的 agent_dir，避免旧配置把路径锁死到 workspace
+      config.agent_dir = agentProfile.agentDir;
       return config;
     }
   } catch (e) {
     console.warn('读取 AI 配置失败:', e.message);
   }
   // 默认降级模式
-  return { provider: 'local', api_url: '', api_key: '', model: '' };
+  return { provider: 'local', api_url: '', api_key: '', model: '', agent_dir: agentProfile.agentDir };
 });
 
 // ═══════════════════════════════════════════
@@ -2383,7 +2435,82 @@ ipcMain.on('claw-action', (event, data) => {
 // 快捷对话窗口（屏幕居中，Spotlight 风格）
 // ═══════════════════════════════════════════
 
-function createQuickChatWindow() {
+function getQuickChatSize(mode = 'full') {
+  if (mode === 'compact') return { width: 830, height: 98, minWidth: 680, minHeight: 92 };
+  return { width: 830, height: 590, minWidth: 420, minHeight: 360 };
+}
+
+function getQuickChatTargetBounds(display, mode = 'full') {
+  const { width: screenW, height: screenH } = display.workAreaSize;
+  const { x: workX, y: workY } = display.workArea;
+  const size = getQuickChatSize(mode);
+  const centeredX = workX + Math.round((screenW - size.width) / 2);
+  if (mode === 'compact') {
+    // 迷你态放在中间偏下位置（约 75% 高度）
+    const lowerY = workY + Math.round(screenH * 0.75 - size.height / 2);
+    return {
+      x: centeredX,
+      y: Math.max(workY + 20, lowerY),
+      width: size.width,
+      height: size.height,
+    };
+  }
+  return {
+    x: centeredX,
+    y: workY + Math.round((screenH - size.height) / 2),
+    width: size.width,
+    height: size.height,
+  };
+}
+
+function applyQuickChatChrome(mode = 'full') {
+  if (!quickChatWindow || quickChatWindow.isDestroyed()) return;
+  if (process.platform === 'darwin' && typeof quickChatWindow.setWindowButtonVisibility === 'function') {
+    quickChatWindow.setWindowButtonVisibility(mode !== 'compact');
+  }
+  if (typeof quickChatWindow.setBackgroundColor === 'function') {
+    quickChatWindow.setBackgroundColor('#00000000');
+  }
+  if (process.platform === 'darwin' && typeof quickChatWindow.setVibrancy === 'function') {
+    quickChatWindow.setVibrancy(mode === 'compact' ? null : 'under-window');
+  }
+  quickChatWindow.setHasShadow(mode !== 'compact');
+}
+
+function notifyQuickChatMode() {
+  if (!quickChatWindow || quickChatWindow.isDestroyed()) return;
+  quickChatWindow.webContents.send('quick-chat-mode', { mode: quickChatMode });
+}
+
+function animateQuickChatResize(targetBounds, durationMs = 180) {
+  if (!quickChatWindow || quickChatWindow.isDestroyed()) return;
+  const from = quickChatWindow.getBounds();
+  const to = {
+    x: Math.round(targetBounds.x),
+    y: Math.round(targetBounds.y),
+    width: Math.round(targetBounds.width),
+    height: Math.round(targetBounds.height),
+  };
+  const start = Date.now();
+  const timer = setInterval(() => {
+    if (!quickChatWindow || quickChatWindow.isDestroyed()) {
+      clearInterval(timer);
+      return;
+    }
+    const t = Math.min(1, (Date.now() - start) / durationMs);
+    const eased = 1 - Math.pow(1 - t, 3);
+    const next = {
+      x: Math.round(from.x + (to.x - from.x) * eased),
+      y: Math.round(from.y + (to.y - from.y) * eased),
+      width: Math.round(from.width + (to.width - from.width) * eased),
+      height: Math.round(from.height + (to.height - from.height) * eased),
+    };
+    quickChatWindow.setBounds(next, false);
+    if (t >= 1) clearInterval(timer);
+  }, 16);
+}
+
+function createQuickChatWindow(mode = 'full') {
   if (quickChatWindow && !quickChatWindow.isDestroyed()) {
     quickChatWindow.show();
     quickChatWindow.focus();
@@ -2393,17 +2520,18 @@ function createQuickChatWindow() {
   // 获取当前鼠标所在的显示器（拓展屏支持）
   const cursorPoint = screen.getCursorScreenPoint();
   const currentDisplay = screen.getDisplayNearestPoint(cursorPoint);
-  const { width: screenW, height: screenH } = currentDisplay.workAreaSize;
-  const { x: workX, y: workY } = currentDisplay.workArea;
-  const qcW = 680, qcH = 520;
+  const size = getQuickChatSize(mode);
+  const bounds = getQuickChatTargetBounds(currentDisplay, mode);
+  const qcW = size.width, qcH = size.height;
+  quickChatMode = mode;
 
   quickChatWindow = new BrowserWindow({
     width: qcW,
     height: qcH,
-    minWidth: 420,
-    minHeight: 360,
-    x: workX + Math.round((screenW - qcW) / 2),
-    y: workY + Math.round((screenH - qcH) / 2),
+    minWidth: size.minWidth,
+    minHeight: size.minHeight,
+    x: bounds.x,
+    y: bounds.y,
     transparent: true,
     frame: false,          // 无系统标题栏，自绘标题栏
     resizable: true,       // 可拖动调整大小
@@ -2425,10 +2553,15 @@ function createQuickChatWindow() {
 
   quickChatWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
   quickChatWindow.loadFile(path.join(__dirname, '..', 'renderer', 'quick-chat.html'));
+  quickChatWindow.webContents.on('did-finish-load', () => {
+    notifyQuickChatMode();
+  });
 
   quickChatWindow.once('ready-to-show', () => {
+    applyQuickChatChrome(quickChatMode);
     quickChatWindow.show();
     quickChatWindow.focus();
+    notifyQuickChatMode();
   });
 
   // 不再失焦自动隐藏——正常窗口行为
@@ -2439,13 +2572,31 @@ function createQuickChatWindow() {
   });
 }
 
+function openQuickChatWindow(mode = 'full') {
+  if (quickChatWindow && !quickChatWindow.isDestroyed()) {
+    const cursorPoint = screen.getCursorScreenPoint();
+    const currentDisplay = screen.getDisplayNearestPoint(cursorPoint);
+    const size = getQuickChatSize(mode);
+    const target = getQuickChatTargetBounds(currentDisplay, mode);
+    quickChatWindow.setMinimumSize(size.minWidth, size.minHeight);
+    quickChatMode = mode;
+    applyQuickChatChrome(quickChatMode);
+    quickChatWindow.show();
+    quickChatWindow.focus();
+    notifyQuickChatMode();
+    animateQuickChatResize(target);
+    return;
+  }
+  createQuickChatWindow(mode);
+}
+
 function toggleQuickChatWindow() {
   console.log('💬 toggleQuickChatWindow 被调用');
   if (quickChatWindow && !quickChatWindow.isDestroyed() && quickChatWindow.isVisible()) {
     quickChatWindow.hide();
     if (mainWindow) mainWindow.webContents.send('quick-chat-closed');
   } else {
-    createQuickChatWindow();
+    openQuickChatWindow('full');
     // 通知主窗口企鹅进入等待状态
     if (mainWindow) mainWindow.webContents.send('quick-chat-opened');
   }
@@ -2455,6 +2606,14 @@ function toggleQuickChatWindow() {
 ipcMain.on('open-quick-chat-window', () => {
   console.log('💬 收到 open-quick-chat-window IPC');
   toggleQuickChatWindow();
+});
+
+ipcMain.on('quick-chat-expand', () => {
+  openQuickChatWindow('full');
+});
+
+ipcMain.on('quick-chat-collapse', () => {
+  openQuickChatWindow('compact');
 });
 
 // 快捷对话窗口发送消息 → 转发给主窗口处理
@@ -2577,6 +2736,13 @@ ipcMain.on('quick-chat-close', () => {
   if (quickChatWindow && !quickChatWindow.isDestroyed()) {
     quickChatWindow.close();
   }
+});
+
+ipcMain.on('global-voice-input-result', (event, payload = {}) => {
+  globalVoiceInputArmed = false;
+  const text = String(payload.text || '').trim();
+  if (!text) return;
+  pasteTextToFrontmostApp(text);
 });
 
 // ═══════════════════════════════════════════
@@ -3912,6 +4078,35 @@ ipcMain.handle('write-clipboard', (event, text) => {
   } catch (e) {
     return { ok: false, error: e.message };
   }
+});
+
+// 读取前台应用当前划词（macOS：模拟 Cmd+C 后读取剪贴板，再还原）
+ipcMain.handle('get-front-selected-text', async () => {
+  if (process.platform !== 'darwin') return { ok: false, text: '', error: 'unsupported-platform' };
+  const focused = BrowserWindow.getFocusedWindow();
+  const selfFocused = !!focused && (
+    focused === mainWindow ||
+    focused === quickChatWindow ||
+    focused === skillsWindow
+  );
+  // 如果当前焦点在宠物自身窗口，避免把自身 UI 文本当成“划词翻译”来源
+  if (selfFocused) return { ok: true, text: '' };
+  const prev = clipboard.readText();
+  const script = [
+    'tell application "System Events"',
+    '  keystroke "c" using command down',
+    'end tell',
+    'delay 0.08',
+    'return the clipboard'
+  ].join('\n');
+  return await new Promise((resolve) => {
+    exec(`osascript -e '${script.replace(/\n/g, `' -e '`)}'`, (err, stdout) => {
+      try { clipboard.writeText(prev || ''); } catch {}
+      if (err) return resolve({ ok: false, text: '', error: err.message });
+      const text = String(stdout || '').trim();
+      resolve({ ok: true, text });
+    });
+  });
 });
 
 /**

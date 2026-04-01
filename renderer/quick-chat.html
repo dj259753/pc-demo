@@ -31,24 +31,24 @@
     * { margin: 0; padding: 0; box-sizing: border-box; }
 
     :root {
-      --panel-bg: #111317;
-      --panel-elev-1: #171a20;
-      --panel-elev-2: #1f242d;
-      --border: #2a2f3a;
-      --border-soft: #232935;
-      --primary: #4f7cff;
-      --primary-hover: #658dff;
-      --text: #e8edf5;
-      --text-secondary: #a6b0bf;
-      --text-dim: #7f8897;
-      --user-bubble: #2a3550;
-      --ai-bubble: #1a1f28;
+      --panel-bg: #f7f8fb;
+      --panel-elev-1: #ffffff;
+      --panel-elev-2: #f3f5f9;
+      --border: #e4e8f0;
+      --border-soft: #ebeff5;
+      --primary: #5b7cfa;
+      --primary-hover: #4f70f0;
+      --text: #1f2937;
+      --text-secondary: #5b6475;
+      --text-dim: #8b95a7;
+      --user-bubble: #e9efff;
+      --ai-bubble: #ffffff;
       --radius: 12px;
     }
 
     html, body {
       height: 100%;
-      background: #0d0f13;
+      background: #eef2f8;
       font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
       color: var(--text);
       overflow: hidden;
@@ -63,6 +63,7 @@
       padding: 0 16px 0 80px;
       background: var(--panel-elev-1);
       border-bottom: 1px solid var(--border);
+      box-shadow: 0 1px 0 rgba(15, 23, 42, 0.02);
       user-select: none;
       flex-shrink: 0;
     }
@@ -77,15 +78,55 @@
       font-size: 16px; color: var(--text-secondary);
       transition: background 0.15s, color 0.15s;
     }
-    .titlebar-btn:hover { background: #252b36; color: var(--text); }
+    .titlebar-btn:hover { background: #e9eef8; color: var(--text); }
 
     /* ─── 主容器 ─── */
-    .container { display: flex; flex-direction: column; height: 100%; }
+    .container { display: flex; flex-direction: column; height: 100%; position: relative; }
+    body.compact-mode .titlebar,
+    body.compact-mode .messages,
+    body.compact-mode #new-msg-btn,
+    body.compact-mode #attachments-bar,
+    body.compact-mode .shortcut-hint {
+      display: none !important;
+    }
+    body.compact-mode {
+      background: transparent !important;
+    }
+    body.compact-mode .container {
+      background: transparent !important;
+      border: 0 !important;
+      box-shadow: none !important;
+    }
+    body.compact-mode .input-area {
+      left: 14px;
+      right: 14px;
+      bottom: 6px;
+      padding: 0;
+      border: 0 !important;
+      background: transparent !important;
+      box-shadow: none !important;
+      backdrop-filter: none !important;
+      -webkit-backdrop-filter: none !important;
+    }
+    body.compact-mode .input-area textarea {
+      min-height: 56px;
+      max-height: 56px;
+      overflow-y: auto;
+      padding-right: 130px;
+    }
+    body.compact-mode .send-btn {
+      right: 14px;
+      bottom: 11px;
+    }
+    body.compact-mode .attach-btn {
+      right: 54px;
+      bottom: 11px;
+    }
 
     /* ─── 消息列表 ─── */
     .messages {
       flex: 1; overflow-y: auto; overflow-x: hidden;
-      padding: 14px 18px; display: flex; flex-direction: column; gap: 12px;
+      padding: 14px 18px 180px; display: flex; flex-direction: column; gap: 12px;
       background: var(--panel-bg);
     }
     .messages::-webkit-scrollbar { width: 5px; }
@@ -111,15 +152,16 @@
       font-size: 14px; line-height: 1.6; word-break: break-word;
       border: 1px solid var(--border); position: relative;
       min-width: 40px;
+      box-shadow: 0 4px 14px rgba(15, 23, 42, 0.06);
     }
     .msg.user .msg-bubble {
       background: var(--user-bubble); color: var(--text);
-      border: 1px solid #3a4a72; border-bottom-right-radius: 6px;
+      border: 1px solid #d4ddff; border-bottom-right-radius: 6px;
       white-space: pre-wrap;
     }
     .msg.ai .msg-bubble {
       background: var(--ai-bubble); color: var(--text);
-      border: 1px solid var(--border); border-bottom-left-radius: 6px;
+      border: 1px solid #e6ebf3; border-bottom-left-radius: 6px;
     }
 
     /* 思考中动画 */
@@ -172,7 +214,7 @@
       font-size: 13px;
       font-weight: 600;
       cursor: pointer;
-      box-shadow: 0 4px 12px rgba(79,124,255,0.45);
+      box-shadow: 0 8px 20px rgba(91,124,250,0.28);
       z-index: 100;
       display: none;
       animation: slideInBlock 0.18s ease;
@@ -184,12 +226,12 @@
     .msg-copy-btn {
       position: absolute; top: 6px; right: 6px;
       width: 26px; height: 26px; border: none; border-radius: 6px;
-      background: rgba(255,255,255,0.06); color: var(--text-dim);
+      background: rgba(91, 100, 117, 0.08); color: var(--text-dim);
       cursor: pointer; display: none; align-items: center; justify-content: center;
       font-size: 13px; transition: background 0.15s; z-index: 1;
     }
     .msg-bubble:hover .msg-copy-btn { display: flex; }
-    .msg-copy-btn:hover { background: rgba(255,255,255,0.14); color: var(--text); }
+    .msg-copy-btn:hover { background: rgba(91, 100, 117, 0.16); color: var(--text); }
     .msg-copy-btn.copied { color: #22c55e; }
 
     /* ─── Think 可折叠 ─── */
@@ -352,18 +394,67 @@
 
     /* ─── 输入区域 ─── */
     .input-area {
-      padding: 12px 16px; background: var(--panel-elev-1);
-      border-top: 1px solid var(--border); display: flex; gap: 8px;
-      align-items: flex-end; flex-shrink: 0;
+      position: absolute;
+      left: 16px;
+      right: 16px;
+      bottom: 14px;
+      display: block;
+      padding: 10px;
+      border-radius: 18px;
+      border: 0.5px solid rgba(255,255,255,0.75);
+      background: rgba(255,255,255,0.72);
+      box-shadow: 0 12px 30px rgba(15, 23, 42, 0.14);
+      backdrop-filter: blur(16px) saturate(120%);
+      -webkit-backdrop-filter: blur(16px) saturate(120%);
+      z-index: 20;
     }
     .attach-btn {
-      width: 40px; height: 40px; border-radius: 12px;
-      border: 1px solid var(--border); background: var(--panel-elev-2);
-      color: var(--text); font-size: 18px; cursor: pointer;
-      transition: background 0.2s; flex-shrink: 0;
+      position: absolute;
+      right: 98px;
+      bottom: 22px;
+      width: 34px;
+      height: 34px;
+      border-radius: 10px;
+      border: 1px solid rgba(0,0,0,0.1);
+      background: rgba(255,255,255,0.95);
+      color: var(--text-secondary);
+      font-size: 16px;
+      cursor: pointer;
+      transition: background 0.2s, color 0.2s;
+      z-index: 2;
     }
-    .attach-btn:hover { background: #28303c; }
-    .attachments-bar { display: none; padding: 8px 16px 0; gap: 8px; flex-wrap: wrap; background: var(--panel-elev-1); }
+    .expand-btn {
+      position: absolute;
+      right: 94px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 34px;
+      height: 34px;
+      border-radius: 10px;
+      border: 1px solid rgba(0,0,0,0.1);
+      background: rgba(255,255,255,0.95);
+      color: #475569;
+      font-size: 14px;
+      line-height: 1;
+      cursor: pointer;
+      z-index: 3;
+      display: none;
+    }
+    .expand-btn:hover { background: #fff; color: #111827; }
+    body.compact-mode .expand-btn { display: inline-flex; align-items: center; justify-content: center; }
+    .attach-btn:hover { background: #fff; color: var(--text); }
+    .attachments-bar {
+      display: none;
+      padding: 0 16px 8px;
+      gap: 8px;
+      flex-wrap: wrap;
+      background: transparent;
+      position: absolute;
+      left: 16px;
+      right: 16px;
+      bottom: 96px;
+      z-index: 18;
+    }
     .attachments-bar.visible { display: flex; }
     .att-chip {
       display: inline-flex; align-items: center; gap: 6px;
@@ -380,31 +471,87 @@
     .msg-attachment img { max-width: 220px; max-height: 160px; border-radius: 8px; display: block; margin-top: 6px; }
 
     .input-area textarea {
-      flex: 1; padding: 10px 14px; border: 1px solid var(--border);
+      width: 100%;
+      padding: 10px 98px 10px 14px;
+      border: 1px solid var(--border);
       border-radius: 14px; font-size: 14px; font-family: inherit;
       outline: none; background: var(--panel-elev-2); color: var(--text);
-      resize: none; min-height: 40px; max-height: 120px; line-height: 1.5;
+      resize: none; min-height: 100px; max-height: 140px; line-height: 1.5;
       transition: border-color 0.2s, box-shadow 0.2s;
     }
-    .input-area textarea:focus { border-color: #3f67d9; background: #232a36; box-shadow: 0 0 0 2px rgba(79,124,255,0.22); }
+    .input-area textarea:focus { border-color: #6f8fff; background: #fff; box-shadow: 0 0 0 2px rgba(91,124,250,0.2); }
     .input-area textarea::placeholder { color: var(--text-dim); }
 
     .send-btn {
-      padding: 10px 20px; background: var(--primary); color: #fff;
-      border: 1px solid #3d62cd; border-radius: 14px; font-size: 14px;
-      cursor: pointer; font-weight: 600; white-space: nowrap;
-      transition: background 0.2s, transform 0.08s; height: 40px;
+      position: absolute;
+      right: 18px;
+      bottom: 22px;
+      width: 34px;
+      height: 34px;
+      padding: 0;
+      background: transparent;
+      border: 0;
+      border-radius: 8px;
+      font-size: 0;
+      cursor: pointer;
+      transition: transform 0.08s;
+      z-index: 2;
     }
-    .send-btn:hover { background: var(--primary-hover); }
+    .send-btn::before {
+      content: '';
+      display: block;
+      width: 100%;
+      height: 100%;
+      background-image: url("file:///Users/Apple/Library/Application%20Support/Cursor/User/workspaceStorage/1775028941752/images/image-365f29ee-bc32-4b9c-8858-9c04132191a1.png");
+      background-repeat: no-repeat;
+      background-position: center;
+      background-size: contain;
+    }
+    .send-btn:hover { transform: translateY(-1px); }
     .send-btn:active { transform: scale(0.96); }
-    .send-btn:disabled { opacity: 0.4; cursor: not-allowed; }
-
-    .shortcut-hint {
-      font-size: 11px; color: var(--text-dim); text-align: center;
-      padding: 4px 0 8px; user-select: none;
+    .send-btn:disabled { opacity: 1; cursor: not-allowed; transform: none; }
+    .send-btn:disabled::before {
+      background-image: url("file:///Users/Apple/Library/Application%20Support/Cursor/User/workspaceStorage/1775028941752/images/image-fd7e6f30-42dc-475b-aed9-c6b45695db0b.png");
     }
+
+    /* compact 样式兜底（放在后面，防止被默认样式覆盖） */
+    body.compact-mode .input-area {
+      left: 14px !important;
+      right: 14px !important;
+      top: 50% !important;
+      bottom: auto !important;
+      transform: translateY(-50%) !important;
+      padding: 0 !important;
+      border: 0 !important;
+      background: transparent !important;
+      box-shadow: none !important;
+      backdrop-filter: none !important;
+      -webkit-backdrop-filter: none !important;
+    }
+    body.compact-mode .input-area textarea {
+      min-height: 76px !important;
+      max-height: 76px !important;
+      padding-right: 130px !important;
+    }
+    body.compact-mode .send-btn {
+      right: 14px !important;
+      bottom: 21px !important;
+    }
+    body.compact-mode .attach-btn {
+      right: 54px !important;
+      bottom: 21px !important;
+    }
+    body.compact-mode .expand-btn {
+      right: 94px !important;
+      top: 50% !important;
+      transform: translateY(-50%) !important;
+      width: 34px !important;
+      height: 34px !important;
+    }
+
+    .shortcut-hint { display: none !important; }
     kbd {
-      background: #232a36; border: 1px solid #313846; border-radius: 4px;
+      background: #f3f5f9; border: 1px solid #e3e8f1; border-radius: 4px;
       padding: 1px 5px; font-size: 10px; font-family: inherit; color: var(--text-secondary);
     }
   </style>
@@ -412,7 +559,7 @@
 <body>
   <div class="container">
     <div class="titlebar">
-      <span class="titlebar-title"><img src="sprites/qc-icon.png" style="width:22px;height:22px;vertical-align:middle;margin-right:4px;border-radius:6px;"> 对话<span class="titlebar-subtitle">Cmd+U 唤起</span></span>
+      <span class="titlebar-title"><img src="sprites/qc-icon.png" style="width:22px;height:22px;vertical-align:middle;margin-right:4px;border-radius:6px;"> 对话<span class="titlebar-subtitle">Cmd+I 迷你输入 / Cmd+U 完整对话</span></span>
       <button class="titlebar-btn" id="btn-clear" title="清空对话">🗑</button>
     </div>
 
@@ -428,6 +575,7 @@
     <div class="attachments-bar" id="attachments-bar"></div>
 
     <div class="input-area">
+      <button class="expand-btn" id="expand-btn" title="展开完整对话">⤢</button>
       <button class="attach-btn" id="attach-btn" title="添加本地附件">📎</button>
       <textarea id="input" placeholder="跟企鹅说点什么..." rows="1" autofocus></textarea>
       <button class="send-btn" id="send">发送</button>
@@ -601,6 +749,7 @@
     const inputEl = document.getElementById('input');
     const sendBtn = document.getElementById('send');
     const attachBtn = document.getElementById('attach-btn');
+    const expandBtn = document.getElementById('expand-btn');
     const attachmentsBar = document.getElementById('attachments-bar');
     const clearBtn = document.getElementById('btn-clear');
 
@@ -608,11 +757,70 @@
     let thinkingEl = null;
     let pendingAttachments = [];
     let imeComposing = false;
+    let currentQuickChatMode = 'full';
+    let holdVoiceActive = false;
+    let holdVoiceStarting = false;
+    let holdVoiceAvailable = false;
+
+    function updateSendButtonState() {
+      const hasText = !!inputEl.value.trim();
+      const hasAttachments = pendingAttachments.length > 0;
+      sendBtn.disabled = isWaiting || (!hasText && !hasAttachments);
+    }
+    function getInputMaxHeight() {
+      return document.body.classList.contains('compact-mode') ? 92 : 120;
+    }
+    function resizeInputByContent() {
+      inputEl.style.height = 'auto';
+      const min = document.body.classList.contains('compact-mode') ? 72 : 100;
+      const target = Math.min(Math.max(inputEl.scrollHeight, min), getInputMaxHeight());
+      inputEl.style.height = target + 'px';
+    }
+
+    function isEditableTarget(el) {
+      if (!el) return false;
+      if (el === inputEl) return true;
+      if (el.isContentEditable) return true;
+      const tag = String(el.tagName || '').toLowerCase();
+      if (tag === 'textarea') return !el.disabled && !el.readOnly;
+      if (tag !== 'input') return false;
+      const t = String(el.type || 'text').toLowerCase();
+      return ['text', 'search', 'url', 'tel', 'password', 'email', 'number'].includes(t) && !el.disabled && !el.readOnly;
+    }
+
+    function insertTextAtCaret(target, text) {
+      if (!target || !text) return;
+      if (target.isContentEditable) {
+        target.focus();
+        try { document.execCommand('insertText', false, text); } catch { target.textContent = (target.textContent || '') + text; }
+        target.dispatchEvent(new Event('input', { bubbles: true }));
+        return;
+      }
+      const val = typeof target.value === 'string' ? target.value : '';
+      const start = Number.isInteger(target.selectionStart) ? target.selectionStart : val.length;
+      const end = Number.isInteger(target.selectionEnd) ? target.selectionEnd : val.length;
+      target.value = `${val.slice(0, start)}${text}${val.slice(end)}`;
+      const pos = start + text.length;
+      if (typeof target.setSelectionRange === 'function') target.setSelectionRange(pos, pos);
+      target.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+
+    async function initHoldVoiceAvailability() {
+      if (!window.quickChatAPI?.asrCheck) return;
+      try {
+        const r = await window.quickChatAPI.asrCheck();
+        holdVoiceAvailable = !!r?.available;
+      } catch {
+        holdVoiceAvailable = false;
+      }
+    }
 
     inputEl.addEventListener('input', () => {
-      inputEl.style.height = 'auto';
-      inputEl.style.height = Math.min(inputEl.scrollHeight, 120) + 'px';
+      resizeInputByContent();
+      updateSendButtonState();
     });
+    inputEl.addEventListener('keyup', updateSendButtonState);
+    inputEl.addEventListener('change', updateSendButtonState);
     inputEl.addEventListener('compositionstart', () => { imeComposing = true; });
     inputEl.addEventListener('compositionend', () => { imeComposing = false; });
 
@@ -799,7 +1007,7 @@
     // ─── 发送消息 ───
     function doSend() {
       const text = inputEl.value.trim();
-      if ((!text && pendingAttachments.length === 0) || isWaiting) return;
+      if ((!text && pendingAttachments.length === 0) || isWaiting) return false;
       if (welcomeEl) welcomeEl.style.display = 'none';
       appendMessage('user', text || '[发送了附件]', pendingAttachments);
       inputEl.value = '';
@@ -808,7 +1016,7 @@
       renderAttachmentsBar();
       showThinkingAnim();
       isWaiting = true;
-      sendBtn.disabled = true;
+      updateSendButtonState();
       activeRequestStartedAt = Date.now();
       activeRequestText = text || '[附件消息]';
       activeRunId = '';
@@ -843,6 +1051,7 @@
         showProcessTip('正在处理中...');
         window.quickChatAPI.sendMessage(activeRequestText, []);
       }
+      return true;
     }
 
     // ─── 思考动画 ───
@@ -942,7 +1151,8 @@
       if (!streamingTextEl) return;
       const display = cleanStreamingText(pendingStreamText);
       streamingTextEl.textContent = display;
-      scrollToBottom();
+      // 流式阶段使用即时滚动，避免 smooth 连续触发导致抖动
+      scrollToBottom(false, 'auto');
     }
 
     // 创建流式气泡 DOM
@@ -992,13 +1202,12 @@
       window.quickChatAPI.onAIReply((text) => {
         hideThinkingAnim();
         clearProcessTip();
-        clearStreamingState();
 
         if (text?.trim() === 'NO_REPLY') {
           if (streamingMsgEl) streamingMsgEl.remove();
           clearStreamingState();
           isWaiting = false;
-          sendBtn.disabled = false;
+          updateSendButtonState();
           return;
         }
 
@@ -1007,18 +1216,15 @@
           streamingBubbleEl.classList.remove('streaming-bubble');
           streamingBubbleEl.classList.add('md-fade-in');
           renderAIBubble(streamingBubbleEl, text);
-          streamingMsgEl = null;
-          streamingBubbleEl = null;
-          streamingTextEl = null;
-          streamingRawText = '';
-          pendingStreamText = '';
-          scrollToBottom();
+          scrollToBottom(false, 'auto');
+          clearStreamingState();
         } else {
           appendMessage('ai', text);
+          clearStreamingState();
         }
 
         isWaiting = false;
-        sendBtn.disabled = false;
+        updateSendButtonState();
         inputEl.focus();
       });
     }
@@ -1514,7 +1720,7 @@
       messagesEl.scrollTo({ top: messagesEl.scrollHeight, behavior: 'smooth' });
     });
 
-    function scrollToBottom(force = false) {
+    function scrollToBottom(force = false, behavior = 'smooth') {
       if (!force && userScrolledUp) {
         // 用户在往上翻，不强制跟随，显示新消息提示
         newMsgBtn.style.display = 'block';
@@ -1523,7 +1729,7 @@
       if (smoothScrollRafId) return; // 已有一个 smooth 在跑，跳过
       smoothScrollRafId = requestAnimationFrame(() => {
         smoothScrollRafId = null;
-        messagesEl.scrollTo({ top: messagesEl.scrollHeight, behavior: 'smooth' });
+        messagesEl.scrollTo({ top: messagesEl.scrollHeight, behavior });
       });
     }
 
@@ -1534,6 +1740,7 @@
       w.innerHTML = '<div class="welcome-emoji">🐧</div><div class="welcome-text">跟企鹅聊聊天吧</div><div class="welcome-hint">输入消息，按 Enter 发送</div>';
       messagesEl.appendChild(w);
       isWaiting = false; sendBtn.disabled = false;
+      updateSendButtonState();
       hideThinkingAnim();
       clearProcessTip();
       clearStreamingState();
@@ -1547,9 +1754,45 @@
     sendBtn.addEventListener('click', doSend);
     inputEl.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' && (imeComposing || e.isComposing || e.keyCode === 229)) return;
-      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); doSend(); }
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        const sent = doSend();
+        // 仅迷你态 Enter 发送后自动关闭；完整窗口态保持打开
+        if (sent && currentQuickChatMode === 'compact') {
+          window.quickChatAPI?.hide?.();
+        }
+      }
       if (e.key === 'Escape') window.quickChatAPI.closeWindow();
     });
+
+    // 按住 Cmd/Ctrl 进行语音输入（仅在可编辑输入场景）
+    const isMac = /Mac|iPhone|iPad|iPod/.test(navigator.platform || '');
+    document.addEventListener('keydown', async (e) => {
+      const holdKey = isMac ? e.key === 'Meta' : e.key === 'Control';
+      if (!holdKey || e.repeat || holdVoiceActive || holdVoiceStarting) return;
+      if (!holdVoiceAvailable || !window.quickChatAPI?.asrStart) return;
+      const active = document.activeElement;
+      if (!isEditableTarget(active)) return;
+      holdVoiceStarting = true;
+      try {
+        const rs = await window.quickChatAPI.asrStart();
+        if (rs && !rs.error) {
+          holdVoiceActive = true;
+        }
+      } catch {}
+      holdVoiceStarting = false;
+    }, true);
+
+    document.addEventListener('keyup', async (e) => {
+      const holdKey = isMac ? e.key === 'Meta' : e.key === 'Control';
+      if (!holdKey || !holdVoiceActive || !window.quickChatAPI?.asrStop) return;
+      holdVoiceActive = false;
+      try {
+        const r = await window.quickChatAPI.asrStop({});
+        const text = String(r?.text || '').trim();
+        if (text) insertTextAtCaret(document.activeElement || inputEl, text);
+      } catch {}
+    }, true);
 
     attachBtn.addEventListener('click', async () => {
       if (!window.quickChatAPI?.pickFiles) return;
@@ -1558,6 +1801,10 @@
       result.files.forEach(addAttachment);
       renderAttachmentsBar();
     });
+    expandBtn.addEventListener('click', () => {
+      window.quickChatAPI?.expandWindow?.();
+    });
+
 
     inputEl.addEventListener('paste', async (e) => {
       const items = e.clipboardData?.items ? Array.from(e.clipboardData.items) : [];
@@ -1587,9 +1834,21 @@
         attachmentsBar.appendChild(chip);
       });
       attachmentsBar.classList.add('visible');
+      updateSendButtonState();
     }
 
     window.addEventListener('focus', () => { setTimeout(() => inputEl.focus(), 50); });
+    initHoldVoiceAvailability();
+    setTimeout(() => { resizeInputByContent(); updateSendButtonState(); }, 0);
+
+    if (window.quickChatAPI?.onModeChange) {
+      window.quickChatAPI.onModeChange((mode) => {
+        currentQuickChatMode = mode === 'compact' ? 'compact' : 'full';
+        document.body.classList.toggle('compact-mode', mode === 'compact');
+        resizeInputByContent();
+        updateSendButtonState();
+      });
+    }
 
     // ─── 打开时从 Gateway 加载聊天历史 ───
     async function loadChatHistory() {
@@ -1637,6 +1896,7 @@
 
     // 延迟加载（等 Gateway RPC 就绪）
     setTimeout(loadChatHistory, 500);
+    updateSendButtonState();
   </script>
 </body>
 </html>

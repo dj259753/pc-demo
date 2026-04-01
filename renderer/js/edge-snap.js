@@ -111,6 +111,10 @@ const EdgeSnap = (() => {
 
     if (typeof BehaviorEngine !== 'undefined') BehaviorEngine.pause();
 
+    // 吸附时确保状态栏隐藏（hide 状态下不展示 hover-panel）
+    const panel = document.getElementById('hover-panel');
+    if (panel) panel.classList.remove('visible');
+
     const hideAnim = side === 'left' ? 'Hide_left' : 'Hide_right';
 
     const metrics = getPetAnchorMetrics();

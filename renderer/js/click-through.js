@@ -17,6 +17,8 @@ const ClickThrough = (() => {
     '#bubble-stack:not(.hidden)',
     '#quick-chat:not(.hidden)',
     '#start-menu:not(.hidden)',
+    '#skill-mode-menu:not(.hidden)',
+    '#translate-pill:not(.hidden)',
     '#compact-toolbar',
     '.retro-panel:not(.hidden)',   // 背包/对话/进程/日记等面板
     '#work-timer:not(.hidden)',
@@ -96,6 +98,10 @@ const ClickThrough = (() => {
     if (isIgnoring === ignore) return;
     isIgnoring = ignore;
     window.electronAPI.setIgnoreMouse(ignore);
+    // 进入点击穿透时，通知 UI 关闭悬浮菜单（如语音右键菜单）
+    if (ignore) {
+      document.dispatchEvent(new CustomEvent('click-through:ignored'));
+    }
   }
 
   return { init };

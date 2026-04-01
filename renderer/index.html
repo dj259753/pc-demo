@@ -57,14 +57,20 @@
   </div>
 
   <!-- 番茄钟专注倒计时显示 -->
-  <div id="focus-timer" class="work-timer focus-timer hidden">
-    <div class="focus-timer-icon">🍅</div>
-    <div class="work-timer-text">
-      <span class="work-timer-label focus-timer-label">专注中</span>
-      <span class="work-timer-countdown" id="focus-countdown">25:00</span>
+  <div id="focus-timer" class="focus-timer hidden">
+    <div class="focus-timer-left">
+      <span class="focus-timer-icon">🍅</span>
+      <div class="focus-timer-info">
+        <span class="focus-timer-label">专注中</span>
+        <span class="focus-timer-countdown" id="focus-countdown">25:00</span>
+      </div>
     </div>
-    <div class="work-timer-bar">
-      <div class="work-timer-progress focus-progress" id="focus-progress"></div>
+    <div class="focus-timer-progress-wrap">
+      <div class="focus-timer-bar" id="focus-progress"></div>
+    </div>
+    <div class="focus-timer-actions">
+      <button class="focus-btn focus-btn-pause" id="focus-btn-pause" title="暂停">⏸</button>
+      <button class="focus-btn focus-btn-stop"  id="focus-btn-stop"  title="退出专注">✕</button>
     </div>
   </div>
 
@@ -125,10 +131,9 @@
         <span class="action-bar-label">对讲</span>
         <span class="action-bar-shortcut" id="talk-shortcut"></span>
       </button>
-      <button class="action-bar-btn" id="btn-voice" title="语音对讲">
-        <span class="action-bar-icon" id="voice-icon">&#9679;</span>
-        <span class="action-bar-label" id="voice-label">语音对讲</span>
-        <span class="action-bar-shortcut" id="voice-shortcut"></span>
+      <button class="action-bar-btn" id="btn-skill" title="技能">
+        <span class="action-bar-icon" id="skill-icon">🧩</span>
+        <span class="action-bar-label" id="skill-label">技能</span>
       </button>
       <div class="hover-actions-spacer"></div>
       <span class="hover-clock" id="taskbar-clock">--:--</span>
@@ -275,6 +280,14 @@
           <span>对讲快捷键</span>
           <input id="setting-talk-shortcut" class="settings-input" type="text" placeholder="cmd/ctrl+u">
         </div>
+        <div class="settings-item settings-item-inline">
+          <span>快速对讲快捷键</span>
+          <input id="setting-quick-input-shortcut" class="settings-input" type="text" placeholder="cmd/ctrl+i">
+        </div>
+        <div class="settings-item settings-item-inline">
+          <span>全局语音输入快捷键</span>
+          <input id="setting-global-voice-input-shortcut" class="settings-input" type="text" placeholder="cmd/ctrl+o">
+        </div>
         <button id="setting-save-shortcuts" class="settings-action-btn">保存快捷键</button>
       </div>
 
@@ -359,9 +372,9 @@
     </div>
     <div class="menu-items">
       <button class="menu-item" data-action="focus">🎯 专注模式</button>
-      <button class="menu-item" data-action="diary">📔 企鹅日记</button>
-      <div class="menu-separator"></div>
       <button class="menu-item" data-action="skills">🧩 Skills 接入</button>
+      <div class="menu-separator"></div>
+      <button class="menu-item" data-action="onboarding">🆕 新手引导</button>
       <div class="menu-separator"></div>
       <button class="menu-item" data-action="check-update">🔄 检查更新</button>
       <div class="menu-separator"></div>
@@ -377,6 +390,34 @@
   <div id="voice-mode-menu" class="hidden">
     <button class="voice-mode-item" data-mode="single">单次对话模式</button>
     <button class="voice-mode-item" data-mode="realtime">实时通话模式</button>
+  </div>
+  <div id="skill-mode-menu" class="hidden">
+    <button class="voice-mode-item" data-action="voice-toggle">语音对话</button>
+    <button class="voice-mode-item" id="skill-translate-toggle" data-action="translate-toggle">翻译模式：关闭</button>
+    <button class="voice-mode-item disabled" data-action="meeting-notes" disabled>录音纪要（敬请期待）</button>
+  </div>
+  <button id="translate-pill" class="hidden" style="position:fixed;right:10px;top:10px;z-index:1250;border:1px solid rgba(0,0,0,0.08);border-radius:12px;padding:4px 8px;background:rgba(255,255,255,0.92);font-size:12px;cursor:pointer;">翻译中 · 点击关闭</button>
+
+  <!-- 新手引导弹窗 -->
+  <div id="onboarding-overlay" class="hidden" style="position:fixed;inset:0;background:rgba(15,23,42,0.28);backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px);z-index:1800;display:flex;align-items:center;justify-content:center;">
+    <div style="width:min(560px,92vw);background:rgba(255,255,255,0.95);border:1px solid rgba(15,23,42,0.08);border-radius:16px;box-shadow:0 16px 40px rgba(15,23,42,0.2);padding:18px 18px 14px;color:#0f172a;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+        <div style="font-size:17px;font-weight:700;">欢迎使用 QQ 宠物</div>
+        <button id="onboarding-close" style="border:0;background:transparent;font-size:20px;cursor:pointer;color:#64748b;">×</button>
+      </div>
+      <div style="font-size:13px;line-height:1.65;color:#334155;">
+        <p><strong>可用功能</strong></p>
+        <p>1) 快捷对讲：<code>Cmd/Ctrl + U</code> 打开完整对话窗口。</p>
+        <p>2) 语音对话：支持 <strong>单次对话模式</strong> 与 <strong>实时通话模式</strong>。</p>
+        <p>3) 语音输入：<code>Cmd/Ctrl + O</code> 开始/停止全局语音输入并回填。</p>
+        <p>4) 迷你态对讲：<code>Cmd/Ctrl + I</code> 呼出迷你输入框。</p>
+        <p>5) Skills 接入：右键菜单进入 <strong>Skills 接入</strong> 扩展能力。</p>
+      </div>
+      <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px;">
+        <button id="onboarding-open-skills" class="settings-action-btn">打开 Skills</button>
+        <button id="onboarding-ok" class="settings-action-btn">我知道了</button>
+      </div>
+    </div>
   </div>
 
   <!-- 脚本加载 -->
@@ -407,6 +448,7 @@
   <script src="js/click-through.js"></script>
   <script src="js/voice-mode.js"></script>
   <script src="js/system-settings.js"></script>
+  <script src="js/new-user-guide.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>

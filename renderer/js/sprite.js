@@ -11,6 +11,14 @@ const SpriteRenderer = (() => {
   let currentAnim = 'idle';
   let currentSwfPath = '';
 
+  // ─── 原版路由状态机（复刻 swfPet.js 的 next/old 语义） ───
+  let currentRoute = null;       // 当前动画路由（oldNext）
+  let currentRouteStartedAt = 0; // 当前路由生效时间，用于避免未加载完就提前切走
+  let pendingRoute = null;       // 待切换路由（nextSwfRouter）
+  let routeMonitorTimer = null;  // 每100ms检查切换时机
+  let swfChanging = false;       // 防并发切换
+  let savedRoute = null;         // 切换过程中缓存的下一次请求 { route, forceImmediate }
+
   // ─── 动画播放锁：播放中的动画不允许被抢占 ───
   let animLocked = false;
   let animOnComplete = null;
@@ -56,6 +64,92 @@ const SpriteRenderer = (() => {
     hideleft:  [],
     hideright: [],
   };
+
+  // ─── 原版路由规则（精简复刻） ───
+  const NORMAL_AFTER_STATES = [
+    'normal', 'hideleft', 'hideright', 'play', 'speak', 'interact', 'hide', 'appear',
+    'eat', 'clean', 'cure', 'sick', 'etoj', 'jtoc', 'dying', 'die', 'revival',
+    'bury', 'first', 'levup', 'enter', 'exit', 'game'
+  ];
+
+  const ROUTE_RULES = {
+    normal:    { power: 0,   afterState: NORMAL_AFTER_STATES },
+    play:      { power: 50,  backSwf: 'normal' },
+    interact:  { power: 50,  backSwf: 'normal' },
+    speak:     { power: 100, backSwf: 'normal' },
+    etoj:      { power: 66,  lastTimeCut: 7, backSwf: 'canNext' },
+    jtoc:      { power: 66,  lastTimeCut: 7, backSwf: 'canNext' },
+    hide:      { power: 150, canSelfSet: true },
+    appear:    { power: 150, backSwf: 'normal', canSelfSet: true },
+    eat:       { power: 150, backSwf: 'normal', canSelfSet: true },
+    clean:     { power: 150, backSwf: 'normal', canSelfSet: true },
+    sick:      { power: 150, backSwf: 'normal', canSelfSet: true },
+    cure:      { power: 150, backSwf: 'normal', canSelfSet: true },
+    game:      { power: 150, canSelfSet: true },
+    dying:     { power: 150, backSwf: 'canNext' },
+    die:       { power: 170, afterState: ['revival', 'bury'], canSelfSet: true },
+    revival:   { power: 170, backSwf: 'canNext' },
+    bury:      { power: 170, lastTimeCut: 5, afterState: ['normal', 'changeState', 'first'], backSwf: 'normal' },
+    first:     { power: 170, backSwf: 'normal' },
+    levup:     { power: 170, backSwf: 'normal' },
+    // 吸附态：默认停在最后一帧，不允许被 normal 抢回
+    hideleft:  { power: 170, canSelfSet: true, afterState: ['hideleft', 'hideright', 'appear', 'exit'], freezeAtLastFrame: true },
+    hideright: { power: 170, canSelfSet: true, afterState: ['hideleft', 'hideright', 'appear', 'exit'], freezeAtLastFrame: true },
+    enter:     { power: 0 },
+    exit:      { power: 0 },
+    default:   { power: 0 },
+  };
+
+  function detectRouteState(animName) {
+    const lower = String(animName || '').toLowerCase();
+
+    if (lower.includes('-play-')) return 'play';
+    if (lower.includes('-interact-')) return 'interact';
+    if (lower.endsWith('-speak')) return 'speak';
+    if (lower.endsWith('-stand') || lower.includes('-stand')) return 'normal';
+    if (lower.endsWith('-appear')) return 'appear';
+    if (lower.endsWith('-hide')) return 'hide';
+
+    if (lower.startsWith('eat')) return 'eat';
+    if (lower.startsWith('clean')) return 'clean';
+    if (lower.startsWith('cure')) return 'cure';
+    if (lower.startsWith('sick')) return 'sick';
+    if (lower === 'etoj') return 'etoj';
+    if (lower === 'jtoc') return 'jtoc';
+    if (lower === 'dying') return 'dying';
+    if (lower === 'die') return 'die';
+    if (lower === 'revival') return 'revival';
+    if (lower === 'bury') return 'bury';
+    if (lower === 'first') return 'first';
+    if (lower === 'levup') return 'levup';
+    if (lower === 'hide_left') return 'hideleft';
+    if (lower === 'hide_right') return 'hideright';
+    if (lower.startsWith('enter')) return 'enter';
+    if (lower.startsWith('exit')) return 'exit';
+    if (lower.startsWith('game')) return 'game';
+
+    return 'normal';
+  }
+
+  function buildRoute(animName, callBack = null) {
+    if (!animName || !swfManifest?.[animName]) return null;
+    const state = detectRouteState(animName);
+    const rule = ROUTE_RULES[state] || ROUTE_RULES.default;
+    return {
+      name: state,
+      src: animName,
+      opt: {
+        power: rule.power || 0,
+        lastTimeCut: rule.lastTimeCut || 1,
+        canSelfSet: !!rule.canSelfSet,
+        afterState: rule.afterState ? [...rule.afterState] : null,
+        backSwf: rule.backSwf || null,
+        nextFrames: rule.nextFrames || null,
+        freezeAtLastFrame: !!rule.freezeAtLastFrame,
+      },
+      callBack,
+    };
+  }
 
   // ═══════════════════════════════════════════
   //  加载 SWF 清单并分类
@@ -369,6 +463,237 @@ const SpriteRenderer = (() => {
   }
 
   // ═══════════════════════════════════════════
+  //  原版路由状态机：切换时机/优先级/回退
+  // ═══════════════════════════════════════════
+
+  function ensureRouteMonitor() {
+    if (routeMonitorTimer) return;
+    routeMonitorTimer = setInterval(() => {
+      if (pendingRoute && shouldSwitchNow(pendingRoute)) {
+        const target = pendingRoute;
+        pendingRoute = null;
+        switchRouteNow(target);
+      }
+      keepHidePoseLooping();
+    }, 100);
+  }
+
+  function stopRouteMonitorIfIdle() {
+    if (!routeMonitorTimer) return;
+    if (!pendingRoute && !currentRoute?.opt?.nextFrames && !currentRoute?.opt?.freezeAtLastFrame) {
+      clearInterval(routeMonitorTimer);
+      routeMonitorTimer = null;
+    }
+  }
+
+  function getFrameState() {
+    try {
+      return {
+        currentFrame: Number(rufflePlayer?.currentFrame ?? 0),
+        totalFrames: Number(rufflePlayer?.totalFrames ?? 0),
+      };
+    } catch (e) {
+      return { currentFrame: 0, totalFrames: 0 };
+    }
+  }
+
+  function shouldSwitchNow(nextRoute) {
+    if (!nextRoute) return false;
+    if (!currentRoute) return true;
+
+    // 原版：game 状态不允许被随意抢占
+    if (currentRoute.name === 'game') return false;
+
+    // 原版：afterState 白名单限制
+    const afterState = currentRoute?.opt?.afterState;
+    if (afterState && nextRoute.name !== 'exit' && !afterState.includes(nextRoute.name)) {
+      return false;
+    }
+
+    const { currentFrame, totalFrames } = getFrameState();
+    const lastTimeCut = Number(currentRoute?.opt?.lastTimeCut || 1);
+
+    if (!Number.isFinite(totalFrames) || totalFrames <= 1) {
+      // totalFrames 不可用时，不能直接放行；否则会出现 1~2 秒被截断回退
+      const holdElapsed = Date.now() - Number(currentRouteStartedAt || 0);
+      const nextPower = Number(nextRoute?.opt?.power || 0);
+      const curPower = Number(currentRoute?.opt?.power || 0);
+
+      if (nextRoute?.name === 'exit') return true;
+      if (nextPower > curPower) return true;
+
+      // 吸附冻结态：仅允许显式 appear/exit（afterState 已控），这里不放行自动回退
+      if (currentRoute?.opt?.freezeAtLastFrame) return false;
+
+      // 兜底：如果长时间拿不到帧信息，再允许切换，防止极端场景永远卡住
+      if (holdElapsed >= 12000) return true;
+      return false;
+    }
+
+    // 原版：到尾帧前 lastTimeCut 时机切换
+    if (currentFrame >= Math.max(1, totalFrames - lastTimeCut)) return true;
+
+    const nextPower = Number(nextRoute?.opt?.power || 0);
+    const curPower = Number(currentRoute?.opt?.power || 0);
+
+    // 原版：高优先级可抢占
+    if (nextPower > curPower) return true;
+
+    // 原版：同优先级 + canSelfSet 可抢占
+    if (nextPower === curPower && nextRoute?.opt?.canSelfSet) return true;
+
+    // 原版：exit 永远可切
+    if (nextRoute.name === 'exit') return true;
+
+    // 原版：某些 normal 可直接切
+    if (currentRoute?.opt?.isOverState === 'normal') return true;
+
+    return false;
+  }
+
+  function keepHidePoseLooping() {
+    if (!currentRoute?.opt || !rufflePlayer) return;
+
+    const { currentFrame, totalFrames } = getFrameState();
+    if (!Number.isFinite(totalFrames) || totalFrames <= 1) return;
+
+    // 吸附态：默认停在最后一帧并保持暂停
+    if (currentRoute.opt.freezeAtLastFrame) {
+      if (currentFrame >= totalFrames - 2) {
+        tryStopAtLastFrame(totalFrames);
+      }
+      return;
+    }
+
+    // 兼容旧逻辑：需要循环维持姿态的动画走 nextFrames
+    if (!currentRoute.opt.nextFrames) return;
+    if (currentFrame >= totalFrames - 1) {
+      const targetFrame = Number(currentRoute.opt.nextFrames);
+      tryJumpToFrame(targetFrame);
+    }
+  }
+
+  function tryStopAtLastFrame(totalFrames) {
+    if (!Number.isFinite(totalFrames) || !rufflePlayer) return;
+
+    const candidates = [Math.round(totalFrames), Math.max(0, Math.round(totalFrames - 1))];
+
+    try {
+      if (typeof rufflePlayer.gotoAndStop === 'function') {
+        for (const frame of candidates) {
+          try { rufflePlayer.gotoAndStop(frame); break; } catch (e) {}
+        }
+      } else if (typeof rufflePlayer.GotoAndStop === 'function') {
+        for (const frame of candidates) {
+          try { rufflePlayer.GotoAndStop(frame); break; } catch (e) {}
+        }
+      } else if (typeof rufflePlayer.gotoFrame === 'function') {
+        for (const frame of candidates) {
+          try { rufflePlayer.gotoFrame(frame); break; } catch (e) {}
+        }
+      } else if (typeof rufflePlayer.GotoFrame === 'function') {
+        for (const frame of candidates) {
+          try { rufflePlayer.GotoFrame(frame); break; } catch (e) {}
+        }
+      }
+      rufflePlayer.pause?.();
+    } catch (e) {}
+  }
+
+  function tryJumpToFrame(frame) {
+    if (!Number.isFinite(frame) || frame < 0 || !rufflePlayer) return;
+    try {
+      if (typeof rufflePlayer.gotoFrame === 'function') {
+        rufflePlayer.gotoFrame(frame);
+      } else if (typeof rufflePlayer.GotoFrame === 'function') {
+        rufflePlayer.GotoFrame(frame);
+      } else if (typeof rufflePlayer.gotoAndPlay === 'function') {
+        rufflePlayer.gotoAndPlay(frame);
+      } else if (typeof rufflePlayer.GotoAndPlay === 'function') {
+        rufflePlayer.GotoAndPlay(frame);
+      }
+      rufflePlayer.play?.();
+    } catch (e) {}
+  }
+
+  function queueRoute(route) {
+    if (!route) return;
+
+    // 与当前完全一致则忽略（避免 normal 重复排队造成无意义重播）
+    if (currentRoute && currentRoute.src === route.src && currentRoute.name === route.name) {
+      return;
+    }
+
+    // 与待切换目标一致也忽略
+    if (pendingRoute && pendingRoute.src === route.src && pendingRoute.name === route.name) {
+      return;
+    }
+
+    pendingRoute = route;
+    ensureRouteMonitor();
+    if (shouldSwitchNow(route)) {
+      const target = pendingRoute;
+      pendingRoute = null;
+      switchRouteNow(target);
+    }
+  }
+
+  async function switchRouteNow(route, forceImmediate = false) {
+    if (!route) return;
+    if (swfChanging) {
+      savedRoute = { route, forceImmediate };
+      return;
+    }
+
+    swfChanging = true;
+    try {
+      currentAnim = route.src;
+      await loadSwf(route.src);
+      currentRoute = route;
+      currentRouteStartedAt = Date.now();
+
+      if (route.callBack?.load) route.callBack.load();
+
+      // 原版 backSwf：切换后立即预置回退路由（并非立刻切）
+      if (route.opt?.backSwf) {
+        setTimeout(() => {
+          if (route.opt.backSwf === 'canNext') {
+            if (pendingRoute) return;
+            const stand = getStandByCurrentMood();
+            if (stand && stand !== route.src) {
+              const backRoute = buildRoute(stand);
+              if (backRoute) queueRoute(backRoute);
+            }
+          } else if (route.opt.backSwf === 'normal') {
+            const stand = getStandByCurrentMood();
+            if (stand && stand !== route.src) {
+              const backRoute = buildRoute(stand);
+              if (backRoute) queueRoute(backRoute);
+            }
+          }
+        }, 100);
+      }
+    } finally {
+      swfChanging = false;
+      if (savedRoute) {
+        const next = savedRoute;
+        savedRoute = null;
+        if (next.forceImmediate) {
+          switchRouteNow(next.route, true);
+        } else {
+          queueRoute(next.route);
+        }
+      }
+      stopRouteMonitorIfIdle();
+    }
+  }
+
+  function getStandByCurrentMood() {
+    const mood = (typeof PetState !== 'undefined') ? (PetState.mood || 'peaceful') : 'peaceful';
+    return getQCStand(mood) || getQCStand('peaceful');
+  }
+
+  // ═══════════════════════════════════════════
   //  播完检测（轮询 Ruffle 帧状态）
   // ═══════════════════════════════════════════
 
@@ -553,7 +878,7 @@ const SpriteRenderer = (() => {
     if (animLocked) return;
     // 吸附状态下不允许切换动画（除非 forceSetAnimation）
     if (typeof EdgeSnap !== 'undefined' && EdgeSnap.isSnapped) return;
-    _doSetAnimation(name);
+    _doSetAnimation(name, false, null);
   }
 
   /** 播放一次动画（锁定直到播完，然后执行回调） */
@@ -563,10 +888,10 @@ const SpriteRenderer = (() => {
       if (onComplete) onComplete(); // 立即回调避免卡死
       return;
     }
-    // 强制切换
+
     animLocked = false;
     stopPolling();
-    _doSetAnimation(name);
+    _doSetAnimation(name, true, null);
 
     // 设置锁定和回调
     animLocked = true;
@@ -596,36 +921,42 @@ const SpriteRenderer = (() => {
     animLocked = false;
     animOnComplete = null;
     stopPolling();
-    _doSetAnimation(name);
+    _doSetAnimation(name, true, null);
   }
 
-  /** 内部动画切换实现 */
-  function _doSetAnimation(name) {
+  /** 内部动画切换实现（对齐原版 next/old 路由机制） */
+  function _doSetAnimation(name, force = false, callBack = null) {
+    let resolved = null;
+
     // 直接是 QC 动画名
     if (swfManifest?.[name]) {
-      currentAnim = name;
-      loadSwf(name);
-      return;
+      resolved = name;
     }
 
     // 旧动画名 → 映射到 QC
-    if (qcLoaded && LEGACY_MAP[name]) {
+    if (!resolved && qcLoaded && LEGACY_MAP[name]) {
       const mapped = LEGACY_MAP[name]();
-      if (mapped && swfManifest?.[mapped]) {
-        currentAnim = mapped;
-        loadSwf(mapped);
-        return;
-      }
+      if (mapped && swfManifest?.[mapped]) resolved = mapped;
     }
 
     // 兜底
-    if (qcLoaded) {
+    if (!resolved && qcLoaded) {
       const fallback = getQCStand('peaceful');
-      if (fallback) {
-        currentAnim = fallback;
-        loadSwf(fallback);
-      }
+      if (fallback) resolved = fallback;
     }
+
+    if (!resolved) return;
+
+    const route = buildRoute(resolved, callBack);
+    if (!route) return;
+
+    if (force) {
+      pendingRoute = null;
+      switchRouteNow(route, true);
+      return;
+    }
+
+    queueRoute(route);
   }
 
   // ═══════════════════════════════════════════

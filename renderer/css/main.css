@@ -29,7 +29,7 @@ body {
   height: 160px;
   /* 小手 cursor：悬浮到宠物身上变手掌 */
   cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='28' viewBox='0 0 28 28'%3E%3Ctext x='2' y='22' font-size='22'%3E🤚%3C/text%3E%3C/svg%3E") 14 6, pointer;
-  z-index: 100;
+  z-index: 300;
   transition: none;
   overflow: visible;
 }
@@ -126,55 +126,71 @@ body {
 
 .quick-chat-box {
   display: flex;
-  gap: 6px;
-  padding: 8px 10px;
-  background: rgba(22, 28, 45, 0.56);
-  border: 1px solid rgba(255, 255, 255, 0.32);
-  border-radius: 20px;
-  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.34), inset 0 1px 0 rgba(255,255,255,0.22);
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
+  flex-direction: column;
+  align-items: flex-start;
+  position: relative;
+  width: 380px;
+  min-height: 134px;
+  padding: 16px;
+  gap: 12px;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.85);
+  border-radius: 18px;
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.14);
+  backdrop-filter: blur(18px) saturate(130%);
+  -webkit-backdrop-filter: blur(18px) saturate(130%);
 }
 
 #quick-chat-input {
-  width: 200px;
-  padding: 8px 14px;
-  border: 1px solid rgba(255, 255, 255, 0.3);
+  width: 100%;
+  min-height: 92px;
+  padding: 14px 50px 14px 14px;
+  border: 1px solid rgba(197, 205, 219, 0.9);
   border-radius: 14px;
-  font-size: 14px;
+  font-size: 15px;
   font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', sans-serif;
   outline: none;
-  background: rgba(255, 255, 255, 0.22);
-  color: #fff;
+  background: rgba(255, 255, 255, 0.8);
+  color: #1f2937;
   transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
 }
 
 #quick-chat-input::placeholder {
-  color: rgba(255, 255, 255, 0.7);
+  color: rgba(100, 116, 139, 0.7);
 }
 
 #quick-chat-input:focus {
-  border-color: rgba(99, 102, 241, 0.72);
-  background: rgba(255, 255, 255, 0.28);
-  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+  border-color: rgba(91, 124, 250, 0.7);
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 0 0 3px rgba(91, 124, 250, 0.12);
 }
 
 #quick-chat-send {
-  padding: 8px 14px;
-  background: linear-gradient(135deg, rgba(99, 102, 241, 0.7), rgba(139, 92, 246, 0.7));
+  position: absolute;
+  right: 26px;
+  bottom: 26px;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  background: #111827;
   color: #fff;
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  border-radius: 14px;
-  font-size: 13px;
+  border: 0;
+  border-radius: 50%;
+  font-size: 0;
   cursor: pointer;
-  font-weight: 600;
+  font-weight: 700;
   transition: background 0.2s, transform 0.1s;
-  backdrop-filter: blur(8px);
+  box-shadow: 0 6px 14px rgba(17, 24, 39, 0.25);
+}
+
+#quick-chat-send::before {
+  content: '↑';
+  font-size: 16px;
+  line-height: 1;
 }
 
 #quick-chat-send:hover {
-  background: linear-gradient(135deg, rgba(99, 102, 241, 0.85), rgba(139, 92, 246, 0.85));
+  background: #000;
 }
 
 #quick-chat-send:active {
@@ -189,15 +205,16 @@ body {
   left: 50%;
   transform: translateX(-50%);
   margin-bottom: 2px;
-  z-index: 200;
+  z-index: 430;
   display: flex;
   flex-direction: column;
   align-items: center;
   transition: opacity 0.3s ease;
   pointer-events: auto;
   /* 固定宽度，不受 pet-container 的 160px 约束 */
-  width: 232px;
-  max-height: 185px;
+  width: max-content;
+  max-width: 290px;
+  max-height: 222px;
   overflow: visible;
 }
 
@@ -209,37 +226,50 @@ body {
 .bubble-list {
   display: flex;
   flex-direction: column;
-  gap: 3px;
-  max-width: 232px;
+  gap: 6px;
+  width: max-content;
+  max-width: 290px;
   min-width: 60px;
+  align-items: center;
 }
 
 /* 单条气泡（毛玻璃） */
 .bubble-item {
-  background: rgba(18, 24, 38, 0.62);
-  border: 1px solid rgba(255, 255, 255, 0.32);
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(209, 218, 232, 0.95);
   border-radius: 14px;
   padding: 5px 12px;
-  font-size: 11px;
-  line-height: 1.4;
-  max-width: 232px;
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.28), inset 0 1px 0 rgba(255,255,255,0.16);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  word-break: break-all;
+  font-size: 12px;
+  line-height: 1.5;
+  width: auto;
+  max-width: 290px;
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.14);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  word-break: normal;
+  overflow-wrap: break-word;
   display: flex;
-  align-items: center;
-  gap: 4px;
+  align-items: flex-start;
+  gap: 6px;
   cursor: default;
   animation: bubbleFadeIn 0.25s ease;
-  color: rgba(255, 255, 255, 0.98);
-  text-shadow: 0 1px 2px rgba(0,0,0,0.45);
+  color: #1f2937;
+  text-shadow: none;
 }
 
 /* 旧消息变淡 */
 .bubble-item.faded {
-  opacity: 0.5;
-  transform: scale(0.95);
+  transform-origin: center bottom;
+}
+
+.bubble-item.stack-old-1 {
+  opacity: 0.88;
+  transform: scale(0.94);
+}
+
+.bubble-item.stack-old-2 {
+  opacity: 0.76;
+  transform: scale(0.88);
 }
 
 /* 可点击展开 */
@@ -248,35 +278,40 @@ body {
 }
 
 .bubble-item.expandable:hover {
-  background: rgba(30, 39, 62, 0.74);
+  background: rgba(245, 248, 255, 0.98);
 }
 
 /* 截断箭头 */
 .bubble-arrow {
   flex-shrink: 0;
   font-size: 10px;
-  color: rgba(255, 255, 255, 0.5);
+  color: rgba(71, 85, 105, 0.5);
   margin-left: 2px;
 }
 
 .bubble-item.expandable .bubble-arrow {
-  color: rgba(255, 255, 255, 0.7);
+  color: rgba(71, 85, 105, 0.72);
 }
 
 .bubble-text-content {
+  display: block;
+  flex: 1 1 auto;
   min-width: 0;
+  max-width: 248px;
+  white-space: pre-wrap;
+  word-break: normal;
+  overflow-wrap: break-word;
+  line-height: 1.5;
 }
 
 /* 超长文本自然渐隐，不再突兀显示 ... */
 .bubble-text-content.truncated {
-  display: -webkit-box;
-  max-width: 192px;
-  white-space: normal;
+  display: block;
+  max-width: 248px;
+  white-space: pre-wrap;
   overflow: hidden;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 10;
-  line-clamp: 10;
-  word-break: break-all;
+  word-break: normal;
+  overflow-wrap: break-word;
 }
 
 /* 气泡尾巴（毛玻璃版） */

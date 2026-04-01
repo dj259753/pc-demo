@@ -305,7 +305,7 @@ const ProactiveChat = (() => {
     minuteSpeakCount++;
 
     if (typeof BubbleSystem !== 'undefined') {
-      BubbleSystem.show(text, 5000);
+      BubbleSystem.show(text, 4000);
     }
 
     // 记录到日记

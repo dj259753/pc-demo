@@ -576,6 +576,8 @@ const BehaviorEngine = (() => {
   // ─── 激活 / 失活 ───
   function activate() {
     if (isActivated) return;
+    // hide（吸附到屏幕边缘）状态下不弹出状态栏
+    if (typeof EdgeSnap !== 'undefined' && EdgeSnap.isSnapped) return;
     isActivated = true;
     showActionBar();
   }
@@ -588,6 +590,8 @@ const BehaviorEngine = (() => {
 
   // ─── 浮动面板显隐（纯用 .visible class） ───
   function showActionBar() {
+    // hide（吸附）状态下不展示状态栏
+    if (typeof EdgeSnap !== 'undefined' && EdgeSnap.isSnapped) return;
     const panel = document.getElementById('hover-panel');
     if (panel) {
       panel.classList.add('visible');
@@ -689,10 +693,8 @@ const BehaviorEngine = (() => {
         currentBehavior = BEHAVIOR.PAUSED;
         resetToCenter(); // 确保企鹅在窗口中心再播动画
 
-        // 播 Speak 动画（播完回 Stand，然后重新调度下一次）
+        // 播 Speak 动画（回到 Stand 由 Sprite 路由层处理）
         SpriteRenderer.playOnce(speakAnim, () => {
-          const stand = SpriteRenderer.getQCStand(mood);
-          SpriteRenderer.setAnimation(stand || 'idle');
           currentBehavior = BEHAVIOR.IDLE;
           scheduleQCIdleAnimation(); // 播完后才计时下一次
         });
@@ -704,7 +706,7 @@ const BehaviorEngine = (() => {
             constraint: '一句随机碎碎念，10-25字，可以是吐槽/感叹/自嗨/发呆感悟，不要@主人',
           }).then(reply => {
             if (reply && typeof BubbleSystem !== 'undefined') {
-              BubbleSystem.show(reply, 3000);
+              BubbleSystem.show(reply, 4000);
             }
           }).catch(() => {});
         }
@@ -722,10 +724,8 @@ const BehaviorEngine = (() => {
         currentBehavior = BEHAVIOR.PAUSED;
         resetToCenter(); // 确保企鹅在窗口中心再播动画
 
-        // 用 playOnce 播完一遍后自动回 Stand
+        // 用 playOnce 播完一遍后自动回 Stand（回退由路由层处理）
         SpriteRenderer.playOnce(playAnim, () => {
-          const stand = SpriteRenderer.getQCStand(mood);
-          SpriteRenderer.setAnimation(stand || 'idle');
           currentBehavior = BEHAVIOR.IDLE;
           scheduleQCIdleAnimation(); // 播完后才计时下一次
         });

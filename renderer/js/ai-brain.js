@@ -797,6 +797,22 @@ const AIBrain = (() => {
     }
   }
 
+  // 直连翻译（不走 Agent 链路）
+  async function translateDirect(sourceText) {
+    const text = String(sourceText || '').trim();
+    if (!text) return '';
+    if (!API_URL || AI_PROVIDER === 'local') {
+      await loadAIConfig();
+    }
+    const chineseChars = (text.match(/[\u4e00-\u9fff]/g) || []).length;
+    const englishChars = (text.match(/[A-Za-z]/g) || []).length;
+    const targetLang = chineseChars >= englishChars ? '英文' : '中文';
+    const systemPrompt = '你是专业翻译器。只输出翻译结果本身，不要解释，不要加引号。';
+    const userPrompt = `帮我翻译这句话，除了翻译结果不要说别的。要求：如果原文大部分是中文就翻译成英文；如果原文大部分是英文就翻译成中文。本次请翻译成${targetLang}：${text}`;
+    const reply = await callAI(systemPrompt, userPrompt, 0.2);
+    return cleanModelOutput(reply || '');
+  }
+
   // ═══════════════════════════════════════════
   // 辅助函数
   // ═══════════════════════════════════════════
@@ -908,6 +924,7 @@ const AIBrain = (() => {
     batchGenerate,
     chat,
     summarizeForMemory,
+    translateDirect,
     buildPrompt,
     loadAIConfig,
     loadSoul,

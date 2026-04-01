@@ -6,6 +6,8 @@ contextBridge.exposeInMainWorld('quickChatAPI', {
   readClipboardImage: () => ipcRenderer.invoke('quick-chat-read-clipboard-image'),
   hide: () => ipcRenderer.send('quick-chat-hide'),
   closeWindow: () => ipcRenderer.send('quick-chat-close'),
+  expandWindow: () => ipcRenderer.send('quick-chat-expand'),
+  collapseWindow: () => ipcRenderer.send('quick-chat-collapse'),
 
   // 监听 AI 回复（从主窗口转发过来）
   onAIReply: (callback) => ipcRenderer.on('ai-reply', (_, { text }) => callback(text)),
@@ -18,6 +20,7 @@ contextBridge.exposeInMainWorld('quickChatAPI', {
 
   // 监听 Agent 工具执行进度（tool_start/tool_end/agent_start/agent_end）
   onToolProgress: (callback) => ipcRenderer.on('agent-tool-progress', (_, evt) => callback(evt)),
+  onModeChange: (callback) => ipcRenderer.on('quick-chat-mode', (_, { mode }) => callback(mode)),
 
   // ─── Gateway RPC（直接走完整 Agent loop） ───
   gatewayChatSend: (message) => ipcRenderer.invoke('gateway-chat-send', { message }),
@@ -26,6 +29,11 @@ contextBridge.exposeInMainWorld('quickChatAPI', {
   gatewayRpcStatus: () => ipcRenderer.invoke('gateway-rpc-status'),
   onGatewayChatEvent: (callback) => ipcRenderer.on('gateway-chat-event', (_, payload) => callback(payload)),
   onGatewayAgentEvent: (callback) => ipcRenderer.on('gateway-agent-event', (_, payload) => callback(payload)),
+
+  // 语音输入（腾讯云 ASR）
+  asrCheck: () => ipcRenderer.invoke('asr-check'),
+  asrStart: () => ipcRenderer.invoke('asr-start'),
+  asrStop: (opts) => ipcRenderer.invoke('asr-stop', opts || {}),
 
   // 打开外部 URL（系统浏览器）
   openUrl: (url) => ipcRenderer.invoke('open-external-url', url),

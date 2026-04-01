@@ -5,25 +5,20 @@
 /* ═══════════ 统一浮动面板（状态栏+动作栏） ═══════════ */
 #hover-panel {
   position: absolute;
-  bottom: 4px;
+  bottom: 6px;
   left: 50%;
-  transform: translateX(-50%) translateY(8px);
+  transform: translateX(-50%) translateY(6px);
   display: flex;
   flex-direction: column;
   gap: 0;
   z-index: 350;
   padding: 8px 10px;
-  background:
-    linear-gradient(145deg, rgba(255, 255, 255, 0.24), rgba(255, 255, 255, 0.08)),
-    rgba(17, 24, 39, 0.58);
-  border: 1px solid rgba(255, 255, 255, 0.42);
-  border-radius: 20px;
-  box-shadow:
-    0 14px 36px rgba(0, 0, 0, 0.34),
-    inset 0 1px 0 rgba(255,255,255,0.36),
-    inset 0 -1px 0 rgba(255,255,255,0.1);
-  backdrop-filter: blur(30px) saturate(135%);
-  -webkit-backdrop-filter: blur(30px) saturate(135%);
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  border-radius: 8px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+  backdrop-filter: blur(10px) saturate(110%);
+  -webkit-backdrop-filter: blur(10px) saturate(110%);
   overflow: hidden;
   background-clip: padding-box;
   isolation: isolate;
@@ -37,8 +32,18 @@
 
 #hover-panel.visible {
   opacity: 1;
-  pointer-events: auto;
+  pointer-events: none; /* 让空白区域穿透，不挡住宠物 */
   transform: translateX(-50%) translateY(0);
+}
+
+/* 仅具体控件接收点击，避免整块面板拦截鼠标 */
+#hover-panel.visible #hover-stats,
+#hover-panel.visible #hover-actions,
+#hover-panel.visible .action-bar-btn,
+#hover-panel.visible .hover-window-btns,
+#hover-panel.visible .win-btn,
+#hover-panel.visible .hover-clock {
+  pointer-events: auto;
 }
 
 /* ── 状态条区域 ── */
@@ -65,7 +70,7 @@
 .hover-stat-bar {
   flex: 1;
   height: 6px;
-  background: rgba(255, 255, 255, 0.22);
+  background: rgba(15, 23, 42, 0.08);
   border-radius: 3px;
   overflow: hidden;
   min-width: 30px;
@@ -104,7 +109,7 @@
 .hover-stat-val {
   font-size: 9px;
   font-family: -apple-system, BlinkMacSystemFont, 'SF Mono', monospace;
-  color: rgba(255, 255, 255, 0.94);
+  color: rgba(30, 41, 59, 0.9);
   width: 18px;
   text-align: right;
   flex-shrink: 0;
@@ -114,7 +119,7 @@
 /* ── 分隔线 ── */
 .hover-panel-divider {
   height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.45), transparent);
+  background: linear-gradient(90deg, transparent, rgba(15,23,42,0.16), transparent);
   margin: 2px 4px;
 }
 
@@ -135,7 +140,7 @@
 .hover-clock {
   font-size: 9px;
   font-family: -apple-system, BlinkMacSystemFont, monospace;
-  color: rgba(255, 255, 255, 0.86);
+  color: rgba(51, 65, 85, 0.9);
   padding: 0 1px;
   white-space: nowrap;
   text-shadow: 0 1px 2px rgba(0,0,0,0.4);
@@ -155,17 +160,17 @@
   gap: 1px;
   padding: 4px 5px;
   border-radius: 12px;
-  border: 1px solid transparent;
-  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(15,23,42,0.08);
+  background: rgba(255, 255, 255, 0.7);
   cursor: pointer;
   transition: background 0.2s ease, transform 0.15s ease;
   min-width: 36px;
 }
 
 .action-bar-btn:hover {
-  background: rgba(255, 255, 255, 0.2);
-  border-color: rgba(255, 255, 255, 0.3);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.95);
+  border-color: rgba(15,23,42,0.12);
+  box-shadow: 0 2px 8px rgba(15,23,42,0.08);
   transform: translateY(-2px);
 }
 
@@ -191,13 +196,39 @@
   filter: drop-shadow(0 1px 2px rgba(0,0,0,0.15));
 }
 
+/* 使用自定义 PNG 图标覆盖喂食/洗澡/对讲 */
+#btn-feed .action-bar-icon,
+#btn-soap .action-bar-icon,
+#btn-talk .action-bar-icon {
+  width: 18px;
+  height: 18px;
+  display: inline-block;
+  font-size: 0;
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: contain;
+  filter: none;
+}
+
+#btn-feed .action-bar-icon {
+  background-image: url("file:///Users/Apple/Library/Application%20Support/Cursor/User/workspaceStorage/1775028941752/images/image-1eb2fd8e-a7e4-44a4-8a92-53d859ae17ea.png");
+}
+
+#btn-soap .action-bar-icon {
+  background-image: url("file:///Users/Apple/Library/Application%20Support/Cursor/User/workspaceStorage/1775028941752/images/image-a3766391-7ee4-42d7-96f5-b9cee34cdf30.png");
+}
+
+#btn-talk .action-bar-icon {
+  background-image: url("file:///Users/Apple/Library/Application%20Support/Cursor/User/workspaceStorage/1775028941752/images/image-72a1395c-6280-442d-af42-2520aefab1a7.png");
+}
+
 .action-bar-label {
   font-size: 8px;
-  color: rgba(255, 255, 255, 0.9);
+  color: rgba(51, 65, 85, 0.95);
   font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
   pointer-events: none;
   white-space: nowrap;
-  text-shadow: 0 1px 2px rgba(0,0,0,0.42);
+  text-shadow: none;
   font-weight: 500;
 }
 
@@ -349,12 +380,33 @@
   min-width: 150px;
   padding: 6px;
   border-radius: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  background: rgba(17, 24, 39, 0.96);
-  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.38);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.08);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
 }
 
 #voice-mode-menu.hidden {
+  display: none !important;
+}
+
+#skill-mode-menu {
+  position: fixed;
+  z-index: 1200;
+  display: flex;
+  flex-direction: column;
+  min-width: 168px;
+  padding: 6px;
+  border-radius: 10px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.08);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+#skill-mode-menu.hidden {
   display: none !important;
 }
 
@@ -362,7 +414,7 @@
   border: none;
   border-radius: 8px;
   background: transparent;
-  color: rgba(255, 255, 255, 0.9);
+  color: rgba(30, 41, 59, 0.95);
   text-align: left;
   font-size: 12px;
   padding: 8px 10px;
@@ -370,12 +422,19 @@
 }
 
 .voice-mode-item:hover {
-  background: rgba(255, 255, 255, 0.12);
+  background: rgba(91, 124, 250, 0.12);
 }
 
 .voice-mode-item.active::before {
   content: '✓ ';
-  color: #4ade80;
+  color: #2563eb;
+}
+
+.voice-mode-item.disabled,
+.voice-mode-item:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  pointer-events: none;
 }
 
 
@@ -394,7 +453,7 @@
     inset 0 -1px 0 rgba(255,255,255,0.08);
   backdrop-filter: blur(30px) saturate(135%);
   -webkit-backdrop-filter: blur(30px) saturate(135%);
-  z-index: 400;
+  z-index: 760;
   overflow: hidden;
 }
 
@@ -988,16 +1047,18 @@
   transform: translateX(-50%);
   width: 300px;
   max-height: 420px;
-  background: rgba(18, 24, 34, 0.92);
-  border: 1px solid rgba(167, 243, 208, 0.24);
-  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.42);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
+  background: rgba(255, 255, 255, 0.95);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
 }
 
 .settings-titlebar {
-  background: rgba(16, 185, 129, 0.16) !important;
+  background: rgba(91, 124, 250, 0.1) !important;
   cursor: grab;
+  color: rgba(30, 41, 59, 0.96);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
 }
 .settings-titlebar:active {
   cursor: grabbing;
@@ -1013,16 +1074,16 @@
 }
 
 .settings-section {
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(0, 0, 0, 0.08);
   border-radius: 10px;
   padding: 8px;
-  background: rgba(20, 28, 40, 0.68);
+  background: rgba(255, 255, 255, 0.72);
 }
 
 .settings-section-title {
   font-size: 11px;
   font-weight: 600;
-  color: rgba(167, 243, 208, 0.95);
+  color: rgba(51, 65, 85, 0.95);
   margin-bottom: 6px;
 }
 
@@ -1032,7 +1093,7 @@
   align-items: center;
   gap: 8px;
   font-size: 11px;
-  color: rgba(255, 255, 255, 0.88);
+  color: rgba(30, 41, 59, 0.88);
   margin-bottom: 6px;
 }
 
@@ -1046,9 +1107,9 @@
 
 .settings-toggle-btn,
 .settings-action-btn {
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  background: rgba(255, 255, 255, 0.08);
-  color: rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  background: rgba(255, 255, 255, 0.95);
+  color: rgba(30, 41, 59, 0.92);
   border-radius: 8px;
   font-size: 11px;
   padding: 4px 10px;
@@ -1056,23 +1117,23 @@
 }
 
 .settings-toggle-btn.on {
-  background: rgba(16, 185, 129, 0.28);
-  border-color: rgba(16, 185, 129, 0.65);
+  background: rgba(91, 124, 250, 0.16);
+  border-color: rgba(91, 124, 250, 0.45);
 }
 
 .settings-input {
   width: 130px;
   padding: 4px 6px;
   border-radius: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  background: rgba(255, 255, 255, 0.08);
-  color: rgba(255, 255, 255, 0.95);
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  background: rgba(255, 255, 255, 0.95);
+  color: rgba(30, 41, 59, 0.95);
   font-size: 11px;
   outline: none;
 }
 
 .settings-input::placeholder {
-  color: rgba(255, 255, 255, 0.45);
+  color: rgba(100, 116, 139, 0.7);
 }
 
 .settings-radio-list {
@@ -1080,7 +1141,7 @@
   flex-direction: column;
   gap: 6px;
   font-size: 11px;
-  color: rgba(255, 255, 255, 0.88);
+  color: rgba(30, 41, 59, 0.88);
 }
 
 .settings-radio-list input[type="radio"] {

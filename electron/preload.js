@@ -121,6 +121,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   notifyVoiceStart: () => ipcRenderer.send('voice-mode-start'),
   notifyVoiceStop: () => ipcRenderer.send('voice-mode-stop'),
   onToggleVoiceMode: (callback) => ipcRenderer.on('toggle-voice-mode', () => callback()),
+  onGlobalVoiceInputToggle: (callback) => ipcRenderer.on('global-voice-input-toggle', (_, payload) => callback(payload)),
+  sendGlobalVoiceInputResult: (payload) => ipcRenderer.send('global-voice-input-result', payload),
 
   // ─── 流式 ASR (腾讯云) ───
   getAsrConfig: () => ipcRenderer.invoke('get-asr-config'),
@@ -144,6 +146,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   openLogDir:        () => ipcRenderer.invoke('open-log-dir'),
   collectDiagnostics: () => ipcRenderer.invoke('collect-diagnostics'),
   writeClipboard: (text) => ipcRenderer.invoke('write-clipboard', text),
+  getFrontSelectedText: () => ipcRenderer.invoke('get-front-selected-text'),
 
   // ─── 语音识别字幕（屏幕中下方独立窗口） ───
   subtitleShow: (text) => ipcRenderer.send('subtitle-show', { text }),

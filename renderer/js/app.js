@@ -75,6 +75,9 @@
     if (typeof SystemSettings !== 'undefined') {
       SystemSettings.init();
     }
+    if (typeof NewUserGuide !== 'undefined' && NewUserGuide.init) {
+      NewUserGuide.init();
+    }
 
     // 17.1 监听主进程的"打开设置菜单"事件（右键菜单→设置）
     if (window.electronAPI && window.electronAPI.onOpenStartMenu) {
@@ -397,6 +400,11 @@
 
   // ─── 语音模式（Cmd+K 按住说话 / 按钮切换） ───
   let voiceListeningBubble = null;  // 聆听中的气泡引用
+  let voiceInputModeActive = false;      // 按住 Cmd 的语音输入模式
+  let voiceInputTargetEl = null;         // 回填目标输入控件
+  let voiceInputStopPending = false;     // 已松开 Cmd，等待 ASR 最终结果
+  let globalVoiceInputMode = false;      // 来自主进程的全局语音输入（跨应用）
+  let globalVoiceInputStopPending = false;
 
   async function initVoiceMode() {
     if (typeof VoiceMode === 'undefined') {
@@ -418,6 +426,7 @@
 
     // ─── 流式中间结果：实时显示正在说的话（屏幕中下方字幕） ───
     VoiceMode.onStreaming((text) => {
+      if (voiceInputModeActive) return;
       if (text && text.trim()) {
         // 底部字幕显示流式识别文字
         BubbleSystem.showSubtitle(text.trim());
@@ -430,12 +439,17 @@
     // ─── realtime 模式：每句 VAD 分段送出后，立即清空字幕，准备显示下一句 ───
     if (VoiceMode.onSegment) {
       VoiceMode.onSegment(() => {
+        if (voiceInputModeActive) return;
         BubbleSystem.hideSubtitle();
       });
     }
 
     // ─── 开始录音 ───
     VoiceMode.onStart(() => {
+      if (voiceInputModeActive) {
+        BubbleSystem.show('语音输入中... 松开 Cmd 完成', 1500, { force: true });
+        return;
+      }
       console.log('🎤 进入聆听模式 (腾讯云 ASR)');
       SoundEngine.voiceStart();
 
@@ -457,6 +471,7 @@
 
     // ─── 停止录音 → 立即进入“思考中”反馈 ───
     VoiceMode.onStop(() => {
+      if (voiceInputModeActive) return;
       console.log('🎤 停止录音，等待最终识别结果...');
       SoundEngine.voiceStop();
 
@@ -480,6 +495,26 @@
 
     // ─── 识别结果：送入 AI 对话流程 ───
     VoiceMode.onResult((text) => {
+      if (globalVoiceInputMode || globalVoiceInputStopPending) {
+        const finalText = String(text || '').trim();
+        window.electronAPI?.sendGlobalVoiceInputResult?.({ text: finalText });
+        globalVoiceInputMode = false;
+        globalVoiceInputStopPending = false;
+        return;
+      }
+      if (voiceInputModeActive || voiceInputStopPending) {
+        const finalText = String(text || '').trim();
+        if (finalText) {
+          insertTextAtTarget(voiceInputTargetEl, finalText);
+          BubbleSystem.show('已填入输入框', 1100, { force: true });
+        } else {
+          BubbleSystem.show('没听清，再试一次', 1200, { force: true });
+        }
+        voiceInputModeActive = false;
+        voiceInputStopPending = false;
+        voiceInputTargetEl = null;
+        return;
+      }
       console.log('🎤 语音识别结果:', text);
 
       // 隐藏底部字幕
@@ -508,6 +543,16 @@
 
     // ─── 错误处理 ───
     VoiceMode.onError((error) => {
+      if (globalVoiceInputMode || globalVoiceInputStopPending) {
+        window.electronAPI?.sendGlobalVoiceInputResult?.({ text: '' });
+        globalVoiceInputMode = false;
+        globalVoiceInputStopPending = false;
+      }
+      if (voiceInputModeActive || voiceInputStopPending) {
+        voiceInputModeActive = false;
+        voiceInputStopPending = false;
+        voiceInputTargetEl = null;
+      }
       console.warn('🎤 语音识别错误:', error);
       SoundEngine.voiceError();
       BubbleSystem.hide();
@@ -563,6 +608,108 @@
         // 停止录音的 UI 重置在 onStop 回调中已处理
       });
     }
+
+    bindVoiceInputMode();
+
+    if (window.electronAPI?.onGlobalVoiceInputToggle) {
+      window.electronAPI.onGlobalVoiceInputToggle(async ({ action } = {}) => {
+        if (action === 'start') {
+          if (VoiceMode.isRecording) return;
+          globalVoiceInputMode = true;
+          globalVoiceInputStopPending = false;
+          try { await VoiceMode.startRecording(); } catch {
+            globalVoiceInputMode = false;
+            window.electronAPI?.sendGlobalVoiceInputResult?.({ text: '' });
+          }
+          return;
+        }
+        if (action === 'stop') {
+          globalVoiceInputStopPending = true;
+          try { await VoiceMode.stopRecording(); } catch {
+            globalVoiceInputMode = false;
+            globalVoiceInputStopPending = false;
+            window.electronAPI?.sendGlobalVoiceInputResult?.({ text: '' });
+          }
+        }
+      });
+    }
+  }
+
+  function isEditableInput(el) {
+    if (!el) return false;
+    if (el.isContentEditable) return true;
+    const tag = String(el.tagName || '').toLowerCase();
+    if (tag === 'textarea') return !el.disabled && !el.readOnly;
+    if (tag !== 'input') return false;
+    const type = String(el.type || 'text').toLowerCase();
+    return ['text', 'search', 'url', 'tel', 'password', 'email', 'number'].includes(type) && !el.disabled && !el.readOnly;
+  }
+
+  function insertTextAtTarget(target, text) {
+    if (!target || !text) return;
+    if (target.isContentEditable) {
+      try {
+        target.focus();
+        document.execCommand('insertText', false, text);
+      } catch {
+        target.textContent = (target.textContent || '') + text;
+      }
+      target.dispatchEvent(new Event('input', { bubbles: true }));
+      return;
+    }
+    if (typeof target.value !== 'string') return;
+    const start = Number.isInteger(target.selectionStart) ? target.selectionStart : target.value.length;
+    const end = Number.isInteger(target.selectionEnd) ? target.selectionEnd : target.value.length;
+    target.value = `${target.value.slice(0, start)}${text}${target.value.slice(end)}`;
+    const caret = start + text.length;
+    if (typeof target.setSelectionRange === 'function') target.setSelectionRange(caret, caret);
+    target.dispatchEvent(new Event('input', { bubbles: true }));
+    target.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+
+  function bindVoiceInputMode() {
+    let cmdPressed = false;
+    const isMac = /Mac|iPhone|iPad|iPod/.test(navigator.platform || '');
+
+    document.addEventListener('keydown', async (e) => {
+      const isHoldCmdKey = isMac ? e.key === 'Meta' : e.key === 'Control';
+      if (!isHoldCmdKey || cmdPressed || e.repeat) return;
+      const active = document.activeElement;
+      if (!isEditableInput(active)) return;
+      if (!VoiceMode.asrAvailable || VoiceMode.isRecording) return;
+      cmdPressed = true;
+      voiceInputModeActive = true;
+      voiceInputStopPending = false;
+      voiceInputTargetEl = active;
+      try {
+        const ok = await VoiceMode.startRecording();
+        if (!ok) {
+          cmdPressed = false;
+          voiceInputModeActive = false;
+          voiceInputTargetEl = null;
+        }
+      } catch {
+        cmdPressed = false;
+        voiceInputModeActive = false;
+        voiceInputTargetEl = null;
+      }
+    }, true);
+
+    document.addEventListener('keyup', async (e) => {
+      const isHoldCmdKey = isMac ? e.key === 'Meta' : e.key === 'Control';
+      if (!isHoldCmdKey) return;
+      cmdPressed = false;
+      if (!voiceInputModeActive) return;
+      voiceInputStopPending = true;
+      try { await VoiceMode.stopRecording(); } catch {}
+    }, true);
+
+    window.addEventListener('blur', async () => {
+      cmdPressed = false;
+      if (!voiceInputModeActive) return;
+      voiceInputStopPending = true;
+      try { await VoiceMode.stopRecording(); } catch {}
+    });
   }
 
   function resetVoiceButton() {
@@ -589,7 +736,6 @@
     // 单击企鹅 → 互动（AI驱动回复 + 情绪联动）
     petContainer.addEventListener('click', (e) => {
       if (DragSystem.isDragging) return;
-      if (document.body.classList.contains('soap-cursor')) return;
 
       // 如果吸附在边缘，点击恢复
       if (typeof EdgeSnap !== 'undefined' && EdgeSnap.isSnapped) {
@@ -666,8 +812,8 @@
     });
 
     petContainer.addEventListener('mousemove', (e) => {
-      // 拖拽中、鼠标按下、肥皂模式、吸附状态 → 不算抚摸
-      if (DragSystem.isDragging || isMouseDownOnPet || document.body.classList.contains('soap-cursor')
+      // 拖拽中、鼠标按下、吸附状态 → 不算抚摸
+      if (DragSystem.isDragging || isMouseDownOnPet
           || (typeof EdgeSnap !== 'undefined' && EdgeSnap.isSnapped)) {
         clearTimeout(strokeTimer);
         resetStrokeSession();
