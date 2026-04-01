@@ -499,11 +499,41 @@
     window.copyCode = function(btn) {
       const code = btn.closest('.code-block-wrap')?.querySelector('code');
       if (!code) return;
-      navigator.clipboard.writeText(code.textContent).then(() => {
+      const text = code.textContent;
+
+      const showSuccess = () => {
         btn.textContent = '已复制 ✓';
         btn.classList.add('copied');
         setTimeout(() => { btn.textContent = '复制'; btn.classList.remove('copied'); }, 1500);
-      }).catch(() => {});
+      };
+      const showFail = () => {
+        btn.textContent = '复制失败';
+        setTimeout(() => { btn.textContent = '复制'; }, 1500);
+      };
+
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(showSuccess).catch(() => {
+          try {
+            const ta = document.createElement('textarea');
+            ta.value = text;
+            ta.style.cssText = 'position:fixed;opacity:0;pointer-events:none';
+            document.body.appendChild(ta);
+            ta.select();
+            document.execCommand('copy') ? showSuccess() : showFail();
+            document.body.removeChild(ta);
+          } catch { showFail(); }
+        });
+      } else {
+        try {
+          const ta = document.createElement('textarea');
+          ta.value = text;
+          ta.style.cssText = 'position:fixed;opacity:0;pointer-events:none';
+          document.body.appendChild(ta);
+          ta.select();
+          document.execCommand('copy') ? showSuccess() : showFail();
+          document.body.removeChild(ta);
+        } catch { showFail(); }
+      }
     };
 
     // ═══════════════════════════════════════════
@@ -605,13 +635,48 @@
       btn.className = 'msg-copy-btn';
       btn.title = '复制';
       btn.textContent = '⎘';
-      btn.addEventListener('click', () => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
         const text = getText();
-        navigator.clipboard.writeText(text).then(() => {
+        if (!text) return;
+
+        const showSuccess = () => {
           btn.textContent = '✓';
           btn.classList.add('copied');
           setTimeout(() => { btn.textContent = '⎘'; btn.classList.remove('copied'); }, 1500);
-        }).catch(() => {});
+        };
+        const showFail = () => {
+          btn.textContent = '✗';
+          setTimeout(() => { btn.textContent = '⎘'; }, 1500);
+        };
+
+        // 优先用 clipboard API，失败时用 execCommand 兜底
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(text).then(showSuccess).catch(() => {
+            // execCommand 兜底
+            try {
+              const ta = document.createElement('textarea');
+              ta.value = text;
+              ta.style.cssText = 'position:fixed;opacity:0;pointer-events:none';
+              document.body.appendChild(ta);
+              ta.select();
+              const ok = document.execCommand('copy');
+              document.body.removeChild(ta);
+              ok ? showSuccess() : showFail();
+            } catch { showFail(); }
+          });
+        } else {
+          try {
+            const ta = document.createElement('textarea');
+            ta.value = text;
+            ta.style.cssText = 'position:fixed;opacity:0;pointer-events:none';
+            document.body.appendChild(ta);
+            ta.select();
+            const ok = document.execCommand('copy');
+            document.body.removeChild(ta);
+            ok ? showSuccess() : showFail();
+          } catch { showFail(); }
+        }
       });
       return btn;
     }
@@ -707,9 +772,10 @@
     }
 
     // AI 气泡渲染（完整管线）
-    let lastRawText = '';  // 用于复制按钮
+    let lastRawText = '';  // 仅用于外部引用，复制按钮用局部闭包
     function renderAIBubble(bubble, rawText) {
       lastRawText = rawText;
+      const capturedText = rawText;  // 局部闭包，每条消息独立
       const result = processAIOutput(rawText);
       if (result.noReply) return;
 
@@ -726,8 +792,8 @@
         bubble.appendChild(mdDiv);
       }
 
-      // 复制按钮
-      bubble.appendChild(createCopyBtn(() => lastRawText));
+      // 复制按钮（用局部闭包，不共享 lastRawText）
+      bubble.appendChild(createCopyBtn(() => capturedText));
     }
 
     // ─── 发送消息 ───
