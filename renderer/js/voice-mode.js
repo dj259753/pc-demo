@@ -24,7 +24,10 @@ const VoiceMode = (() => {
   let micSource = null;
   let scriptProcessor = null;
   let pcmBuffer = [];           // 未满帧的剩余字节
+  let meetingNotesPcmChunks = []; // 录音纪要用：保存原始 Int16 分片
   const FRAME_SIZE = 1280;      // 腾讯云 ASR 推荐 40ms 帧 = 16kHz × 2B × 0.04s = 1280B
+  // 采集块越小，字幕刷新越及时；1024 @16kHz ≈ 64ms（原来 4096 ≈ 256ms）
+  const MIC_PROCESSOR_BUFFER_SIZE = 1024;
   let micChunks = 0;
   let micBytesSent = 0;
   let lastVolumeEmitAt = 0;
@@ -186,6 +189,7 @@ const VoiceMode = (() => {
     try {
       isBusy = true;
       isRecording = true;
+      meetingNotesPcmChunks = [];
       resetVadState();
       await startAsrSession();
       isBusy = false;
@@ -276,15 +280,16 @@ const VoiceMode = (() => {
     audioCtx = new AudioContext({ sampleRate: 16000 });
     micSource = audioCtx.createMediaStreamSource(micStream);
 
-    // ScriptProcessor 每次给 4096 个 float32 样本（约 256ms）
-    // 对于 16kHz：4096 samples × 2B/sample = 8192B，内部拆成 6 帧 (1280B)
-    scriptProcessor = audioCtx.createScriptProcessor(4096, 1, 1);
+    // ScriptProcessor 每次给 1024 个 float32 样本（约 64ms）
+    // 对于 16kHz：1024 samples × 2B/sample = 2048B，内部拆成 1 帧(1280B)+余量，延迟更低
+    scriptProcessor = audioCtx.createScriptProcessor(MIC_PROCESSOR_BUFFER_SIZE, 1, 1);
 
     scriptProcessor.onaudioprocess = (e) => {
       if (!isSessionRunning) return;
 
       const float32 = e.inputBuffer.getChannelData(0);
       const int16 = float32ToInt16(float32);
+      meetingNotesPcmChunks.push(new Int16Array(int16));
 
       // 音量 → VAD（realtime 模式下触发自动分段）
       const now = Date.now();
@@ -476,6 +481,18 @@ const VoiceMode = (() => {
   function onError(cb)    { onErrorCallback = cb; }
   function onStreaming(cb){ onStreamingCallback = cb; }
   function onSegment(cb)  { onSegmentCallback = cb; }
+  function getMeetingNotesPcmSamples() {
+    if (!meetingNotesPcmChunks.length) return [];
+    let total = 0;
+    for (const chunk of meetingNotesPcmChunks) total += chunk.length;
+    const merged = new Int16Array(total);
+    let offset = 0;
+    for (const chunk of meetingNotesPcmChunks) {
+      merged.set(chunk, offset);
+      offset += chunk.length;
+    }
+    return Array.from(merged);
+  }
 
   return {
     init,
@@ -490,6 +507,7 @@ const VoiceMode = (() => {
     onSegment,
     onModeChange,
     onVolume,
+    getMeetingNotesPcmSamples,
     setMode,
     setNoiseLevel,
     get isSupported()    { return isSupported; },

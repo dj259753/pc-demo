@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>录音纪要</title>
+  <style>
+    html, body { margin: 0; padding: 0; width: 100%; height: 100%; background: transparent; overflow: hidden; font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif; }
+    #panel { width: 300px; height: 180px; border-radius: 16px; background: rgba(255,255,255,0.96); border: 1px solid rgba(0,0,0,0.08); box-shadow: 0 10px 24px rgba(0,0,0,0.14); overflow: hidden; display: flex; flex-direction: column; }
+    #bar { height: 44px; display: flex; align-items: center; gap: 6px; padding: 0 8px; background: linear-gradient(180deg, rgba(249,250,251,0.98), rgba(242,244,247,0.98)); border-bottom: 1px solid rgba(0,0,0,0.06); -webkit-app-region: drag; }
+    .btn { -webkit-app-region: no-drag; border: none; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; }
+    #time { font-size: 11px; color: #111827; min-width: 42px; text-align: center; letter-spacing: 0.2px; margin-right: auto; }
+    #min { margin-left: auto; width: 24px; height: 24px; border-radius: 8px; background: transparent; color: #374151; font-size: 14px; }
+    #pause, #stop { width: 30px; height: 30px; aspect-ratio: 1 / 1; border-radius: 999px; font-size: 13px; line-height: 1; padding: 0; }
+    #pause { background: #f3f4f6; }
+    #stop { background: #ef4444; color: #fff; }
+    #live { flex: 1; min-height: 0; overflow: auto; padding: 10px 12px 14px; box-sizing: border-box; background: rgba(184,232,153,0.92); font-size: 8.5pt; line-height: 1.45; color: #0b1b08; white-space: pre-wrap; word-break: break-word; cursor: zoom-in; }
+    body.min #panel { width: 170px; height: 45px; }
+    body.min #live { display: none; }
+    body.min #bar { height: 45px; border-bottom: none; }
+    #full { position: fixed; inset: 0; display: none; background: rgba(15,23,42,0.45); align-items: center; justify-content: center; }
+    #full.show { display: flex; }
+    #fullCard { width: min(960px, 92vw); height: min(78vh, 760px); background: #fff; border-radius: 16px; box-shadow: 0 20px 45px rgba(0,0,0,0.28); display: flex; flex-direction: column; overflow: hidden; }
+    #fullHead { height: 46px; display: flex; align-items: center; justify-content: space-between; padding: 0 14px; border-bottom: 1px solid rgba(0,0,0,0.08); }
+    #fullBody { flex: 1; overflow: auto; padding: 14px 16px; font-size: 8.5pt; line-height: 1.55; color: #111827; white-space: pre-wrap; word-break: break-word; }
+  </style>
+</head>
+<body>
+  <div id="panel">
+    <div id="bar">
+      <span id="time">00:00</span>
+      <button id="min" class="btn" title="最小化">—</button>
+      <button id="pause" class="btn">⏸</button>
+      <button id="stop" class="btn">■</button>
+    </div>
+    <div id="live">正在实时转写...</div>
+  </div>
+  <div id="full">
+    <div id="fullCard">
+      <div id="fullHead">
+        <strong style="font-size:14px;color:#111827;">录音纪要实时转写</strong>
+        <button id="fullClose" class="btn" style="background:#f3f4f6;border-radius:8px;padding:6px 10px;">关闭</button>
+      </div>
+      <div id="fullBody"></div>
+    </div>
+  </div>
+  <script>
+    const timeEl = document.getElementById('time');
+    const liveEl = document.getElementById('live');
+    const full = document.getElementById('full');
+    const fullBody = document.getElementById('fullBody');
+    let minimized = false;
+    const syncText = (text) => {
+      liveEl.textContent = text || '正在实时转写...';
+      fullBody.textContent = text || '暂无转写内容';
+      liveEl.scrollTop = liveEl.scrollHeight;
+      fullBody.scrollTop = fullBody.scrollHeight;
+    };
+    document.getElementById('pause').onclick = () => window.meetingNotesUI.sendCommand('pause');
+    document.getElementById('stop').onclick = () => window.meetingNotesUI.sendCommand('stop');
+    liveEl.onclick = () => { full.classList.add('show'); fullBody.scrollTop = fullBody.scrollHeight; };
+    document.getElementById('fullClose').onclick = () => full.classList.remove('show');
+    full.onclick = (e) => { if (e.target === full) full.classList.remove('show'); };
+    document.getElementById('min').onclick = () => {
+      minimized = !minimized;
+      document.body.classList.toggle('min', minimized);
+      document.getElementById('min').textContent = minimized ? '+' : '—';
+      window.meetingNotesUI.toggleMinimize(minimized);
+    };
+    window.meetingNotesUI.onUpdate((p) => {
+      if (typeof p.time === 'string') timeEl.textContent = p.time;
+      if (typeof p.text === 'string') syncText(p.text);
+      if (typeof p.paused === 'boolean') document.getElementById('pause').textContent = p.paused ? '▶' : '⏸';
+    });
+  </script>
+</body>
+</html>
+

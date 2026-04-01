@@ -78,6 +78,7 @@ app.commandLine.appendSwitch('disable-gpu-rasterization');
 let mainWindow = null;
 let quickChatWindow = null;  // 屏幕居中的快捷对话窗口
 let quickChatMode = 'full';  // 'full' | 'compact'
+let meetingNotesWindow = null;
 let skillsWindow = null;     // Skills 接入窗口
 let globalVoiceInputArmed = false; // 全局语音输入是否已开始（等待二次按键停止）
 let subtitleWindow = null;   // 语音识别字幕窗口（屏幕中下方）
@@ -209,6 +210,7 @@ function registerGlobalShortcutsFromSettings() {
   const voiceShortcut = systemSettings.shortcuts?.voice || 'CommandOrControl+K';
   const quickInputShortcut = systemSettings.shortcuts?.quickInput || 'CommandOrControl+I';
   const globalVoiceInputShortcut = systemSettings.shortcuts?.globalVoiceInput || 'CommandOrControl+O';
+  const meetingNotesShortcut = process.platform === 'darwin' ? 'Command+Shift+R' : 'Control+Shift+R';
   const forceUpdateShortcut = process.platform === 'darwin' ? 'Command+Shift+U' : 'Control+Shift+U';
 
   const talkRegistered = globalShortcut.register(talkShortcut, () => {
@@ -235,15 +237,22 @@ function registerGlobalShortcutsFromSettings() {
       });
     }
   });
+  const meetingNotesRegistered = globalShortcut.register(meetingNotesShortcut, () => {
+    console.log(`⌨️ 全局快捷键 ${meetingNotesShortcut} 触发`);
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('toggle-meeting-notes');
+    }
+  });
   const forceUpdateRegistered = globalShortcut.register(forceUpdateShortcut, () => {
     console.log('⌨️ 全局快捷键 Cmd/Ctrl+Shift+U 触发 → 强制检查更新');
     checkForUpdates('manual');
   });
-  shortcutsRegistered = talkRegistered && voiceRegistered && quickInputRegistered && globalVoiceInputRegistered;
+  shortcutsRegistered = talkRegistered && voiceRegistered && quickInputRegistered && globalVoiceInputRegistered && meetingNotesRegistered;
   console.log(`⌨️ 全局快捷键 ${talkShortcut} 注册${talkRegistered ? '成功 ✅' : '失败 ❌'}`);
   console.log(`⌨️ 全局快捷键 ${voiceShortcut} 注册${voiceRegistered ? '成功 ✅' : '失败 ❌'}`);
   console.log(`⌨️ 全局快捷键 ${quickInputShortcut} 注册${quickInputRegistered ? '成功 ✅' : '失败 ❌'}`);
   console.log(`⌨️ 全局快捷键 ${globalVoiceInputShortcut} 注册${globalVoiceInputRegistered ? '成功 ✅' : '失败 ❌'}`);
+  console.log(`⌨️ 全局快捷键 ${meetingNotesShortcut} 注册${meetingNotesRegistered ? '成功 ✅' : '失败 ❌'}`);
   console.log(`⌨️ 全局快捷键 ${forceUpdateShortcut} 注册${forceUpdateRegistered ? '成功 ✅' : '失败 ❌'}`);
 }
 
@@ -556,10 +565,21 @@ ipcMain.handle('open-external-url', async (event, url) => {
 
 ipcMain.handle('open-local-path', async (event, filePath) => {
   try {
-    const target = String(filePath || '').trim().replace(/^~/, os.homedir());
-    const err = await shell.openPath(target);
-    if (err) return { ok: false, error: err };
-    return { ok: true };
+    let target = String(filePath || '').trim().replace(/^~/, os.homedir());
+    try { target = decodeURI(target); } catch {}
+    try { target = decodeURIComponent(target); } catch {}
+    target = path.resolve(target);
+    if (!fs.existsSync(target)) return { ok: false, error: 'path-not-found' };
+
+    const stat = fs.statSync(target);
+    if (stat.isDirectory()) {
+      const err = await shell.openPath(target);
+      if (err) return { ok: false, error: err };
+      return { ok: true, opened: 'directory', path: target };
+    }
+
+    shell.showItemInFolder(target);
+    return { ok: true, opened: 'file', path: target };
   } catch (e) {
     return { ok: false, error: e.message };
   }
@@ -2602,6 +2622,41 @@ function toggleQuickChatWindow() {
   }
 }
 
+function createMeetingNotesWindow() {
+  if (meetingNotesWindow && !meetingNotesWindow.isDestroyed()) return meetingNotesWindow;
+  const p = screen.getCursorScreenPoint();
+  const d = screen.getDisplayNearestPoint(p);
+  const x = d.workArea.x + d.workArea.width - 340;
+  const y = d.workArea.y + 80;
+  meetingNotesWindow = new BrowserWindow({
+    width: 300,
+    height: 180,
+    minWidth: 170,
+    minHeight: 45,
+    maxWidth: 300,
+    maxHeight: 180,
+    x,
+    y,
+    frame: false,
+    transparent: true,
+    resizable: false,
+    movable: true,
+    alwaysOnTop: true,
+    skipTaskbar: true,
+    hasShadow: true,
+    show: false,
+    webPreferences: {
+      preload: path.join(__dirname, 'preload-meeting-notes.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+    },
+  });
+  meetingNotesWindow.loadFile(path.join(__dirname, '..', 'renderer', 'meeting-notes-window.html'));
+  meetingNotesWindow.once('ready-to-show', () => meetingNotesWindow?.show());
+  meetingNotesWindow.on('closed', () => { meetingNotesWindow = null; });
+  return meetingNotesWindow;
+}
+
 // 渲染进程请求打开屏幕居中快捷对话窗口
 ipcMain.on('open-quick-chat-window', () => {
   console.log('💬 收到 open-quick-chat-window IPC');
@@ -2736,6 +2791,28 @@ ipcMain.on('quick-chat-close', () => {
   if (quickChatWindow && !quickChatWindow.isDestroyed()) {
     quickChatWindow.close();
   }
+});
+
+ipcMain.on('meeting-notes-window-open', () => {
+  const w = createMeetingNotesWindow();
+  w?.show();
+  w?.focus();
+});
+ipcMain.on('meeting-notes-window-close', () => {
+  if (meetingNotesWindow && !meetingNotesWindow.isDestroyed()) meetingNotesWindow.hide();
+});
+ipcMain.on('meeting-notes-window-update', (event, payload = {}) => {
+  if (!meetingNotesWindow || meetingNotesWindow.isDestroyed()) return;
+  meetingNotesWindow.webContents.send('meeting-notes-window-update', payload);
+});
+ipcMain.on('meeting-notes-window-command', (event, payload = {}) => {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  mainWindow.webContents.send('meeting-notes-command', payload);
+});
+ipcMain.on('meeting-notes-window-minimize', (event, payload = {}) => {
+  if (!meetingNotesWindow || meetingNotesWindow.isDestroyed()) return;
+  const minimized = !!payload.minimized;
+  meetingNotesWindow.setSize(minimized ? 170 : 300, minimized ? 45 : 180);
 });
 
 ipcMain.on('global-voice-input-result', (event, payload = {}) => {
@@ -4107,6 +4184,162 @@ ipcMain.handle('get-front-selected-text', async () => {
       resolve({ ok: true, text });
     });
   });
+});
+
+function makeWavBufferFromPcm16le(pcmBuffer, sampleRate = 16000, channels = 1, bitDepth = 16) {
+  const byteRate = sampleRate * channels * (bitDepth / 8);
+  const blockAlign = channels * (bitDepth / 8);
+  const dataSize = pcmBuffer.length;
+  const header = Buffer.alloc(44);
+  header.write('RIFF', 0);
+  header.writeUInt32LE(36 + dataSize, 4);
+  header.write('WAVE', 8);
+  header.write('fmt ', 12);
+  header.writeUInt32LE(16, 16);
+  header.writeUInt16LE(1, 20);
+  header.writeUInt16LE(channels, 22);
+  header.writeUInt32LE(sampleRate, 24);
+  header.writeUInt32LE(byteRate, 28);
+  header.writeUInt16LE(blockAlign, 32);
+  header.writeUInt16LE(bitDepth, 34);
+  header.write('data', 36);
+  header.writeUInt32LE(dataSize, 40);
+  return Buffer.concat([header, pcmBuffer]);
+}
+
+ipcMain.handle('meeting-notes-save-wav', async (event, payload = {}) => {
+  try {
+    const samples = Array.isArray(payload.samples) ? payload.samples : [];
+    const sampleRate = Number(payload.sampleRate) || 16000;
+    if (!samples.length) return { ok: false, error: 'empty-audio' };
+    const notesDir = path.join(os.homedir(), '.qq-pet', 'workspace', 'notes', 'recordings');
+    fs.mkdirSync(notesDir, { recursive: true });
+    const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const wavPath = path.join(notesDir, `recording-${stamp}.wav`);
+    const pcm = Buffer.alloc(samples.length * 2);
+    for (let i = 0; i < samples.length; i++) pcm.writeInt16LE(Number(samples[i]) || 0, i * 2);
+    const wavBuffer = makeWavBufferFromPcm16le(pcm, sampleRate, 1, 16);
+    fs.writeFileSync(wavPath, wavBuffer);
+    return { ok: true, wavPath, bytes: wavBuffer.length };
+  } catch (e) {
+    return { ok: false, error: e.message };
+  }
+});
+
+ipcMain.handle('meeting-notes-build-docx', async (event, payload = {}) => {
+  try {
+    const { Document, Packer, Paragraph, TextRun, HeadingLevel, ExternalHyperlink, AlignmentType } = require('docx');
+    const docsRootDir = path.join(os.homedir(), '.qq-pet', 'workspace', 'notes', 'docs');
+    fs.mkdirSync(docsRootDir, { recursive: true });
+    const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const bundleDir = path.join(docsRootDir, `${stamp}-录音纪要文件`);
+    fs.mkdirSync(bundleDir, { recursive: true });
+    const docPath = path.join(bundleDir, `meeting-notes-${stamp}.docx`);
+    const transcript = String(payload.transcript || '').trim();
+    const summary = String(payload.summary || '').trim();
+    const wavPath = String(payload.wavPath || '').trim();
+    const startedAt = payload.startedAt ? new Date(payload.startedAt) : new Date();
+    const endedAt = payload.endedAt ? new Date(payload.endedAt) : new Date();
+    const mdToParagraphs = (raw = '') => {
+      const src = String(raw || '').replace(/\r\n/g, '\n');
+      const out = [];
+      let inCode = false;
+      for (const lineRaw of src.split('\n')) {
+        const line = String(lineRaw || '');
+        const t = line.trim();
+        if (!t) {
+          out.push(new Paragraph({ text: '' }));
+          continue;
+        }
+        if (t.startsWith('```')) {
+          inCode = !inCode;
+          continue;
+        }
+        if (inCode) {
+          out.push(new Paragraph({
+            children: [new TextRun({ text: line, font: 'Menlo', size: 20 })],
+          }));
+          continue;
+        }
+        const h = t.match(/^(#{1,3})\s+(.+)$/);
+        if (h) {
+          const lv = h[1].length;
+          const heading = lv === 1 ? HeadingLevel.HEADING_2 : lv === 2 ? HeadingLevel.HEADING_3 : HeadingLevel.HEADING_4;
+          out.push(new Paragraph({ text: h[2], heading }));
+          continue;
+        }
+        const ul = t.match(/^[-*]\s+(.+)$/);
+        if (ul) {
+          out.push(new Paragraph({ text: ul[1], bullet: { level: 0 } }));
+          continue;
+        }
+        const ol = t.match(/^\d+[.)]\s+(.+)$/);
+        if (ol) {
+          out.push(new Paragraph({ text: ol[1], bullet: { level: 0 } }));
+          continue;
+        }
+        const cleaned = t
+          .replace(/\*\*(.*?)\*\*/g, '$1')
+          .replace(/__(.*?)__/g, '$1')
+          .replace(/`([^`]+)`/g, '$1')
+          .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '$1 ($2)');
+        out.push(new Paragraph({ text: cleaned }));
+      }
+      return out.length ? out : [new Paragraph({ text: '（无）' })];
+    };
+
+    const transcriptParagraphs = mdToParagraphs(transcript);
+    const summaryParagraphs = mdToParagraphs(summary);
+
+    // 把真实录音文件复制到纪要子目录，确保音频与纪要文档同目录沉淀。
+    let bundledAudioPath = '';
+    if (wavPath && fs.existsSync(wavPath)) {
+      try {
+        bundledAudioPath = path.join(bundleDir, `meeting-notes-${stamp}.wav`);
+        fs.copyFileSync(wavPath, bundledAudioPath);
+      } catch (copyErr) {
+        console.warn('[meeting-notes] copy wav failed:', copyErr && copyErr.message ? copyErr.message : copyErr);
+      }
+    }
+    const preferredAudioPath = bundledAudioPath || wavPath;
+    const audioName = preferredAudioPath ? path.basename(preferredAudioPath) : '未生成';
+    const doc = new Document({
+      sections: [{
+        children: [
+          new Paragraph({ text: '录音纪要', heading: HeadingLevel.HEADING_1 }),
+          new Paragraph({ children: [new TextRun(`开始时间：${startedAt.toLocaleString()}`)] }),
+          new Paragraph({ children: [new TextRun(`结束时间：${endedAt.toLocaleString()}`)] }),
+          new Paragraph({ text: '音频附件', heading: HeadingLevel.HEADING_2 }),
+          new Paragraph({
+            children: preferredAudioPath ? [
+              new TextRun('文件：'),
+              new ExternalHyperlink({
+                children: [new TextRun({ text: audioName, style: 'Hyperlink' })],
+                link: `file://${preferredAudioPath}`,
+              }),
+            ] : [new TextRun('文件：未生成')],
+          }),
+          new Paragraph({ children: [new TextRun(`本地路径：${preferredAudioPath || '未生成'}`)] }),
+          new Paragraph({ text: '' }),
+          new Paragraph({ text: '纪要与总结', heading: HeadingLevel.HEADING_2 }),
+          ...summaryParagraphs,
+          new Paragraph({ text: '' }),
+          new Paragraph({ text: '全部原文', heading: HeadingLevel.HEADING_2 }),
+          ...transcriptParagraphs,
+          new Paragraph({ text: '' }),
+          new Paragraph({
+            alignment: AlignmentType.RIGHT,
+            children: [new TextRun({ text: '由 QQ宠物 录音纪要生成', italics: true, color: '6B7280' })],
+          }),
+        ],
+      }],
+    });
+    const buffer = await Packer.toBuffer(doc);
+    fs.writeFileSync(docPath, buffer);
+    return { ok: true, docPath, audioPath: preferredAudioPath || '', bundleDir };
+  } catch (e) {
+    return { ok: false, error: e.message };
+  }
 });
 
 /**
