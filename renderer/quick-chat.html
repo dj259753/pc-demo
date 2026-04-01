@@ -619,6 +619,7 @@
       ALLOWED_TAGS: ['a','b','blockquote','br','code','del','div','em','h1','h2','h3','h4','hr','i','li','ol','p','pre','span','strong','table','tbody','td','th','thead','tr','ul','img','button'],
       ALLOWED_ATTR: ['class','href','rel','target','title','start','src','alt','onclick','style'],
       ADD_DATA_URI_TAGS: ['img'],
+      ALLOWED_URI_REGEXP: /^(?:(?:https?|mailto|tel|localpath):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i,
     };
     DOMPurify.addHook('afterSanitizeAttributes', (node) => {
       if (node instanceof HTMLAnchorElement) {
@@ -628,7 +629,20 @@
         node.addEventListener('click', (e) => {
           e.preventDefault();
           const href = node.getAttribute('href');
-          if (href && window.quickChatAPI?.openUrl) window.quickChatAPI.openUrl(href);
+          if (!href) return;
+          if (href.startsWith('localpath://')) {
+            const encoded = href.slice('localpath://'.length);
+            let localPath = '';
+            try { localPath = decodeURI(encoded || ''); } catch {}
+            if (!localPath) {
+              try { localPath = decodeURIComponent(encoded || ''); } catch {}
+            }
+            if (localPath && window.quickChatAPI?.openLocalPath) {
+              window.quickChatAPI.openLocalPath(localPath);
+            }
+            return;
+          }
+          if (window.quickChatAPI?.openUrl) window.quickChatAPI.openUrl(href);
         });
       }
     });

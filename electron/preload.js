@@ -79,6 +79,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   sendQuickChatStreamChunk: (text) => ipcRenderer.send('quick-chat-stream-chunk', { text }),
   sendQuickChatToolProgress: (evt) => ipcRenderer.send('quick-chat-tool-progress', evt),
   sendQuickChatUserMsg: (text) => ipcRenderer.send('quick-chat-user-msg', { text }),
+  openLocalPath: (filePath) => ipcRenderer.invoke('open-local-path', filePath),
 
   // ─── Skills 接入窗口 ───
   openSkillsWindow: () => ipcRenderer.send('open-skills-window'),
@@ -121,6 +122,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   notifyVoiceStart: () => ipcRenderer.send('voice-mode-start'),
   notifyVoiceStop: () => ipcRenderer.send('voice-mode-stop'),
   onToggleVoiceMode: (callback) => ipcRenderer.on('toggle-voice-mode', () => callback()),
+  onToggleMeetingNotes: (callback) => ipcRenderer.on('toggle-meeting-notes', () => callback()),
+  onMeetingNotesCommand: (callback) => ipcRenderer.on('meeting-notes-command', (_, payload) => callback(payload || {})),
+  openMeetingNotesWindow: () => ipcRenderer.send('meeting-notes-window-open'),
+  closeMeetingNotesWindow: () => ipcRenderer.send('meeting-notes-window-close'),
+  updateMeetingNotesWindow: (payload) => ipcRenderer.send('meeting-notes-window-update', payload || {}),
   onGlobalVoiceInputToggle: (callback) => ipcRenderer.on('global-voice-input-toggle', (_, payload) => callback(payload)),
   sendGlobalVoiceInputResult: (payload) => ipcRenderer.send('global-voice-input-result', payload),
 
@@ -147,6 +153,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   collectDiagnostics: () => ipcRenderer.invoke('collect-diagnostics'),
   writeClipboard: (text) => ipcRenderer.invoke('write-clipboard', text),
   getFrontSelectedText: () => ipcRenderer.invoke('get-front-selected-text'),
+  meetingNotesSaveWav: (payload) => ipcRenderer.invoke('meeting-notes-save-wav', payload || {}),
+  meetingNotesBuildDocx: (payload) => ipcRenderer.invoke('meeting-notes-build-docx', payload || {}),
 
   // ─── 语音识别字幕（屏幕中下方独立窗口） ───
   subtitleShow: (text) => ipcRenderer.send('subtitle-show', { text }),

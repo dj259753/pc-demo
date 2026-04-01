@@ -178,6 +178,18 @@ const PanelManager = (() => {
             await toggleVoiceBySkill();
           } else if (action === 'translate-toggle') {
             setTranslateMode(!translateMode);
+          } else if (action === 'meeting-notes') {
+            if (window.MeetingNotes?.init && !window.__meetingNotesInitialized) {
+              window.MeetingNotes.init();
+              window.__meetingNotesInitialized = true;
+            }
+            document.dispatchEvent(new CustomEvent('meeting-notes:start'));
+            const notes = (typeof MeetingNotes !== 'undefined' && MeetingNotes) || window.MeetingNotes;
+            if (notes && notes.start) {
+              await notes.start();
+            } else {
+              BubbleSystem.show('录音纪要暂不可用', 1600);
+            }
           }
           skillModeMenu.classList.add('hidden');
         });

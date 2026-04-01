@@ -5,6 +5,344 @@
 (function App() {
   'use strict';
 
+  function ensureMeetingNotesFallback() {
+    if (window.MeetingNotes && typeof window.MeetingNotes.start === 'function') return;
+    const state = { active: false, paused: false, generating: false, parts: [], draft: '', startedAt: null, elapsed: 0, timer: null };
+    const $ = (id) => document.getElementById(id);
+    const syncWindow = () => {
+      if (!window.electronAPI?.updateMeetingNotesWindow) return;
+      window.electronAPI.updateMeetingNotesWindow({
+        time: fmt(state.elapsed),
+        text: fullText() || '正在实时转写...',
+        paused: !!state.paused,
+      });
+    };
+    const show = () => {
+      if (window.electronAPI?.openMeetingNotesWindow) window.electronAPI.openMeetingNotesWindow();
+      const p = $('meeting-notes-panel');
+      if (p) p.classList.add('hidden');
+      syncWindow();
+    };
+    const hide = () => {
+      if (window.electronAPI?.closeMeetingNotesWindow) window.electronAPI.closeMeetingNotesWindow();
+      const p = $('meeting-notes-panel');
+      const fs = $('meeting-notes-fullscreen');
+      if (p) p.classList.add('hidden');
+      if (fs) fs.classList.add('hidden');
+    };
+    const fullText = () => {
+      const merged = [...state.parts];
+      if (state.draft && (!merged.length || merged[merged.length - 1] !== state.draft)) merged.push(state.draft);
+      return merged.join('\n').trim();
+    };
+    const setLiveText = (txt) => {
+      const l = $('meeting-notes-live');
+      const full = $('meeting-notes-fulltext');
+      const text = String(txt || '').trim() || '正在实时转写...';
+      if (l) {
+        l.textContent = text;
+        l.scrollTop = l.scrollHeight;
+      }
+      if (full) {
+        full.textContent = text;
+        full.scrollTop = full.scrollHeight;
+      }
+      syncWindow();
+    };
+    const fmt = (sec) => `${String(Math.floor(sec / 60)).padStart(2, '0')}:${String(sec % 60).padStart(2, '0')}`;
+    const setTime = () => {
+      const t = $('meeting-notes-time');
+      if (t) t.textContent = fmt(state.elapsed);
+      syncWindow();
+    };
+    const startTimer = () => {
+      if (state.timer) clearInterval(state.timer);
+      state.timer = setInterval(() => {
+        if (!state.active || state.generating || state.paused) return;
+        state.elapsed += 1;
+        setTime();
+      }, 1000);
+    };
+    const stopTimer = () => {
+      if (state.timer) clearInterval(state.timer);
+      state.timer = null;
+    };
+
+    async function stopAndGenerate() {
+      if (!state.active || state.generating) return;
+      state.generating = true;
+      const pauseBtn = $('meeting-notes-pause');
+      const stopBtn = $('meeting-notes-stop');
+      if (pauseBtn) { pauseBtn.disabled = true; pauseBtn.style.opacity = '0.6'; }
+      if (stopBtn) { stopBtn.disabled = true; stopBtn.style.opacity = '0.6'; }
+      hide();
+      if (typeof PetMemory !== 'undefined' && PetMemory.addEvent) {
+        PetMemory.addEvent('meeting_notes', '停止录音纪要，开始生成文档');
+      }
+      BubbleSystem.showTranslate?.('正在帮你生成录音纪要', 2200);
+      try { await VoiceMode.stopRecording(); } catch {}
+      let wavPath = '';
+      try {
+        const samples = VoiceMode.getMeetingNotesPcmSamples ? VoiceMode.getMeetingNotesPcmSamples() : [];
+        if (samples.length && window.electronAPI?.meetingNotesSaveWav) {
+          const wavRes = await window.electronAPI.meetingNotesSaveWav({ samples, sampleRate: 16000 });
+          if (wavRes?.ok && wavRes.wavPath) wavPath = String(wavRes.wavPath);
+        }
+      } catch {}
+      let summary = '';
+      try { summary = await AIBrain.summarizeMeetingDirect(fullText()); } catch { summary = '纪要生成失败，请稍后重试。'; }
+      const res = await window.electronAPI?.meetingNotesBuildDocx?.({
+        wavPath,
+        transcript: fullText(),
+        summary,
+        startedAt: state.startedAt ? state.startedAt.toISOString() : '',
+        endedAt: new Date().toISOString(),
+      });
+      if (res?.ok) {
+        const docPath = String(res.docPath || '');
+        const fileName = docPath.split('/').pop() || 'meeting-notes.docx';
+        const dirPath = String(res.bundleDir || '').trim() || docPath.slice(0, Math.max(0, docPath.lastIndexOf('/'))) || docPath;
+        if (typeof PetMemory !== 'undefined' && PetMemory.addEvent) {
+          PetMemory.addEvent('meeting_notes', `已生成录音纪要：${fileName}（路径：${docPath}）`);
+        }
+        BubbleSystem.show(`录音纪要已生成：${fileName}（点我打开目录）`, 5200, {
+          force: true,
+          translate: false,
+          expandable: false,
+          onClick: () => {
+            if (window.electronAPI?.openLocalPath) window.electronAPI.openLocalPath(dirPath);
+          },
+        });
+        if (window.electronAPI?.sendQuickChatReply) {
+          const docUri = `localpath://${encodeURI(docPath)}`;
+          const dirUri = `localpath://${encodeURI(dirPath)}`;
+          const msg = [
+            `录音纪要已生成：${fileName}`,
+            `[📄 打开纪要文件](${docUri})`,
+            `[📁 打开所在目录](${dirUri})`,
+            `路径：[${dirPath}](${dirUri})`,
+          ].join('\n');
+          // 确保对话窗口承接并沉淀这条结果
+          if (window.electronAPI?.openQuickChat) {
+            window.electronAPI.openQuickChat();
+            // 等历史加载后再插入，避免被历史消息“顶到上面”
+            setTimeout(() => window.electronAPI.sendQuickChatReply(msg), 1000);
+          } else {
+            window.electronAPI.sendQuickChatReply(msg);
+          }
+        }
+      } else {
+        if (typeof PetMemory !== 'undefined' && PetMemory.addEvent) {
+          PetMemory.addEvent('meeting_notes', '录音纪要生成失败');
+        }
+        BubbleSystem.showTranslate?.('录音纪要生成失败', 4200);
+      }
+      state.active = false;
+      state.paused = false;
+      state.generating = false;
+      state.parts = [];
+      state.draft = '';
+      state.elapsed = 0;
+      stopTimer();
+    }
+
+    function init() {
+      if (window.electronAPI?.onMeetingNotesCommand && !window.__meetingNotesCommandBound) {
+        window.__meetingNotesCommandBound = true;
+        window.electronAPI.onMeetingNotesCommand((payload = {}) => {
+          const cmd = String(payload.command || '').trim();
+          if (cmd === 'pause' && state.active && !state.generating) {
+            state.paused = !state.paused;
+            setTime();
+            BubbleSystem.show(state.paused ? '已暂停录音纪要' : '已继续录音纪要', 1200);
+          } else if (cmd === 'stop') {
+            stopAndGenerate();
+          }
+        });
+      }
+      const stopBtn = $('meeting-notes-stop');
+      const minBtn = $('meeting-notes-minimize');
+      const expandBtn = $('meeting-notes-expand');
+      const fullWrap = $('meeting-notes-fullscreen');
+      const fullClose = $('meeting-notes-fullscreen-close');
+      const liveArea = $('meeting-notes-live');
+      const panel = $('meeting-notes-panel');
+      const ctrl = $('meeting-notes-control');
+      const openFull = () => {
+        const fs = $('meeting-notes-fullscreen');
+        const full = $('meeting-notes-fulltext');
+        if (!fs || !full) return;
+        full.textContent = fullText() || '暂无转写内容';
+        fs.classList.remove('hidden');
+        full.scrollTop = full.scrollHeight;
+      };
+      if (stopBtn && !stopBtn.__boundMeetingNotes) {
+        stopBtn.__boundMeetingNotes = true;
+        stopBtn.addEventListener('click', (e) => { e.stopPropagation(); stopAndGenerate(); });
+        stopBtn.addEventListener('mouseenter', () => { stopBtn.style.background = '#fecaca'; stopBtn.style.cursor = 'pointer'; });
+        stopBtn.addEventListener('mouseleave', () => { stopBtn.style.background = '#ef4444'; });
+      }
+      const pauseBtn = $('meeting-notes-pause');
+      if (pauseBtn && !pauseBtn.__boundMeetingNotes) {
+        pauseBtn.__boundMeetingNotes = true;
+        pauseBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          if (!state.active || state.generating) return;
+          state.paused = !state.paused;
+          pauseBtn.textContent = state.paused ? '▶' : '⏸';
+          BubbleSystem.show(state.paused ? '已暂停录音纪要' : '已继续录音纪要', 1200);
+        });
+        pauseBtn.addEventListener('mouseenter', () => { pauseBtn.style.background = '#e5e7eb'; pauseBtn.style.cursor = 'pointer'; });
+        pauseBtn.addEventListener('mouseleave', () => { pauseBtn.style.background = '#f3f4f6'; });
+      }
+      if (expandBtn && !expandBtn.__boundMeetingNotes) {
+        expandBtn.__boundMeetingNotes = true;
+        expandBtn.addEventListener('click', (e) => { e.stopPropagation(); openFull(); });
+      }
+      if (minBtn && !minBtn.__boundMeetingNotes) {
+        minBtn.__boundMeetingNotes = true;
+        minBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const live = $('meeting-notes-live');
+          if (!panel || !live) return;
+          const minimized = panel.dataset.minimized === '1';
+          if (minimized) {
+            panel.dataset.minimized = '0';
+            panel.style.height = '180px';
+            live.style.display = '';
+            minBtn.textContent = '—';
+            minBtn.title = '最小化';
+          } else {
+            panel.dataset.minimized = '1';
+            panel.style.height = '44px';
+            live.style.display = 'none';
+            minBtn.textContent = '+';
+            minBtn.title = '展开';
+          }
+        });
+      }
+      if (liveArea && !liveArea.__boundMeetingNotes) {
+        liveArea.__boundMeetingNotes = true;
+        liveArea.addEventListener('click', () => openFull());
+      }
+      if (fullClose && !fullClose.__boundMeetingNotes) {
+        fullClose.__boundMeetingNotes = true;
+        fullClose.addEventListener('click', (e) => {
+          e.stopPropagation();
+          fullWrap?.classList.add('hidden');
+        });
+      }
+      if (fullWrap && !fullWrap.__boundMeetingNotes) {
+        fullWrap.__boundMeetingNotes = true;
+        fullWrap.addEventListener('click', (e) => {
+          if (e.target === fullWrap) fullWrap.classList.add('hidden');
+        });
+      }
+      if (ctrl && panel && !ctrl.__boundMeetingNotesDrag) {
+        ctrl.__boundMeetingNotesDrag = true;
+        let dragging = false;
+        let offX = 0;
+        let offY = 0;
+        const isBtn = (el) => !!el.closest('#meeting-notes-pause,#meeting-notes-stop,#meeting-notes-expand,#meeting-notes-minimize');
+        ctrl.addEventListener('mousedown', (e) => {
+          if (e.button !== 0 || isBtn(e.target)) return;
+          const rect = panel.getBoundingClientRect();
+          dragging = true;
+          offX = e.clientX - rect.left;
+          offY = e.clientY - rect.top;
+          e.preventDefault();
+        });
+        document.addEventListener('mousemove', (e) => {
+          if (!dragging) return;
+          const maxX = window.innerWidth - panel.offsetWidth;
+          const maxY = window.innerHeight - panel.offsetHeight;
+          const x = Math.max(0, Math.min(maxX, e.clientX - offX));
+          const y = Math.max(0, Math.min(maxY, e.clientY - offY));
+          panel.style.right = 'auto';
+          panel.style.bottom = 'auto';
+          panel.style.left = `${x}px`;
+          panel.style.top = `${y}px`;
+        });
+        document.addEventListener('mouseup', () => { dragging = false; });
+      }
+      document.addEventListener('meeting-notes:start', () => window.MeetingNotes.start());
+      window.__meetingNotesReady = true;
+    }
+
+    window.MeetingNotes = {
+      init,
+      async start() {
+        if (state.active || state.generating) return;
+        state.active = true;
+        state.paused = false;
+        state.generating = false;
+        state.parts = [];
+        state.draft = '';
+        state.startedAt = new Date();
+        state.elapsed = 0;
+        show();
+        setTime();
+        setLiveText('正在实时转写...');
+        startTimer();
+        const pauseBtn = $('meeting-notes-pause');
+        const stopBtn = $('meeting-notes-stop');
+        const panel = $('meeting-notes-panel');
+        const live = $('meeting-notes-live');
+        const minBtn = $('meeting-notes-minimize');
+        if (panel) {
+          panel.dataset.minimized = '0';
+          panel.style.height = '180px';
+        }
+        if (live) live.style.display = '';
+        if (minBtn) { minBtn.textContent = '—'; minBtn.title = '最小化'; }
+        if (pauseBtn) { pauseBtn.disabled = false; pauseBtn.style.opacity = '1'; pauseBtn.textContent = '⏸'; }
+        if (stopBtn) { stopBtn.disabled = false; stopBtn.style.opacity = '1'; }
+        if (stopBtn) stopBtn.style.background = '#ef4444';
+        const ok = await VoiceMode.startRecording();
+        if (!ok) {
+          state.active = false;
+          state.paused = false;
+          hide();
+          stopTimer();
+          BubbleSystem.show('录音纪要启动失败', 1600);
+          if (typeof PetMemory !== 'undefined' && PetMemory.addEvent) {
+            PetMemory.addEvent('meeting_notes', '录音纪要启动失败');
+          }
+          return;
+        }
+        if (typeof PetMemory !== 'undefined' && PetMemory.addEvent) {
+          PetMemory.addEvent('meeting_notes', '开始录音纪要（实时转写中）');
+        }
+        BubbleSystem.showTranslate?.('录音纪要已开始', 1200);
+      },
+      handleStreaming(text) {
+        if (!state.active) return false;
+        const t = String(text || '').trim();
+        if (t) {
+          // 流式阶段只更新当前草稿，不写入最终列表，避免重复叠加
+          state.draft = t;
+          setLiveText(fullText());
+        }
+        return true;
+      },
+      handleResult(text) {
+        if (!state.active) return false;
+        const t = String(text || '').trim();
+        if (t) {
+          // 结果阶段再落盘到最终列表；与上一条相同则去重
+          if (!state.parts.length || state.parts[state.parts.length - 1] !== t) {
+            state.parts.push(t);
+          }
+          state.draft = '';
+          setLiveText(fullText());
+        }
+        return true;
+      },
+      handleError() { if (!state.active) return false; state.active = false; state.paused = false; state.generating = false; state.draft = ''; hide(); stopTimer(); return true; },
+      get isActive() { return state.active; },
+    };
+  }
+
   // ─── 快捷对话相关 ───
   let quickChatVisible = false;
   let quickChatTimeout = null;
@@ -13,6 +351,7 @@
   // ─── 初始化所有子系统 ───
   function init() {
     console.log('🐧 QQ宠物启动中...');
+    ensureMeetingNotesFallback();
 
     // 1. 启动精灵渲染
     SpriteRenderer.start();
@@ -142,6 +481,20 @@
 
     // 19. 初始化语音模式（Cmd+K 按住说话）
     initVoiceMode();
+    if (typeof MeetingNotes !== 'undefined' && MeetingNotes.init) {
+      MeetingNotes.init();
+      window.__meetingNotesInitialized = true;
+    } else if (window.MeetingNotes?.init && !window.__meetingNotesInitialized) {
+      window.MeetingNotes.init();
+      window.__meetingNotesInitialized = true;
+    }
+    if (window.electronAPI?.onToggleMeetingNotes) {
+      window.electronAPI.onToggleMeetingNotes(() => {
+        if (typeof MeetingNotes !== 'undefined' && MeetingNotes.start) {
+          MeetingNotes.start();
+        }
+      });
+    }
 
     // 20. 初始化点击穿透（透明区域穿透点击）
     if (typeof ClickThrough !== 'undefined') ClickThrough.init();
@@ -426,6 +779,9 @@
 
     // ─── 流式中间结果：实时显示正在说的话（屏幕中下方字幕） ───
     VoiceMode.onStreaming((text) => {
+      if (typeof MeetingNotes !== 'undefined' && MeetingNotes.handleStreaming && MeetingNotes.handleStreaming(text)) {
+        return;
+      }
       if (voiceInputModeActive) return;
       if (text && text.trim()) {
         // 底部字幕显示流式识别文字
@@ -446,6 +802,10 @@
 
     // ─── 开始录音 ───
     VoiceMode.onStart(() => {
+      if (typeof MeetingNotes !== 'undefined' && MeetingNotes.isActive) {
+        // 录音纪要模式下不显示“我在听”提示泡泡
+        return;
+      }
       if (voiceInputModeActive) {
         BubbleSystem.show('语音输入中... 松开 Cmd 完成', 1500, { force: true });
         return;
@@ -471,6 +831,10 @@
 
     // ─── 停止录音 → 立即进入“思考中”反馈 ───
     VoiceMode.onStop(() => {
+      if (typeof MeetingNotes !== 'undefined' && MeetingNotes.isActive) {
+        // 录音纪要停止后由 MeetingNotes 自己接管提示与收尾，不走语音对讲气泡
+        return;
+      }
       if (voiceInputModeActive) return;
       console.log('🎤 停止录音，等待最终识别结果...');
       SoundEngine.voiceStop();
@@ -495,6 +859,9 @@
 
     // ─── 识别结果：送入 AI 对话流程 ───
     VoiceMode.onResult((text) => {
+      if (typeof MeetingNotes !== 'undefined' && MeetingNotes.handleResult && MeetingNotes.handleResult(text)) {
+        return;
+      }
       if (globalVoiceInputMode || globalVoiceInputStopPending) {
         const finalText = String(text || '').trim();
         window.electronAPI?.sendGlobalVoiceInputResult?.({ text: finalText });
@@ -543,6 +910,9 @@
 
     // ─── 错误处理 ───
     VoiceMode.onError((error) => {
+      if (typeof MeetingNotes !== 'undefined' && MeetingNotes.handleError) {
+        MeetingNotes.handleError(error);
+      }
       if (globalVoiceInputMode || globalVoiceInputStopPending) {
         window.electronAPI?.sendGlobalVoiceInputResult?.({ text: '' });
         globalVoiceInputMode = false;
@@ -879,6 +1249,13 @@
 
     // 本地快捷键（默认 cmd/ctrl+u，可在系统设置中自定义）
     document.addEventListener('keydown', (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && String(e.key || '').toLowerCase() === 'r') {
+        e.preventDefault();
+        if (typeof MeetingNotes !== 'undefined' && MeetingNotes.start) {
+          MeetingNotes.start();
+          return;
+        }
+      }
       if (matchesShortcut(e, 'talk')) {
         e.preventDefault();
         BehaviorEngine.notifyInteraction();

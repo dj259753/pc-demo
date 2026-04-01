@@ -813,6 +813,18 @@ const AIBrain = (() => {
     return cleanModelOutput(reply || '');
   }
 
+  async function summarizeMeetingDirect(transcriptText) {
+    const text = String(transcriptText || '').trim();
+    if (!text) return '';
+    if (!API_URL || AI_PROVIDER === 'local') {
+      await loadAIConfig();
+    }
+    const systemPrompt = '你是会议纪要助手。请输出中文纪要，结构包括：会议主题、关键结论、行动项（负责人/截止时间未知可写待定）、风险与待确认。只输出纪要正文。';
+    const userPrompt = `请基于以下录音转写生成纪要：\n${text}`;
+    const reply = await callAI(systemPrompt, userPrompt, 0.25);
+    return cleanModelOutput(reply || '');
+  }
+
   // ═══════════════════════════════════════════
   // 辅助函数
   // ═══════════════════════════════════════════
@@ -925,6 +937,7 @@ const AIBrain = (() => {
     chat,
     summarizeForMemory,
     translateDirect,
+    summarizeMeetingDirect,
     buildPrompt,
     loadAIConfig,
     loadSoul,

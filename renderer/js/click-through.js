@@ -19,6 +19,9 @@ const ClickThrough = (() => {
     '#start-menu:not(.hidden)',
     '#skill-mode-menu:not(.hidden)',
     '#translate-pill:not(.hidden)',
+    '#meeting-notes-panel:not(.hidden)',
+    '#meeting-notes-live',
+    '#meeting-notes-fullscreen:not(.hidden)',
     '#compact-toolbar',
     '.retro-panel:not(.hidden)',   // 背包/对话/进程/日记等面板
     '#work-timer:not(.hidden)',

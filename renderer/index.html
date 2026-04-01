@@ -74,6 +74,27 @@
     </div>
   </div>
 
+  <div id="meeting-notes-panel" class="hidden" style="position:fixed;right:12px;top:12px;z-index:1300;width:300px;height:180px;border-radius:16px;background:rgba(255,255,255,0.96);border:1px solid rgba(0,0,0,0.08);box-shadow:0 10px 24px rgba(0,0,0,0.14);overflow:hidden;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);">
+    <div id="meeting-notes-control" style="height:44px;display:flex;align-items:center;gap:8px;padding:0 10px;background:linear-gradient(180deg,rgba(249,250,251,0.98),rgba(242,244,247,0.98));border-bottom:1px solid rgba(0,0,0,0.06);cursor:move;">
+      <span id="meeting-notes-time" style="font-size:11px;color:#111827;min-width:44px;text-align:center;letter-spacing:0.2px;">00:00</span>
+      <span style="font-size:11px;color:#6b7280;">录音纪要</span>
+      <button id="meeting-notes-minimize" title="最小化" style="margin-left:auto;width:24px;height:24px;border:none;border-radius:8px;background:transparent;color:#374151;cursor:pointer;font-size:14px;">—</button>
+      <button id="meeting-notes-expand" title="展开全文" style="width:24px;height:24px;border:none;border-radius:8px;background:transparent;color:#374151;cursor:pointer;font-size:14px;">⤢</button>
+      <button id="meeting-notes-pause" style="width:30px;height:30px;border:none;border-radius:50%;background:#f3f4f6;cursor:pointer;font-size:13px;">⏸</button>
+      <button id="meeting-notes-stop" style="width:30px;height:30px;border:none;border-radius:50%;background:#ef4444;color:#fff;cursor:pointer;font-size:13px;">■</button>
+    </div>
+    <div id="meeting-notes-live" style="height:136px;overflow:auto;padding:10px 12px;background:rgba(184,232,153,0.92);font-size:8.5pt;line-height:1.45;color:#0b1b08;white-space:pre-wrap;word-break:break-word;cursor:zoom-in;"></div>
+  </div>
+  <div id="meeting-notes-fullscreen" class="hidden" style="position:fixed;inset:0;z-index:1801;background:rgba(15,23,42,0.45);display:flex;align-items:center;justify-content:center;">
+    <div style="width:min(960px,92vw);height:min(78vh,760px);background:#fff;border-radius:16px;box-shadow:0 20px 45px rgba(0,0,0,0.28);display:flex;flex-direction:column;overflow:hidden;">
+      <div style="height:46px;display:flex;align-items:center;justify-content:space-between;padding:0 14px;border-bottom:1px solid rgba(0,0,0,0.08);">
+        <strong style="font-size:14px;color:#111827;">录音纪要实时转写</strong>
+        <button id="meeting-notes-fullscreen-close" style="border:none;background:#f3f4f6;border-radius:8px;padding:6px 10px;cursor:pointer;">关闭</button>
+      </div>
+      <div id="meeting-notes-fulltext" style="flex:1;overflow:auto;padding:14px 16px;font-size:8.5pt;line-height:1.55;color:#111827;white-space:pre-wrap;word-break:break-word;"></div>
+    </div>
+  </div>
+
   <!-- 快捷对话输入框（企鹅头顶，跟随位置） -->
   <div id="quick-chat" class="hidden">
     <div class="quick-chat-box">
@@ -394,7 +415,7 @@
   <div id="skill-mode-menu" class="hidden">
     <button class="voice-mode-item" data-action="voice-toggle">语音对话</button>
     <button class="voice-mode-item" id="skill-translate-toggle" data-action="translate-toggle">翻译模式：关闭</button>
-    <button class="voice-mode-item disabled" data-action="meeting-notes" disabled>录音纪要（敬请期待）</button>
+    <button class="voice-mode-item" data-action="meeting-notes">录音纪要</button>
   </div>
   <button id="translate-pill" class="hidden" style="position:fixed;right:10px;top:10px;z-index:1250;border:1px solid rgba(0,0,0,0.08);border-radius:12px;padding:4px 8px;background:rgba(255,255,255,0.92);font-size:12px;cursor:pointer;">翻译中 · 点击关闭</button>
 
@@ -449,6 +470,7 @@
   <script src="js/voice-mode.js"></script>
   <script src="js/system-settings.js"></script>
   <script src="js/new-user-guide.js"></script>
+  <script src="js/meeting-notes.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>

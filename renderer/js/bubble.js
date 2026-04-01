@@ -99,10 +99,10 @@ const BubbleSystem = (() => {
   }
 
   // ─── 创建一条气泡 DOM ───
-  function createBubbleEl(displayText, fullText, isExpandable, isTruncated = false) {
+  function createBubbleEl(displayText, fullText, isExpandable, isTruncated = false, onClick = null) {
     const item = document.createElement('div');
     item.className = 'bubble-item';
-    if (isExpandable) item.classList.add('expandable');
+    if (isExpandable || typeof onClick === 'function') item.classList.add('expandable');
 
     const textSpan = document.createElement('span');
     textSpan.className = 'bubble-text-content';
@@ -111,14 +111,19 @@ const BubbleSystem = (() => {
     item.appendChild(textSpan);
 
     // 截断文本才显示 › 箭头指示符
-    if (isExpandable && (isTruncated || isExpandable)) {
+    if ((isExpandable || typeof onClick === 'function') && (isTruncated || isExpandable || typeof onClick === 'function')) {
       const arrow = document.createElement('span');
       arrow.className = 'bubble-arrow';
       arrow.textContent = '›';
       item.appendChild(arrow);
     }
 
-    if (isExpandable) {
+    if (typeof onClick === 'function') {
+      item.addEventListener('click', (e) => {
+        e.stopPropagation();
+        try { onClick(); } catch {}
+      });
+    } else if (isExpandable) {
       // 点击可展开气泡 → 打开独立快捷对话窗口
       item.addEventListener('click', (e) => {
         e.stopPropagation();
@@ -180,7 +185,7 @@ const BubbleSystem = (() => {
     const { display, truncated } = truncate(fullText);
 
     const isExpandable = opts.expandable !== false;
-    const { el, textSpan } = createBubbleEl('', fullText, isExpandable, truncated);
+    const { el, textSpan } = createBubbleEl('', fullText, isExpandable, truncated, opts.onClick || null);
 
     // 如果已经达到上限，移掉最旧的
     while (messages.length >= MAX_VISIBLE) {
