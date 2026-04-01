@@ -3,33 +3,29 @@
 <head>
   <meta charset="UTF-8">
   <title>对话</title>
-  <!-- Markdown 渲染 + 代码高亮 + 安全过滤 -->
-  <script src="https://cdn.jsdelivr.net/npm/marked@12/marked.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/dompurify@3/dist/purify.min.js"></script>
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11/styles/github-dark.min.css">
-  <script src="https://cdn.jsdelivr.net/npm/highlight.js@11/lib/core.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/highlight.js@11/lib/languages/javascript.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/highlight.js@11/lib/languages/typescript.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/highlight.js@11/lib/languages/python.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/highlight.js@11/lib/languages/bash.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/highlight.js@11/lib/languages/json.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/highlight.js@11/lib/languages/css.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/highlight.js@11/lib/languages/xml.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/highlight.js@11/lib/languages/java.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/highlight.js@11/lib/languages/go.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/highlight.js@11/lib/languages/sql.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/highlight.js@11/lib/languages/yaml.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/highlight.js@11/lib/languages/shell.min.js"></script>
+  <!-- Markdown 渲染 + 代码高亮 + 安全过滤（本地 vendor，避免 CDN 网络延迟） -->
+  <script src="vendor/marked.min.js"></script>
+  <script src="vendor/purify.min.js"></script>
+  <link rel="stylesheet" href="vendor/hljs-github-dark.min.css">
+  <script src="vendor/hljs-core.min.js"></script>
+  <script src="vendor/hljs-js.min.js"></script>
+  <script src="vendor/hljs-py.min.js"></script>
+  <script src="vendor/hljs-bash.min.js"></script>
+  <script src="vendor/hljs-json.min.js"></script>
   <script>
-    // 注册语言别名
-    hljs.registerLanguage('javascript', hljs.getLanguage('javascript') ? () => hljs.getLanguage('javascript') : () => ({}));
-    hljs.registerLanguage('js', hljs.getLanguage('javascript') ? () => hljs.getLanguage('javascript') : () => ({}));
-    hljs.registerLanguage('ts', hljs.getLanguage('typescript') ? () => hljs.getLanguage('typescript') : () => ({}));
-    hljs.registerLanguage('py', hljs.getLanguage('python') ? () => hljs.getLanguage('python') : () => ({}));
-    hljs.registerLanguage('sh', hljs.getLanguage('bash') ? () => hljs.getLanguage('bash') : () => ({}));
-    hljs.registerLanguage('zsh', hljs.getLanguage('shell') ? () => hljs.getLanguage('shell') : () => ({}));
-    hljs.registerLanguage('html', hljs.getLanguage('xml') ? () => hljs.getLanguage('xml') : () => ({}));
-    hljs.registerLanguage('yml', hljs.getLanguage('yaml') ? () => hljs.getLanguage('yaml') : () => ({}));
+    // 注册语言别名（如果 hljs 可用）
+    if (typeof hljs !== 'undefined') {
+      const safeLang = (name) => hljs.getLanguage(name) ? () => hljs.getLanguage(name) : () => ({});
+      try { hljs.registerLanguage('js', safeLang('javascript')); } catch {}
+      try { hljs.registerLanguage('ts', safeLang('javascript')); } catch {}
+      try { hljs.registerLanguage('typescript', safeLang('javascript')); } catch {}
+      try { hljs.registerLanguage('py', safeLang('python')); } catch {}
+      try { hljs.registerLanguage('sh', safeLang('bash')); } catch {}
+      try { hljs.registerLanguage('zsh', safeLang('bash')); } catch {}
+      try { hljs.registerLanguage('shell', safeLang('bash')); } catch {}
+      try { hljs.registerLanguage('yaml', safeLang('json')); } catch {}
+      try { hljs.registerLanguage('yml', safeLang('json')); } catch {}
+    }
   </script>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -140,6 +136,19 @@
     }
     @keyframes blink-cursor { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
 
+    /* ─── 流式气泡（纯文本模式，避免重渲染 Markdown） ─── */
+    .streaming-bubble {
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .streaming-text {
+      color: var(--text);
+      font-size: 14px;
+      line-height: 1.6;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
     /* ─── 消息复制按钮（悬浮） ─── */
     .msg-copy-btn {
       position: absolute; top: 6px; right: 6px;
@@ -206,6 +215,40 @@
     .tool-card.expandable { cursor: pointer; }
     .tool-card.expandable:hover { background: rgba(59,130,246,0.1); }
     .tool-card.expanded .tool-card-output { max-height: none; }
+
+    /* ─── 过程提示行（非气泡） ─── */
+    .process-tip {
+      align-self: center;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 12px;
+      border-radius: 999px;
+      border: 1px solid rgba(99,102,241,0.32);
+      background: rgba(99,102,241,0.14);
+      color: #c7d2fe;
+      font-size: 12px;
+      line-height: 1;
+      max-width: 92%;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .process-tip::before {
+      content: '';
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #818cf8;
+      box-shadow: 0 0 0 0 rgba(129,140,248,0.6);
+      animation: processPulse 1.6s infinite;
+      flex-shrink: 0;
+    }
+    @keyframes processPulse {
+      0% { box-shadow: 0 0 0 0 rgba(129,140,248,0.6); }
+      70% { box-shadow: 0 0 0 8px rgba(129,140,248,0); }
+      100% { box-shadow: 0 0 0 0 rgba(129,140,248,0); }
+    }
 
     @keyframes spin { to { transform: rotate(360deg); } }
 
@@ -441,6 +484,17 @@
       return c.trim();
     }
 
+    // 流式阶段文本清理：移除完整 <think> 块 + 未闭合的 <think> 开头部分
+    function cleanStreamingText(text) {
+      if (!text) return '';
+      let c = cleanModelOutput(text);
+      // 移除完整 <think>...</think> 块
+      c = c.replace(/<\s*think(?:ing)?\s*>[\s\S]*?<\s*\/\s*think(?:ing)?\s*>/gi, '');
+      // 移除未闭合的 <think> 开头（流式中间态）
+      c = c.replace(/<\s*think(?:ing)?\s*>[\s\S]*$/gi, '');
+      return c.trim();
+    }
+
     // 提取 <think> 内容
     function extractThinking(text) {
       if (!text) return { thinking: null, cleaned: text };
@@ -650,26 +704,34 @@
       showThinkingAnim();
       isWaiting = true;
       sendBtn.disabled = true;
+      activeRequestStartedAt = Date.now();
+      activeRequestText = text || '[附件消息]';
+      activeRunId = '';
+      showProcessTip('已收到，正在思考...');
+      startProcessTicker();
 
       // 优先走 Gateway RPC chat.send（完整 Agent loop）
       if (window.quickChatAPI.gatewayChatSend) {
-        window.quickChatAPI.gatewayChatSend(text || '[附件消息]')
+        window.quickChatAPI.gatewayChatSend(activeRequestText)
           .then((result) => {
             if (result && result.success) {
-              console.log('[quick-chat] chat.send accepted via RPC');
-              // 流式回复和工具进度通过 Gateway 事件自动推送
+              activeRunId = result.result?.runId || '';
+              showProcessTip('正在规划执行步骤...');
             } else {
               console.warn('[quick-chat] RPC 失败，回退旧路径:', result && result.error);
-              window.quickChatAPI.sendMessage(text || '[附件消息]', []);
+              showProcessTip('连接不稳定，正在自动重试...');
+              window.quickChatAPI.sendMessage(activeRequestText, []);
             }
           })
           .catch((err) => {
             console.warn('[quick-chat] RPC 异常，回退旧路径:', err);
-            window.quickChatAPI.sendMessage(text || '[附件消息]', []);
+            showProcessTip('连接不稳定，正在自动重试...');
+            window.quickChatAPI.sendMessage(activeRequestText, []);
           });
       } else {
         // 旧路径：通过主窗口中转
-        window.quickChatAPI.sendMessage(text || '[附件消息]', []);
+        showProcessTip('正在处理中...');
+        window.quickChatAPI.sendMessage(activeRequestText, []);
       }
     }
 
@@ -692,34 +754,90 @@
       if (thinkingEl) { thinkingEl.remove(); thinkingEl = null; }
     }
 
-    // ─── 流式输出 ───
+    // ─── 过程提示（非气泡） ───
+    let processTipEl = null;
+    let processTicker = null;
+    let processElapsed = 0;
+
+    function showProcessTip(text) {
+      const value = String(text || '').trim();
+      if (!value) return;
+      if (!processTipEl) {
+        processTipEl = document.createElement('div');
+        processTipEl.className = 'process-tip';
+        messagesEl.appendChild(processTipEl);
+      }
+      processTipEl.textContent = value;
+      scrollToBottom();
+    }
+
+    function clearProcessTip() {
+      if (processTipEl) {
+        processTipEl.remove();
+        processTipEl = null;
+      }
+      if (processTicker) {
+        clearInterval(processTicker);
+        processTicker = null;
+      }
+      processElapsed = 0;
+    }
+
+    function startProcessTicker() {
+      if (processTicker) clearInterval(processTicker);
+      processElapsed = 0;
+      processTicker = setInterval(() => {
+        if (!isWaiting) return;
+        processElapsed += 5;
+        if (processElapsed >= 10) {
+          showProcessTip(`正在处理中（${processElapsed}s），请稍候...`);
+        }
+      }, 5000);
+    }
+
+    // ─── 当前请求状态 ───
+    let activeRequestStartedAt = 0;
+    let activeRequestText = '';
+    let activeRunId = '';
+    let lastAssistantFingerprint = '';
+
+    // ─── 流式输出（纯文本模式，避免每次重渲染 Markdown） ───
     let streamingMsgEl = null;
     let streamingBubbleEl = null;
+    let streamingTextEl = null;   // 纯文本展示区（流式期间）
     let streamingRawText = '';
+    let streamingRafId = null;    // RAF 节流 id
+    let pendingStreamText = '';   // 待刷新的文本
+
+    function flushStreamText() {
+      streamingRafId = null;
+      if (!streamingTextEl) return;
+      // 流式期间过滤 <think> 标签，带光标
+      const display = cleanStreamingText(pendingStreamText);
+      streamingTextEl.textContent = display;
+      scrollToBottom();
+    }
 
     if (window.quickChatAPI?.onAIStreamChunk) {
       window.quickChatAPI.onAIStreamChunk((text) => {
         if (!text || !text.trim()) return;
         if (thinkingEl) hideThinkingAnim();
+        clearProcessTip();
         streamingRawText = text;
+        pendingStreamText = text;
 
-        if (streamingMsgEl && streamingBubbleEl) {
-          // 更新现有流式气泡
-          streamingBubbleEl.innerHTML = '';
-          renderAIBubble(streamingBubbleEl, text);
-          // 添加流式光标
-          const cursor = document.createElement('span');
-          cursor.className = 'streaming-cursor';
-          streamingBubbleEl.appendChild(cursor);
-          scrollToBottom();
-        } else {
-          // 首次创建
+        if (!streamingMsgEl) {
+          // 首次创建流式消息 DOM
           const msg = document.createElement('div');
           msg.className = 'msg ai';
           msg.appendChild(createAvatarEl('ai'));
           const bubble = document.createElement('div');
-          bubble.className = 'msg-bubble';
-          renderAIBubble(bubble, text);
+          bubble.className = 'msg-bubble streaming-bubble';
+          // 纯文本容器（流式期间）
+          const textEl = document.createElement('div');
+          textEl.className = 'streaming-text';
+          bubble.appendChild(textEl);
+          // 光标
           const cursor = document.createElement('span');
           cursor.className = 'streaming-cursor';
           bubble.appendChild(cursor);
@@ -727,7 +845,13 @@
           messagesEl.appendChild(msg);
           streamingMsgEl = msg;
           streamingBubbleEl = bubble;
+          streamingTextEl = textEl;
           scrollToBottom();
+        }
+
+        // RAF 节流：最多每帧刷新一次，丢弃中间帧
+        if (!streamingRafId) {
+          streamingRafId = requestAnimationFrame(flushStreamText);
         }
       });
     }
@@ -736,25 +860,38 @@
     if (window.quickChatAPI?.onAIReply) {
       window.quickChatAPI.onAIReply((text) => {
         hideThinkingAnim();
+        clearProcessTip();
+
+        // 取消未完成的 RAF
+        if (streamingRafId) {
+          cancelAnimationFrame(streamingRafId);
+          streamingRafId = null;
+        }
 
         // 过滤 NO_REPLY
         if (text?.trim() === 'NO_REPLY') {
           if (streamingMsgEl) { streamingMsgEl.remove(); }
           streamingMsgEl = null;
           streamingBubbleEl = null;
+          streamingTextEl = null;
           streamingRawText = '';
+          pendingStreamText = '';
           isWaiting = false;
           sendBtn.disabled = false;
           return;
         }
 
         if (streamingMsgEl && streamingBubbleEl) {
-          // 流式气泡已存在 → 更新为最终文本
+          // 流式气泡已存在 → 升级为完整 Markdown 渲染（最终版）
           streamingBubbleEl.innerHTML = '';
+          streamingBubbleEl.classList.remove('streaming-bubble');
           renderAIBubble(streamingBubbleEl, text);
           streamingMsgEl = null;
           streamingBubbleEl = null;
+          streamingTextEl = null;
           streamingRawText = '';
+          pendingStreamText = '';
+          scrollToBottom();
         } else {
           appendMessage('ai', text);
         }
@@ -815,70 +952,64 @@
       window.quickChatAPI.onGatewayChatEvent((payload) => {
         if (!payload) return;
 
+        const payloadRunId = payload.runId || '';
+        if (activeRunId && payloadRunId && payloadRunId !== activeRunId) {
+          return;
+        }
+        if (!isWaiting && !streamingMsgEl && !streamingRawText) {
+          return;
+        }
+
         if (payload.state === 'delta') {
-          // 流式文本——轻量渲染（不走 cleanModelOutput，避免中间状态被误清）
           const text = extractGatewayText(payload.message);
           if (text !== null && text.trim()) {
-            if (thinkingEl) hideThinkingAnim();
+            hideThinkingAnim();
+            clearProcessTip();
             streamingRawText = text;
-            // 轻量渲染：直接用 marked 渲染 Markdown，不做 cleanModelOutput
-            const lightHtml = typeof marked !== 'undefined' ? DOMPurify.sanitize(marked.parse(text)) : escapeHtml(text);
-            if (streamingMsgEl && streamingBubbleEl) {
-              streamingBubbleEl.innerHTML = `<div class="md-content">${lightHtml}</div>`;
-              scrollToBottom();
-            } else {
+            pendingStreamText = text;
+
+            if (!streamingMsgEl) {
+              // 首次创建纯文本流式气泡
               const msg = document.createElement('div');
               msg.className = 'msg ai';
               msg.appendChild(createAvatarEl('ai'));
               const bubble = document.createElement('div');
-              bubble.className = 'msg-bubble';
-              bubble.innerHTML = `<div class="md-content">${lightHtml}</div>`;
+              bubble.className = 'msg-bubble streaming-bubble';
+              const textEl = document.createElement('div');
+              textEl.className = 'streaming-text';
+              bubble.appendChild(textEl);
+              const cursor = document.createElement('span');
+              cursor.className = 'streaming-cursor';
+              bubble.appendChild(cursor);
               msg.appendChild(bubble);
               messagesEl.appendChild(msg);
               streamingMsgEl = msg;
               streamingBubbleEl = bubble;
+              streamingTextEl = textEl;
               scrollToBottom();
             }
-          }
-        } else if (payload.state === 'final') {
-          hideThinkingAnim();
-          const finalText = extractGatewayText(payload.message);
-          console.log('[quick-chat] final event:', { finalTextLen: finalText?.length, streamingRawTextLen: streamingRawText?.length, hasStreamingEl: !!streamingMsgEl, finalTextPreview: (finalText || '').substring(0, 100) });
-          
-          // final 只在有实质新内容时才创建/更新气泡
-          const hasMeaningfulFinal = finalText && finalText.trim().length > 0;
-          if (hasMeaningfulFinal) {
-            if (streamingMsgEl && streamingBubbleEl) {
-              // 流式气泡还在 → 更新为 final（final 是最终完整版）
-              streamingBubbleEl.innerHTML = '';
-              renderAIBubble(streamingBubbleEl, finalText);
-            } else {
-              // 没有流式气泡（可能被 tool_start 定型了）→ 创建新气泡
-              appendMessage('ai', finalText);
+
+            // RAF 节流：最多每帧刷新一次
+            if (!streamingRafId) {
+              streamingRafId = requestAnimationFrame(flushStreamText);
             }
           }
-          // 如果 final 没有文本，已有气泡保持不动（不清空）
-          streamingMsgEl = null;
-          streamingBubbleEl = null;
-          streamingRawText = '';
-          // 标记所有工具卡片完成
-          activeToolCards.forEach((card) => { if (!card.dataset.done) markToolCardDone(card); });
-          activeToolCards.clear();
-          isWaiting = false;
-          sendBtn.disabled = false;
-          inputEl.focus();
-        } else if (payload.state === 'aborted' || payload.state === 'error') {
-          hideThinkingAnim();
-          if (payload.state === 'error') {
-            appendMessage('ai', `⚠️ ${payload.errorMessage || '处理出错'}`);
-          }
-          streamingMsgEl = null;
-          streamingBubbleEl = null;
-          streamingRawText = '';
-          activeToolCards.forEach((card) => { if (!card.dataset.done) markToolCardDone(card); });
-          activeToolCards.clear();
-          isWaiting = false;
-          sendBtn.disabled = false;
+          return;
+        }
+
+        if (payload.state === 'final') {
+          void handleGatewayFinalEvent(payload);
+          return;
+        }
+
+        if (payload.state === 'aborted') {
+          void handleGatewayAbortOrError('aborted');
+          return;
+        }
+
+        if (payload.state === 'error') {
+          void handleGatewayAbortOrError('error', payload.errorMessage);
+          return;
         }
       });
     }
@@ -887,6 +1018,10 @@
     if (window.quickChatAPI?.onGatewayAgentEvent) {
       window.quickChatAPI.onGatewayAgentEvent((payload) => {
         if (!payload) return;
+        if (!isWaiting) return;
+        const payloadRunId = payload.runId || payload.data?.runId || '';
+        if (activeRunId && payloadRunId && payloadRunId !== activeRunId) return;
+
         const stream = payload.stream;
         const data = payload.data || {};
 
@@ -897,11 +1032,15 @@
             handleToolEvent({ type: 'tool_end', phase: 'result', name: data.name || 'tool', toolCallId: data.toolCallId || '' });
           }
         } else if (stream === 'lifecycle') {
-          if (data.phase === 'end') {
-            // Agent 执行完成：标记所有卡片完成
+          if (data.phase === 'start') {
+            showProcessTip('正在规划执行步骤...');
+          } else if (data.phase === 'end') {
+            showProcessTip('执行完成，正在整理回复...');
             activeToolCards.forEach((card) => { if (!card.dataset.done) markToolCardDone(card); });
             activeToolCards.clear();
           }
+        } else if (stream === 'assistant') {
+          showProcessTip('正在组织回复内容...');
         }
       });
     }
@@ -921,6 +1060,7 @@
         const name = evt.name || 'tool';
         const icon = TOOL_ICONS[name] || '🔧';
         const label = TOOL_LABELS[name] || name;
+        showProcessTip(`正在${label}...`);
         const card = createLiveToolCard(icon, label, name);
         const key = evt.toolCallId || `${name}-${Date.now()}`;
         activeToolCards.set(key, card);
@@ -935,6 +1075,8 @@
 
       if (evt.type === 'tool_end') {
         const name = evt.name || 'tool';
+        const label = TOOL_LABELS[name] || name;
+        showProcessTip(`${label}已完成，继续处理中...`);
         let found = false;
         activeToolCards.forEach((card, key) => {
           if (!found && (key.startsWith(name) || card.dataset.toolName === name) && !card.dataset.done) {
@@ -961,6 +1103,160 @@
       }
       if (typeof message.text === 'string') return message.text;
       return null;
+    }
+
+    function getMessageTimestamp(message) {
+      if (!message || typeof message !== 'object') return 0;
+      const raw = message.timestamp ?? message.ts ?? message.createdAt ?? message.time;
+      if (typeof raw === 'number' && Number.isFinite(raw)) return raw;
+      if (typeof raw === 'string') {
+        const n = Number(raw);
+        if (Number.isFinite(n) && n > 0) return n;
+        const d = Date.parse(raw);
+        if (!Number.isNaN(d)) return d;
+      }
+      return 0;
+    }
+
+    function isRenderableAssistantText(text) {
+      if (!text || !String(text).trim()) return false;
+      const result = processAIOutput(String(text));
+      if (result.noReply) return false;
+      return Boolean((result.html && result.html.trim()) || (result.thinking && result.thinking.trim()));
+    }
+
+    function makeAssistantFingerprint(text, timestamp = 0) {
+      const short = String(text || '').trim().slice(0, 160);
+      return `${timestamp || '0'}::${short}`;
+    }
+
+    async function findAssistantReplyFromHistory(minTimestamp = 0) {
+      if (!window.quickChatAPI?.gatewayChatHistory) return null;
+      try {
+        const res = await window.quickChatAPI.gatewayChatHistory(undefined, 120);
+        const messages = Array.isArray(res?.result?.messages) ? res.result.messages : [];
+        if (messages.length === 0) return null;
+
+        for (let i = messages.length - 1; i >= 0; i--) {
+          const msg = messages[i];
+          if (!msg || String(msg.role || '').toLowerCase() !== 'assistant') continue;
+          const text = extractGatewayText(msg);
+          if (!text || !text.trim()) continue;
+          if (!isRenderableAssistantText(text)) continue;
+
+          const ts = getMessageTimestamp(msg);
+          if (minTimestamp && ts && ts < minTimestamp - 3000) continue;
+
+          const fp = makeAssistantFingerprint(text, ts);
+          if (fp === lastAssistantFingerprint) continue;
+
+          return { text, timestamp: ts, fingerprint: fp };
+        }
+      } catch (err) {
+        console.warn('[quick-chat] chat.history fallback failed:', err);
+      }
+      return null;
+    }
+
+    function finishActiveRequestUI() {
+      hideThinkingAnim();
+      clearProcessTip();
+      // 取消未完成的 RAF
+      if (streamingRafId) {
+        cancelAnimationFrame(streamingRafId);
+        streamingRafId = null;
+      }
+      streamingMsgEl = null;
+      streamingBubbleEl = null;
+      streamingTextEl = null;
+      streamingRawText = '';
+      pendingStreamText = '';
+      activeToolCards.forEach((card) => { if (!card.dataset.done) markToolCardDone(card); });
+      activeToolCards.clear();
+      isWaiting = false;
+      sendBtn.disabled = false;
+      inputEl.focus();
+      activeRequestStartedAt = 0;
+      activeRequestText = '';
+      activeRunId = '';
+    }
+
+    async function handleGatewayFinalEvent(payload) {
+      hideThinkingAnim();
+
+      // 取消未完成的 RAF
+      if (streamingRafId) {
+        cancelAnimationFrame(streamingRafId);
+        streamingRafId = null;
+      }
+
+      const finalText = extractGatewayText(payload.message);
+      let rendered = false;
+
+      if (finalText && finalText.trim() && isRenderableAssistantText(finalText)) {
+        if (streamingMsgEl && streamingBubbleEl) {
+          const current = (streamingRawText || '').trim();
+          const next = finalText.trim();
+          if (!current || next.length >= current.length || !isRenderableAssistantText(current)) {
+            streamingBubbleEl.innerHTML = '';
+            streamingBubbleEl.classList.remove('streaming-bubble');
+            renderAIBubble(streamingBubbleEl, finalText);
+          }
+          rendered = true;
+        } else {
+          appendMessage('ai', finalText);
+          rendered = true;
+        }
+        lastAssistantFingerprint = makeAssistantFingerprint(finalText, getMessageTimestamp(payload.message));
+      } else if (streamingMsgEl || streamingRawText) {
+        rendered = true;
+        const keep = (streamingRawText || '').trim();
+        if (keep) {
+          // 将纯文本气泡升级为 Markdown 渲染
+          if (streamingMsgEl && streamingBubbleEl) {
+            streamingBubbleEl.innerHTML = '';
+            streamingBubbleEl.classList.remove('streaming-bubble');
+            renderAIBubble(streamingBubbleEl, keep);
+          }
+          lastAssistantFingerprint = makeAssistantFingerprint(keep, Date.now());
+        }
+      }
+
+      if (!rendered) {
+        const fallback = await findAssistantReplyFromHistory(activeRequestStartedAt);
+        if (fallback) {
+          appendMessage('ai', fallback.text);
+          lastAssistantFingerprint = fallback.fingerprint;
+          rendered = true;
+        }
+      }
+
+      if (!rendered) {
+        appendMessage('ai', '✅ 已完成，我可以继续帮你下一步。');
+      }
+
+      finishActiveRequestUI();
+    }
+
+    async function handleGatewayAbortOrError(kind = 'error', errorMessage = '') {
+      hideThinkingAnim();
+
+      const fallback = await findAssistantReplyFromHistory(activeRequestStartedAt);
+      if (fallback) {
+        appendMessage('ai', fallback.text);
+        lastAssistantFingerprint = fallback.fingerprint;
+      } else if (kind === 'aborted') {
+        appendMessage('ai', '⏹️ 已停止本次处理。');
+      } else {
+        // 不直接暴露技术报错，给出可执行的用户反馈
+        appendMessage('ai', '我正在处理中，刚刚那次结果没完整返回。我现在继续给你执行，你再发一句就行。');
+      }
+
+      if (errorMessage) {
+        console.warn('[quick-chat] gateway chat error:', errorMessage);
+      }
+
+      finishActiveRequestUI();
     }
 
     function createLiveToolCard(icon, label, toolName) {
@@ -1000,6 +1296,7 @@
       messagesEl.appendChild(w);
       isWaiting = false; sendBtn.disabled = false;
       hideThinkingAnim();
+      clearProcessTip();
       streamingMsgEl = null; streamingBubbleEl = null; streamingRawText = '';
       pendingAttachments = [];
       renderAttachmentsBar();
@@ -1054,7 +1351,7 @@
 
     // ─── 打开时从 Gateway 加载聊天历史 ───
     async function loadChatHistory() {
-      if (!window.quickChatAPI?.gatewayChatSend) return; // 没有 RPC
+      if (!window.quickChatAPI?.gatewayChatHistory) return; // 没有 RPC
       try {
         const res = await window.quickChatAPI.gatewayChatHistory();
         if (!res?.success || !res.result?.messages) return;
@@ -1065,6 +1362,8 @@
         if (welcomeEl) welcomeEl.style.display = 'none';
 
         // 渲染历史消息
+        let latestAssistantText = '';
+        let latestAssistantTs = 0;
         for (const msg of messages) {
           const role = (msg.role || '').toLowerCase();
           if (role === 'system') continue; // 跳过 system prompt
@@ -1077,9 +1376,14 @@
             const text = extractGatewayText(msg);
             if (text && text.trim()) {
               appendMessage('ai', text);
+              latestAssistantText = text;
+              latestAssistantTs = getMessageTimestamp(msg);
             }
           }
           // toolresult 等跳过
+        }
+        if (latestAssistantText) {
+          lastAssistantFingerprint = makeAssistantFingerprint(latestAssistantText, latestAssistantTs);
         }
         scrollToBottom();
       } catch (err) {

@@ -101,7 +101,8 @@ const BubbleSystem = (() => {
   function createBubbleEl(displayText, fullText, isExpandable, isTruncated = false) {
     const item = document.createElement('div');
     item.className = 'bubble-item';
-    if (isExpandable) item.classList.add('expandable');
+    // 所有气泡都可点击，进入对话窗口
+    item.classList.add('expandable');
 
     const textSpan = document.createElement('span');
     textSpan.className = 'bubble-text-content';
@@ -109,20 +110,21 @@ const BubbleSystem = (() => {
     textSpan.textContent = displayText;
     item.appendChild(textSpan);
 
-    if (isExpandable) {
+    // 截断文本才显示 › 箭头指示符
+    if (isTruncated || isExpandable) {
       const arrow = document.createElement('span');
       arrow.className = 'bubble-arrow';
       arrow.textContent = '›';
       item.appendChild(arrow);
-
-      // 点击可展开气泡 → 打开独立快捷对话窗口
-      item.addEventListener('click', (e) => {
-        e.stopPropagation();
-        if (window.electronAPI && window.electronAPI.openQuickChat) {
-          window.electronAPI.openQuickChat();
-        }
-      });
     }
+
+    // 点击任意气泡 → 打开独立快捷对话窗口
+    item.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (window.electronAPI && window.electronAPI.openQuickChat) {
+        window.electronAPI.openQuickChat();
+      }
+    });
 
     return { el: item, textSpan };
   }
@@ -226,19 +228,26 @@ const BubbleSystem = (() => {
   }
 
   // ─── 显示气泡（带全局节流，3秒内最多1条） ───
-  function show(text, duration = 8000) {
+  // show(text, duration, opts)
+  // opts.force = true → 专注模式下也强制显示（AI回复、专注提醒等）
+  function show(text, duration = 8000, opts = {}) {
+    // 专注模式下屏蔽所有非关键气泡
+    if (!opts.force && typeof FocusMode !== 'undefined' && FocusMode.isActive) return;
+
     const now = Date.now();
     const elapsed = now - lastShowTime;
 
     if (elapsed < THROTTLE_MS) {
       // 节流期间：暂存最新一条，等节流结束后再显示
-      pendingText = { text, duration };
+      pendingText = { text, duration, opts };
       if (!pendingTimer) {
         pendingTimer = setTimeout(() => {
           pendingTimer = null;
           if (pendingText) {
             const p = pendingText;
             pendingText = null;
+            // 再次检查专注状态
+            if (!p.opts.force && typeof FocusMode !== 'undefined' && FocusMode.isActive) return;
             lastShowTime = Date.now();
             pushMessage(p.text, p.duration, false);
           }

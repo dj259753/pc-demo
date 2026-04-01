@@ -84,12 +84,11 @@ const PanelManager = (() => {
         if (PetState.wash()) {
           SoundEngine.wash();
           animateItemBtn(document.getElementById('btn-soap'));
-          SpriteRenderer.setAnimation('rain_wash');
+          // 不在这里手动设置动画，由 app.js 的 state-change: washing 监听统一处理（QC Clean SWF）
           EffectsEngine.startRain(3500);
           BubbleSystem.show('下雨啦~洗得干干净净！🌧️✨', 3000);
           if (typeof PetDiary !== 'undefined') PetDiary.addEntry('wash', '洗了个舒服的澡，清爽！');
           setTimeout(() => {
-            SpriteRenderer.setAnimation('idle');
             BubbleSystem.show('洗完啦！好清爽！✨', 2000);
             BehaviorEngine.resume();
           }, 3500);
