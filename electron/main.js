@@ -666,14 +666,15 @@ ipcMain.handle('get-ai-config', () => {
     hasIdentity: agentProfile.hasIdentity,
   }));
 
-  // 内嵌 Gateway 运行时：渲染进程必须用本机 HTTP 入口（带网关 token），
-  // 不能返回上游 directUrl：主进程 verify 走 Node 无 CORS，但 renderer 的 fetch 会被公网 API 的 CORS 拦截，表现为「验证成功、进宠物却断网」。
+  // 内嵌 Gateway：主对话走 WebSocket RPC；渲染进程里若仍 fetch「网关 /v1/chat/completions」会得到 405。
+  // 非 RPC 的补调用（callAI / chatViaFetch 回退）改由主进程代理到 openclaw.json 里的上游 baseUrl，避免 CORS 且路径正确。
   try {
     const gwInfo = backend.getGatewayInfo();
     if (gwInfo.running && gwInfo.url) {
       const base = String(gwInfo.url).replace(/\/$/, '');
       return {
         provider: 'openclaw',
+        use_upstream_proxy: true,
         api_url: `${base}/chat/completions`,
         api_key: gwInfo.token,
         model: gwInfo.model,
@@ -700,6 +701,52 @@ ipcMain.handle('get-ai-config', () => {
   }
   // 默认降级模式
   return { provider: 'local', api_url: '', api_key: '', model: '', agent_dir: agentProfile.agentDir };
+});
+
+// 主进程代发上游 OpenAI 兼容 /chat/completions（避免渲染进程 POST 内嵌 Gateway 返回 405 / CORS）
+ipcMain.handle('upstream-chat-completions', async (_e, opts) => {
+  const fetch = require('node-fetch');
+  const { readUserConfig } = require('./backend/provider-config');
+  const cfg = readUserConfig();
+  const rawModel = String(opts.model || cfg?.agents?.defaults?.model?.primary || '').trim();
+  if (!rawModel) return { ok: false, error: '未配置模型（请在系统设置 → AI 配置中保存）' };
+  const slash = rawModel.indexOf('/');
+  const providerKey = slash >= 0 ? rawModel.slice(0, slash) : 'custom';
+  const modelID = slash >= 0 ? rawModel.slice(slash + 1) : rawModel;
+  const provider = cfg?.models?.providers?.[providerKey];
+  if (!provider?.baseUrl) {
+    return { ok: false, error: '未找到上游接口地址（请通过 AI 配置保存 Provider）' };
+  }
+  const base = String(provider.baseUrl).replace(/\/$/, '');
+  const url = `${base}/chat/completions`;
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${provider.apiKey || ''}`,
+      },
+      body: JSON.stringify({
+        model: modelID,
+        messages: opts.messages,
+        temperature: opts.temperature ?? 0.9,
+        stream: false,
+      }),
+    });
+    const text = await res.text();
+    if (!res.ok) {
+      return { ok: false, error: `${res.status}: ${text.slice(0, 400)}` };
+    }
+    let data;
+    try {
+      data = JSON.parse(text);
+    } catch {
+      return { ok: false, error: '上游返回非 JSON' };
+    }
+    return { ok: true, data };
+  } catch (e) {
+    return { ok: false, error: e.message || String(e) };
+  }
 });
 
 // ═══════════════════════════════════════════
@@ -2041,10 +2088,17 @@ ipcMain.handle('open-url', async (_, url) => {
 });
 
 // launch-pet：安装向导完成后启动宠物（关闭向导窗口 + 创建宠物窗口）
-ipcMain.on('launch-pet', () => {
+ipcMain.on('launch-pet', async () => {
   installerCompleted = true;  // 标记：用户主动完成配置
   if (aiSetupWindow && !aiSetupWindow.isDestroyed()) aiSetupWindow.close();
-  // 首次安装流程：installer 完成后才启动宠物
+  // 内置 resources/targets 后仍要保证 Gateway 子进程已起（幂等）
+  if (backend.constants.isSetupComplete()) {
+    try {
+      await backend.startGateway();
+    } catch (e) {
+      console.error('[launch-pet] startGateway 失败:', e);
+    }
+  }
   launchPetApp();
 });
 
@@ -4567,6 +4621,11 @@ function launchPetApp() {
   if (mainWindow && !mainWindow.isDestroyed()) {
     console.log('🐧 宠物窗口已存在，跳过重复创建');
     return;
+  }
+
+  // 每次打开宠物主流程时尝试拉起内置 Gateway（与 backend.init 内启动互补；init 失败或曾崩溃时可恢复）
+  if (backend.constants.isSetupComplete()) {
+    backend.startGateway().catch((e) => console.error('[launchPetApp] startGateway:', e));
   }
 
   createMainWindow();

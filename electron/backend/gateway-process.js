@@ -7,6 +7,7 @@
 'use strict';
 
 const { spawn, execFileSync } = require('child_process');
+const { once } = require('events');
 const http = require('http');
 const path = require('path');
 const fs = require('fs');
@@ -86,6 +87,24 @@ class GatewayProcess {
     // Windows: 首次启动解压 tar.gz 资源包
     await this._extractTarGzResources();
 
+    // 开发模式：未提交 runtime/node 时从 CDN 拉取（PET_RUNTIME_NODE_URL 可覆盖）；打包版不写安装包目录
+    try {
+      const { ensureRuntimeNodeDownloaded } = require('./runtime-node-download');
+      await ensureRuntimeNodeDownloaded(resolveResourcesPath(), (m) => diagLog(m), { packaged: app.isPackaged });
+    } catch (e) {
+      diagLog(`runtime node CDN 下载失败: ${e.message}`);
+    }
+
+    // macOS：清隔离属性并对内置 .node / node 做 ad-hoc 签名，避免「library load disallowed by system policy」
+    if (process.platform === 'darwin') {
+      try {
+        const { ensureMacGatewayNativeLoadable } = require('./macos-gateway-native');
+        ensureMacGatewayNativeLoadable(resolveResourcesPath());
+      } catch (e) {
+        console.warn('[gateway] macOS 资源预处理失败:', e.message);
+      }
+    }
+
     const nodeBin = resolveNodeBin();
     const entry = resolveGatewayEntry();
     const cwd = resolveGatewayCwd();
@@ -142,17 +161,51 @@ class GatewayProcess {
         OPENCLAW_DISABLE_BONJOUR: '1',
         OPENCLAW_NPM_BIN: resolveNpmBin(),
         OPENCLAW_STATE_DIR: resolveUserStateDir(),
+        // 部分 OpenClaw 版本仍从 HOME/.openclaw 找配置；与 STATE_DIR 对齐到 ~/.qq-pet
+        OPENCLAW_HOME: resolveUserStateDir(),
         PATH: envPath,
         ...this.extraEnv,
       },
       stdio: ['ignore', 'pipe', 'pipe'],
       windowsHide: true,
     });
-    const childPid = this.proc.pid ?? -1;
 
-    this.proc.on('error', (err) => {
-      diagLog(`spawn error: ${err.message}`);
-    });
+    // pid 未立即可用时等 spawn 事件；若已就绪则不再订阅 spawn（避免事件已发出导致死等）
+    if (!this.proc.pid) {
+      try {
+        await Promise.race([
+          once(this.proc, 'spawn'),
+          once(this.proc, 'error').then(([err]) => {
+            throw err;
+          }),
+          sleep(10_000).then(() => {
+            throw new Error('spawn 超时(10s)');
+          }),
+        ]);
+      } catch (err) {
+        const msg = err && err.message ? err.message : String(err);
+        diagLog(`FATAL: Gateway 子进程未能启动: ${msg}（检查 runtime/node 是否 chmod +x；macOS 下载资源需 xattr -dr com.apple.quarantine runtime/node；CPU 与 darwin-arm64/x64 目录一致）`);
+        this.lastCrashTime = Date.now();
+        try {
+          if (this.proc && !this.proc.killed) this.proc.kill('SIGKILL');
+        } catch {}
+        this.proc = null;
+        this._setState('stopped');
+        return;
+      }
+    }
+
+    const childPid = this.proc.pid;
+    if (!childPid || childPid <= 0) {
+      diagLog(`FATAL: spawn 后 pid 无效 (${String(childPid)})`);
+      this.lastCrashTime = Date.now();
+      try {
+        if (this.proc && !this.proc.killed) this.proc.kill('SIGKILL');
+      } catch {}
+      this.proc = null;
+      this._setState('stopped');
+      return;
+    }
 
     this.proc.stdout?.on('data', (d) => {
       const s = d.toString();
@@ -194,7 +247,7 @@ class GatewayProcess {
         this._setState('stopped');
       }
     } else {
-      diagLog('FATAL: health check timeout');
+      diagLog('FATAL: Gateway 健康检查未通过（子进程已退出、或 http://127.0.0.1:' + this.port + '/ 长期非 200；详见上方 health check / [gateway] 输出）');
       this.stop();
     }
   }
@@ -237,6 +290,7 @@ class GatewayProcess {
           OPENCLAW_NO_RESPAWN: '1',
           OPENCLAW_LENIENT_CONFIG: '1',
           OPENCLAW_STATE_DIR: stateDir,
+          OPENCLAW_HOME: stateDir,
         },
       });
       diagLog('旧 gateway 已停止');
@@ -326,7 +380,10 @@ class GatewayProcess {
   }
 
   async _waitForHealth(timeoutMs, childPid) {
-    if (childPid <= 0) return false;
+    if (!childPid || childPid <= 0) {
+      diagLog('health check: 无效 pid（不应到达此处，请检查 spawn 逻辑）');
+      return false;
+    }
     const deadline = Date.now() + timeoutMs;
     while (Date.now() < deadline) {
       if (!this._isChildAlive(childPid)) {
@@ -336,6 +393,7 @@ class GatewayProcess {
       if (await this._probeHealth()) return true;
       await sleep(HEALTH_POLL_INTERVAL_MS);
     }
+    diagLog(`health check: 超时 ${timeoutMs}ms，GET http://127.0.0.1:${this.port}/ 未返回 200`);
     return false;
   }
 

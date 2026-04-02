@@ -15,7 +15,7 @@ const constants = require('./constants');
 const { GatewayProcess } = require('./gateway-process');
 const { GatewayRpcClient } = require('./gateway-rpc');
 const { resolveGatewayAuthToken, ensureGatewayAuthTokenInConfig } = require('./gateway-auth');
-const { readUserConfig, writeUserConfig, verifyCustom, saveProviderConfig, getCurrentProviderConfig } = require('./provider-config');
+const { readUserConfig, writeUserConfig, verifyCustom, saveProviderConfig, getCurrentProviderConfig, ensureConfigSanitizedAndMigrated } = require('./provider-config');
 const { backupCurrentUserConfig, recordSetupBaselineConfigSnapshot, recordLastKnownGoodConfigSnapshot, getConfigRecoveryData } = require('./config-backup');
 const { ensureWorkspace, getDefaultPetSoul } = require('./workspace-init');
 
@@ -31,6 +31,8 @@ let rpcClient = null;   // Gateway WebSocket RPC 客户端
 async function init() {
   // 1. 确保 workspace 存在
   ensureWorkspace();
+  // 迁移 ~/.openclaw → ~/.qq-pet，并修正与当前 OpenClaw 不兼容的字段（仅宠物使用的配置）
+  ensureConfigSanitizedAndMigrated();
 
   // 2. 检查是否需要首次配置
   if (!constants.isSetupComplete()) {

@@ -1,12 +1,13 @@
 #!/usr/bin/env node
 /**
  * prepare-gateway-resources.js
- * 
- * 开发阶段辅助脚本：从 QQClaw 项目拷贝已构建的 Gateway 资源到宠物项目。
- * 
+ *
+ * 可选：从 QQClaw 同步 Gateway 资源到本仓库 resources/targets/<平台>-<架构>/。
+ * 资源已内置并提交时无需每次跑；仅在升级 QQClaw 或换平台产物时执行。
+ *
  * 用法：
  *   node scripts/prepare-gateway-resources.js [--qqclaw-dir <path>]
- * 
+ *
  * 前置条件：
  *   在 QQClaw 项目里已跑过 npm run package:resources
  */

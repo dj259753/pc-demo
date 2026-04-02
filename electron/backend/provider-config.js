@@ -10,10 +10,31 @@
 const https = require('https');
 const http = require('http');
 const fs = require('fs');
+const os = require('os');
+const path = require('path');
 const { resolveUserConfigPath, resolveUserStateDir } = require('./constants');
 const { backupCurrentUserConfig } = require('./config-backup');
 
 // ── 用户配置读写 ──
+
+/**
+ * 与当前内置 OpenClaw CLI 兼容：去掉已废弃/非法字段，避免 Gateway 校验失败。
+ */
+function sanitizeOpenclawConfig(config) {
+  if (!config || typeof config !== 'object') return {};
+  const c = JSON.parse(JSON.stringify(config));
+  if (c.commands && typeof c.commands === 'object') {
+    delete c.commands.ownerDisplay;
+    if (Object.keys(c.commands).length === 0) delete c.commands;
+  }
+  // tools.web.search.provider 易与新版 schema 不兼容；宠物侧网页搜索可走上游能力，直接移除避免挡启动
+  if (c.tools && typeof c.tools === 'object' && c.tools.web && typeof c.tools.web === 'object') {
+    delete c.tools.web.search;
+    if (Object.keys(c.tools.web).length === 0) delete c.tools.web;
+    if (Object.keys(c.tools).length === 0) delete c.tools;
+  }
+  return c;
+}
 
 function readUserConfig() {
   const configPath = resolveUserConfigPath();
@@ -28,7 +49,48 @@ function writeUserConfig(config) {
   fs.mkdirSync(stateDir, { recursive: true });
   backupCurrentUserConfig();
   const configPath = resolveUserConfigPath();
-  fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf-8');
+  const sanitized = sanitizeOpenclawConfig(config);
+  fs.writeFileSync(configPath, JSON.stringify(sanitized, null, 2), 'utf-8');
+}
+
+/** 若仅存在 ~/.openclaw/openclaw.json，迁移到 ~/.qq-pet/openclaw.json（Gateway 子进程只用后者） */
+function migrateLegacyOpenclawIfNeeded() {
+  const target = resolveUserConfigPath();
+  if (fs.existsSync(target)) return;
+  const legacy = path.join(os.homedir(), '.openclaw', 'openclaw.json');
+  if (!fs.existsSync(legacy)) return;
+  try {
+    const raw = fs.readFileSync(legacy, 'utf-8');
+    const cfg = JSON.parse(raw);
+    const clean = sanitizeOpenclawConfig(cfg);
+    fs.mkdirSync(resolveUserStateDir(), { recursive: true });
+    fs.writeFileSync(target, JSON.stringify(clean, null, 2), 'utf-8');
+    console.log('[backend] 已从 ~/.openclaw/openclaw.json 迁移到 ~/.qq-pet/openclaw.json（宠物专用配置）');
+  } catch (e) {
+    console.warn('[backend] 迁移 legacy openclaw 配置失败:', e.message);
+  }
+}
+
+/** 启动前把磁盘上的 openclaw.json 净化并写回（若发生变化） */
+function ensureConfigFileSanitizedOnDisk() {
+  const configPath = resolveUserConfigPath();
+  if (!fs.existsSync(configPath)) return;
+  let cfg;
+  try {
+    cfg = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+  } catch {
+    return;
+  }
+  const next = sanitizeOpenclawConfig(cfg);
+  if (JSON.stringify(next) !== JSON.stringify(cfg)) {
+    writeUserConfig(next);
+    console.log('[backend] 已自动修正 openclaw.json 中与当前 OpenClaw 不兼容的字段');
+  }
+}
+
+function ensureConfigSanitizedAndMigrated() {
+  migrateLegacyOpenclawIfNeeded();
+  ensureConfigFileSanitizedOnDisk();
 }
 
 // ── 构建 Provider 配置对象（Custom 模式，OpenAI 兼容） ──
@@ -159,6 +221,8 @@ function jsonRequest(url, opts) {
 module.exports = {
   readUserConfig,
   writeUserConfig,
+  sanitizeOpenclawConfig,
+  ensureConfigSanitizedAndMigrated,
   buildProviderConfig,
   verifyCustom,
   saveProviderConfig,

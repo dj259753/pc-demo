@@ -12,6 +12,8 @@ const AIBrain = (() => {
   let API_KEY = '';
   let MODEL = '';
   let AI_PROVIDER = 'local';  // 'local' | 'ollama' | 'openai'
+  /** 内嵌 Gateway 时 true：callAI/chatViaFetch 走主进程代发上游，避免 POST 网关 /v1/chat/completions 405 */
+  let useUpstreamProxy = false;
 
   // ─── Soul 缓存（避免每次 prompt 都读文件） ───
   let cachedSoul = '';
@@ -87,13 +89,14 @@ const AIBrain = (() => {
         if (config && config.agent_dir) {
           updateAgentPaths(config.agent_dir);
         }
-        // 只要有 api_url 就认为可用（不再严格要求 provider 非 local）
-        if (config && config.api_url) {
+        useUpstreamProxy = !!config.use_upstream_proxy;
+        // 有 api_url 或已启用上游代理（仅 RPC 对话仍可用，补调用走主进程）
+        if (config && (config.api_url || useUpstreamProxy)) {
           AI_PROVIDER = config.provider || 'openclaw';
           API_URL = config.api_url || '';
           API_KEY = config.api_key || '';
           MODEL = config.model || '';
-          console.log(`🧠 AI 配置已加载: provider=${AI_PROVIDER}, model=${MODEL}, url=${API_URL}`);
+          console.log(`🧠 AI 配置已加载: provider=${AI_PROVIDER}, model=${MODEL}, url=${API_URL}, upstreamProxy=${useUpstreamProxy}`);
           return true;
         }
       }
@@ -251,6 +254,31 @@ const AIBrain = (() => {
       { role: 'system', content: systemPrompt },
       { role: 'user', content: userMessage },
     ];
+
+    if (useUpstreamProxy && window.electronAPI && window.electronAPI.upstreamChatCompletions) {
+      const r = await window.electronAPI.upstreamChatCompletions({
+        messages,
+        model: MODEL,
+        temperature,
+        stream: false,
+      });
+      apiCallsToday++;
+      if (!r.ok) {
+        consecutiveFailures++;
+        if (consecutiveFailures >= 3) {
+          console.warn('🧠 连续 AI 调用失败，尝试重新加载配置...');
+          consecutiveFailures = 0;
+          loadAIConfig().then(ok => {
+            if (ok) console.log('🧠 AI 配置已自动恢复');
+          }).catch(() => {});
+        }
+        throw new Error(r.error || '上游代理失败');
+      }
+      consecutiveFailures = 0;
+      const reply = extractReply(r.data);
+      if (!reply) throw new Error('AI返回为空');
+      return reply.trim();
+    }
 
     const headers = { 'Content-Type': 'application/json' };
     if (API_KEY) {
@@ -760,6 +788,23 @@ const AIBrain = (() => {
       messages.push({ role: msg.role, content: msg.text || msg.content });
     }
     messages.push({ role: 'user', content: userText });
+
+    if (useUpstreamProxy && window.electronAPI && window.electronAPI.upstreamChatCompletions) {
+      const r = await window.electronAPI.upstreamChatCompletions({
+        messages,
+        model: MODEL,
+        temperature: 0.85,
+        stream: false,
+      });
+      if (!r.ok) {
+        const errText = String(r.error || '');
+        throw new Error(`API ${errText.substring(0, 120)}`);
+      }
+      let reply = extractReply(r.data);
+      reply = cleanModelOutput(reply || '');
+      if (!reply) throw new Error('AI返回为空');
+      return reply;
+    }
 
     const headers = { 'Content-Type': 'application/json' };
     if (API_KEY) headers['Authorization'] = `Bearer ${API_KEY}`;

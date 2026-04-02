@@ -6,11 +6,12 @@
   "author": "Jerry",
   "license": "MIT",
   "scripts": {
-    "start": "npx electron .",
+    "start": "npm run ensure:runtime-node && npx electron .",
+    "ensure:runtime-node": "node scripts/ensure-runtime-node.js",
     "prepare:gateway": "node scripts/prepare-gateway-resources.js",
-    "build": "npm run prepare:gateway && npx electron-builder --mac",
-    "build:dmg": "npm run prepare:gateway && npx electron-builder --mac dmg",
-    "build:zip": "npm run prepare:gateway && npx electron-builder --mac zip",
+    "build": "npx electron-builder --mac",
+    "build:dmg": "npx electron-builder --mac dmg",
+    "build:zip": "npx electron-builder --mac zip",
     "release:summary": "node scripts/release-note-helper.js",
     "release:summary:from-root": "node scripts/release-note-helper.js --from-root"
   },

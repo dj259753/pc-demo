@@ -14,6 +14,7 @@ tools/ruffle.js
 # Electron 构建产物
 dist/
 release/*.zip
-# Gateway 构建资源（太大，不推 Git，通过 npm run prepare:gateway 本地生成）
-resources/targets/
-dist/
+# Gateway 资源可提交；嵌入式 Node 单文件 > GitHub 100MB，由 CDN / npm run ensure:runtime-node 拉取
+resources/targets/**/runtime/node
+resources/targets/**/runtime/node.exe
+# 若仍从 QQClaw 同步见 npm run prepare:gateway

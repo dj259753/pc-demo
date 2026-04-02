@@ -28,11 +28,11 @@ function resolveResourcesPath() {
   if (app.isPackaged) {
     return path.join(process.resourcesPath, 'resources');
   }
-  // dev 模式：指向 QQClaw 的 resources/targets 产物
+  // dev 模式：优先本仓库内置的 resources/targets/<platform>-<arch>
   const target = process.env.CLAW_TARGET ?? `${process.platform}-${process.arch}`;
   const devPath = path.join(app.getAppPath(), 'resources', 'targets', target);
   if (fs.existsSync(devPath)) return devPath;
-  // 兜底：直接指向 qqclaw 的构建产物（开发阶段共享）
+  // 兜底：本机 QQClaw 工程产物（未内置 resources 时）
   const qqclawPath = path.join(process.env.HOME || '', 'Desktop', 'qqclaw', 'resources', 'targets', target);
   if (fs.existsSync(qqclawPath)) return qqclawPath;
   return devPath;

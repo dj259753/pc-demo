@@ -99,6 +99,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // ─── AI 配置（从 ~/.qq-pet/config/ai-config.json 读取） ───
   getAIConfig: () => ipcRenderer.invoke('get-ai-config'),
+  upstreamChatCompletions: (opts) => ipcRenderer.invoke('upstream-chat-completions', opts || {}),
 
   // ─── Gateway RPC 聊天（走完整 Agent loop，工具调用会被实际执行） ───
   gatewayChatSend: (message, sessionKey) => ipcRenderer.invoke('gateway-chat-send', { message, sessionKey }),
