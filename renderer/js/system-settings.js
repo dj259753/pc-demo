@@ -468,9 +468,7 @@ const SystemSettings = (() => {
     const radios = document.querySelectorAll('input[name="layer-mode"]');
     radios.forEach((r) => { r.checked = r.value === state.layerMode; });
 
-    const ver = document.getElementById('settings-version');
-    const aboutVersion = document.getElementById('about-version');
-    if (aboutVersion && ver) ver.textContent = aboutVersion.textContent;
+    // 版本号由 app.js syncAboutVersion（getAppVersion → package.json）统一写入，不在此用 about 反写以免竞态覆盖
 
     syncShortcutLabels();
     renderNoiseSetting();

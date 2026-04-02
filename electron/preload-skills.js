@@ -4,6 +4,9 @@ contextBridge.exposeInMainWorld('skillsAPI', {
   // 获取真实 skills 列表（已安装 + 市场可用），支持关键词搜索和分页
   getSkills: (keyword = '', page = 1) => ipcRenderer.invoke('skills-get-list', { keyword, page }),
 
+  // 推荐 Tab：来自 skillhub 官方榜单（非硬编码，避免「假推荐」）
+  getFeaturedSkills: () => ipcRenderer.invoke('skills-get-featured'),
+
   // 安装 skill（返回 { ok, error? }）
   installSkill: (skillId, source) => ipcRenderer.invoke('skills-install', { skillId, source }),
 

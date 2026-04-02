@@ -2,7 +2,7 @@
    气泡弹窗系统（多条堆叠版）
    - 最多显示 3 条最近消息
    - 最新在下方，旧消息在上方变淡
-   - 超过 50 字截断 + 箭头，点击跳 CMD 对话
+   - 超过最大字数截断 + 箭头，点击跳快捷对话
    ═══════════════════════════════════════════ */
 
 const BubbleSystem = (() => {
@@ -10,7 +10,7 @@ const BubbleSystem = (() => {
   const listEl = document.getElementById('bubble-list');
 
   const MAX_VISIBLE = 3;     // 最多同时显示 3 条
-  const MAX_CHARS = 200;     // 超过 200 字截断
+  const MAX_CHARS = 150;     // 头顶气泡超过 150 字截断
   const DEFAULT_DURATION = 8000;  // 默认显示时长 8 秒
   const FADE_DURATION = 10000;    // 旧消息额外存活时长
   const THROTTLE_MS = 3000;       // 全局节流：3秒内只允许1条新消息

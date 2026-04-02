@@ -5,16 +5,28 @@
   <title>Skills 接入</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body {
+      height: 100%;
+      width: 100%;
+    }
     body {
       background: transparent;
       overflow: hidden;
       font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
       -webkit-app-region: no-drag;
       color: #1f2937;
+      display: flex;
+      align-items: stretch;
+      justify-content: center;
     }
 
     .skills-container {
       width: 420px;
+      max-width: 100%;
+      height: 100%;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
       background: rgba(255,255,255,0.92);
       border: 1px solid rgba(0,0,0,0.08);
       border-radius: 20px;
@@ -22,10 +34,12 @@
       backdrop-filter: blur(12px);
       -webkit-backdrop-filter: blur(12px);
       overflow: hidden;
+      position: relative;
     }
 
     /* 标题栏 */
     .skills-header {
+      flex-shrink: 0;
       display: flex;
       align-items: center;
       justify-content: space-between;
@@ -60,6 +74,7 @@
 
     /* Tab 栏 */
     .skills-tabs {
+      flex-shrink: 0;
       display: flex;
       background: rgba(255,255,255,0.75);
       border-bottom: 1px solid rgba(0,0,0,0.06);
@@ -101,6 +116,7 @@
 
     /* 搜索栏 */
     .skills-search {
+      flex-shrink: 0;
       padding: 8px 12px;
       border-bottom: 1px solid rgba(0,0,0,0.06);
       background: rgba(255,255,255,0.5);
@@ -119,11 +135,13 @@
     .skills-search input:focus { border-color: #5b7cfa; background: #fff; box-shadow: 0 0 0 3px rgba(91,124,250,0.14); }
     .skills-search input::placeholder { color: #94a3b8; }
 
-    /* 列表 */
+    /* 列表：占满窗口剩余高度，避免总高度超过 BrowserWindow 导致底部被裁切 */
     .skills-list {
       padding: 4px 12px 12px;
-      height: 420px;
+      flex: 1;
+      min-height: 0;
       overflow-y: auto;
+      overflow-x: hidden;
       background: transparent;
     }
     .skills-list.hidden { display: none; }
@@ -247,7 +265,6 @@
     .skills-list::-webkit-scrollbar-thumb { background: rgba(100,116,139,0.26); border-radius: 3px; }
 
     /* Tooltip */
-    .skills-container { position: relative; }
     #skill-tooltip {
       position: absolute;
       z-index: 9999;
@@ -269,8 +286,8 @@
   </style>
 </head>
 <body>
-  <div id="skill-tooltip"></div>
   <div class="skills-container">
+    <div id="skill-tooltip"></div>
     <div class="skills-header">
       <div class="skills-title">🧩 Skills 技能</div>
       <button class="skills-close" id="btn-close" title="关闭">×</button>
@@ -322,29 +339,7 @@
     let storeLoading = false;
     let storeKeyword = '';
 
-    // ─── 推荐列表（硬编码，可扩展） ───
-    const FEATURED_SLUGS = [
-      // ── 腾讯生态 ──
-      { id: 'tencent-docs',          displayName: '腾讯文档',         emoji: '📄', desc: '提供完整的腾讯文档操作能力，支持创建、编辑、协作等全链路功能' },
-      { id: 'tencent-meeting-skill', displayName: '腾讯会议',         emoji: '📹', desc: '腾讯会议全流程管理，创建/查询会议、发送邀请、管理参会者' },
-      { id: 'tencent-news',          displayName: '腾讯新闻',         emoji: '📰', desc: '获取腾讯新闻热点资讯，支持分类浏览、关键词搜索、文章摘要' },
-      // ── 邮件 ──
-      { id: 'qq-mail-monitor',       displayName: 'QQ邮箱监控',       emoji: '📬', desc: 'QQ邮箱自动监控，支持定时检查新邮件、TTS语音播报提醒、邮件收发' },
-      { id: 'email-management',      displayName: '邮件管理',         emoji: '✉️',  desc: '统一邮件收发管理，自动分类、摘要、回复草稿生成' },
-      { id: 'email-daily-summary',   displayName: '智能体邮箱',       emoji: '🤖', desc: '自动登录邮箱（Gmail/Outlook/QQ Mail等）生成每日邮件摘要和重要提醒' },
-      // ── Apple & macOS ──
-      { id: 'apple-notes',           displayName: 'Apple 备忘录',     emoji: '🍎', desc: '读写 Apple Notes，创建、搜索、更新备忘录内容，支持文件夹管理' },
-      { id: 'macos-gui-automation',  displayName: 'macOS 界面自动化', emoji: '🖱️', desc: '通过 AppleScript/osascript 自动化 macOS GUI 操作，控制窗口、菜单、应用' },
-      // ── Office 套件 ──
-      { id: 'microsoft-excel',       displayName: 'Excel 文件处理',   emoji: '📊', desc: '读写 Excel 文件，支持公式计算、数据透视表、图表生成' },
-      { id: 'powerpoint-pptx',       displayName: 'PPT 演示文稿',     emoji: '📑', desc: '创建和编辑 PowerPoint 演示文稿，支持模板、动画、图表' },
-      // ── 社交媒体 ──
-      { id: 'xhs-cn',                displayName: '小红书',           emoji: '📕', desc: '小红书全链路运营：内容创作、笔记发布、搜索浏览、互动评论、数据分析' },
-      // ── 浏览器 & 工具 ──
-      { id: 'browser-use',           displayName: 'Browser Use',      emoji: '🌐', desc: '自动化浏览器交互，网页测试、表单填充、截图和数据提取' },
-      { id: 'computer-use',          displayName: 'Computer Use',     emoji: '🖥️', desc: '无头Linux桌面完整操作，支持Xvfb+XFCE虚拟桌面与xdotool自动化控制' },
-      { id: 'find-skills',           displayName: 'Find Skills',      emoji: '🔍', desc: '帮助发现和安装适合当前任务的 skill，智能推荐最匹配的能力扩展' },
-    ];
+    // ─── 推荐 Tab：由主进程拉取 lightmake.site /api/skills/top 热榜（与商店同源，非硬编码） ───
 
     // ─── Tab 切换 ───
     document.querySelectorAll('.tab-btn').forEach(btn => {
@@ -368,19 +363,35 @@
       return String(str || '').replace(/\s+/g, ' ').trim() || fallback;
     }
 
-    // ─── 渲染推荐 Tab ───
-    function renderFeatured() {
+    async function loadFeaturedTab() {
       const container = document.getElementById('list-featured');
-      container.innerHTML = '';
-      const installedIds = new Set([
-        ...allInstalled.map(s => s.id),
-        ...allInstalled.map(s => s.name),
-      ]);
-      FEATURED_SLUGS.forEach(fs => {
-        const isInstalled = installedIds.has(fs.id);
-        const skill = { ...fs, source: 'skillhub-store', installed: isInstalled };
-        container.appendChild(createSkillItem(skill));
-      });
+      container.innerHTML = '<div class="loading-state"><span class="spin">⏳</span> 加载推荐...</div>';
+      try {
+        const data = await window.skillsAPI.getFeaturedSkills();
+        const list = data.skills || [];
+        container.innerHTML = '';
+        const installedIds = new Set([
+          ...allInstalled.map(s => s.id),
+          ...allInstalled.map(s => s.name),
+        ]);
+        list.forEach(fs => {
+          const skill = {
+            id: fs.id,
+            displayName: fs.displayName || fs.name || fs.id,
+            desc: fs.desc || '',
+            emoji: fs.emoji || '📦',
+            source: 'skillhub-store',
+            installed: installedIds.has(fs.id) || installedIds.has(fs.name),
+          };
+          container.appendChild(createSkillItem(skill));
+        });
+        if (list.length === 0) {
+          container.innerHTML = '<div class="empty-state">暂无推荐数据，请到「商店」分页浏览或稍后再试</div>';
+        }
+      } catch (e) {
+        console.error('推荐加载失败:', e);
+        container.innerHTML = '<div class="empty-state">⚠️ 推荐加载失败，请检查网络后重开窗口</div>';
+      }
     }
 
     // ─── 初始加载（第1页，同时拿已安装） ───
@@ -421,7 +432,7 @@
           allInstalled = data.installed;
           document.getElementById('badge-installed').textContent = allInstalled.length;
           renderInstalled();
-          renderFeatured();  // 已安装状态变了，同步更新推荐Tab的按钮
+          await loadFeaturedTab();
         }
 
         const newItems = data.marketplace || [];

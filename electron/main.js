@@ -812,7 +812,25 @@ async function fetchJsonWithHeaders(url, headers = {}, tag = 'json') {
   }
 }
 
+/**
+ * 版本号以项目根目录 package.json 为唯一来源（开发态与 asar 包内均包含该文件）。
+ * app.getVersion() 在部分打包场景下与 package.json 不一致，故优先读文件。
+ */
 function getCurrentVersion() {
+  const candidates = [
+    path.join(app.getAppPath(), 'package.json'),
+    path.join(__dirname, '..', 'package.json'),
+  ];
+  for (const pkgPath of candidates) {
+    try {
+      if (!fs.existsSync(pkgPath)) continue;
+      const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf-8'));
+      const v = String(pkg.version || '').trim();
+      if (v) return v;
+    } catch (e) {
+      console.warn('读取 package.json 版本失败:', pkgPath, e.message);
+    }
+  }
   try {
     return app.getVersion();
   } catch {
@@ -3778,6 +3796,12 @@ async function installViaSkillhubCli(skillId, skillsDir) {
         console.error(`❌ skillhub CLI 安装失败:`, err.message, stderr);
         resolve({ ok: false, error: err.message || stderr });
       } else {
+        const skillDstDir = path.join(skillsDir, skillId);
+        if (!skillDirectoryHasUsableSkillMd(skillDstDir)) {
+          console.error(`❌ CLI 安装后未检测到有效 SKILL.md: ${skillDstDir}`);
+          resolve({ ok: false, error: 'CLI 安装未生成有效技能包（缺少 SKILL.md）' });
+          return;
+        }
         console.log(`✅ skillhub CLI 安装成功: ${skillId}\n${stdout}`);
         resolve({ ok: true });
       }
@@ -3825,6 +3849,11 @@ async function installViaDirectDownload(skillId, skillsDir) {
       });
     });
 
+    if (!skillDirectoryHasUsableSkillMd(skillDstDir)) {
+      try { fs.rmSync(skillDstDir, { recursive: true, force: true }); } catch { /* ignore */ }
+      return { ok: false, error: '下载的包无效（缺少 SKILL.md），未写入技能目录' };
+    }
+
     // 写 meta 标记
     fs.writeFileSync(
       path.join(skillDstDir, '_skillhub_meta.json'),
@@ -3843,6 +3872,54 @@ const SKILLHUB_API_BASE = 'https://lightmake.site';
 const SKILLHUB_LIST_URL = `${SKILLHUB_API_BASE}/api/skills`;
 const SKILLHUB_TOP_URL  = `${SKILLHUB_API_BASE}/api/skills/top`;
 const SKILLHUB_FETCH_TIMEOUT = 10000;
+
+/** 安装目录内是否存在可识别的技能包（根目录或一层子目录含 SKILL.md） */
+function skillDirectoryHasUsableSkillMd(rootDir) {
+  try {
+    if (!rootDir || !fs.existsSync(rootDir)) return false;
+    if (fs.existsSync(path.join(rootDir, 'SKILL.md'))) return true;
+    const subs = fs.readdirSync(rootDir, { withFileTypes: true })
+      .filter(x => x.isDirectory() && !x.name.startsWith('.'));
+    for (const s of subs) {
+      if (fs.existsSync(path.join(rootDir, s.name, 'SKILL.md'))) return true;
+    }
+  } catch { /* ignore */ }
+  return false;
+}
+
+/** SkillHub 官方热榜（用于「推荐」Tab，与商店同源） */
+async function fetchSkillhubTop(limit = 20) {
+  try {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), SKILLHUB_FETCH_TIMEOUT);
+    const res = await fetch(SKILLHUB_TOP_URL, { signal: ctrl.signal });
+    clearTimeout(timer);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const json = await res.json();
+    const raw = json?.data?.skills || json?.skills || [];
+    const skills = raw.slice(0, limit).map(s => ({
+      id: String(s.slug || s.id || s.name || ''),
+      name: String(s.slug || s.name || ''),
+      displayName: String(s.name || s.slug || '未命名技能'),
+      desc: String(s.description_zh || s.description || ''),
+      emoji: String(s.emoji || s.icon || '📦'),
+      source: 'skillhub-store',
+      version: String(s.version || ''),
+      installed: false,
+    })).filter(s => s.id);
+    const fi = skills.findIndex(s => s.id === 'find-skills');
+    if (fi > 0) {
+      const [item] = skills.splice(fi, 1);
+      skills.unshift(item);
+    }
+    return { skills };
+  } catch (e) {
+    console.warn('🧩 获取 skillhub 热榜失败:', e.message);
+    return { skills: [] };
+  }
+}
+
+ipcMain.handle('skills-get-featured', async () => fetchSkillhubTop(20));
 
 async function fetchSkillhubStore({ keyword = '', page = 1, pageSize = 50, sortBy = 'score' } = {}) {
   const params = new URLSearchParams({ page, pageSize, sortBy });

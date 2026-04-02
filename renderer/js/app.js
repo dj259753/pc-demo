@@ -407,8 +407,8 @@
     // 17. 初始化右键菜单
     initContextMenu();
 
-    // 17.0 同步"关于"面板版本号（读取本地 app 版本）
-    syncAboutVersion();
+    // 17.0 同步版本号（主进程读 package.json，避免与设置面板 render 竞态）
+    await syncAboutVersion();
 
     // 17.1 初始化系统设置面板
     if (typeof SystemSettings !== 'undefined') {
