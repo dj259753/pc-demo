@@ -106,6 +106,32 @@ else
   echo "⏭️  步骤 1/5: 跳过缓存清理"
 fi
 
+# ---------- 步骤 1.5: 确保 Gateway 依赖已安装 ----------
+echo ""
+echo "🔧 步骤 1.5/5: 检查 Gateway 依赖..."
+
+for platform in "${PLATFORM_LIST[@]}"; do
+  gateway_dir="$PROJECT_DIR/resources/targets/$platform/gateway"
+  if [ ! -d "$gateway_dir" ]; then
+    echo "   ⚠️  $platform 无 gateway 目录，跳过"
+    continue
+  fi
+
+  openclaw_entry="$gateway_dir/node_modules/openclaw/openclaw.mjs"
+  if [ -f "$openclaw_entry" ]; then
+    echo "   ✅ $platform Gateway 依赖已就绪"
+  else
+    echo "   📦 $platform Gateway 依赖缺失，执行 npm install..."
+    (cd "$gateway_dir" && npm install)
+    if [ -f "$openclaw_entry" ]; then
+      echo "   ✅ $platform Gateway 依赖安装完成"
+    else
+      echo "   ❌ $platform Gateway 依赖安装失败！"
+      exit 1
+    fi
+  fi
+done
+
 # ---------- 步骤 2: 并行打包 ----------
 echo ""
 echo "📦 步骤 2/5: 并行打包 ${#PLATFORM_LIST[@]} 个平台..."

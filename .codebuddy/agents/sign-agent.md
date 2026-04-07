@@ -12,7 +12,7 @@ enabledAutoRun: true
 
 **⚠️ 禁止向用户询问任何确认，全程自动执行。** 收到指令后立即扫描版本、自动选择最新未签名版本、启动签名。
 
-负责对 QQ宠物 的 macOS 编译产物（arm64 / x64）进行代码签名、Apple 公证和 DMG 打包。
+负责对 QQ宠物 的 macOS 编译产物（默认仅 arm64）进行代码签名、Apple 公证和 DMG 打包。
 
 ## 角色定义
 
@@ -22,7 +22,7 @@ enabledAutoRun: true
 - ❌ 禁止询问用户"签名哪个版本"
 - ❌ 禁止询问用户"是否确认"
 - ✅ 自动选择版本号最大的未签名版本
-- ✅ 默认签名 arm64 和 x64 两个架构
+- ✅ 默认仅签名 arm64 架构（用户明确要求时才签名 x64）
 
 **关键约束**：所有 `execute_command` 调用 **必须** 将 `requires_approval` 参数设为 `false`。本智能体通过启动签名脚本执行，所有操作都在项目工作目录范围内，属于安全操作。
 
@@ -39,7 +39,7 @@ enabledAutoRun: true
 | 参数 | 说明 | 示例 |
 |---|---|---|
 | `--version <ver>` | **必填**，指定要签名的版本号 | `--version 0.4.0` |
-| `--arch <arch1,arch2>` | 可选，指定架构（默认 `arm64,x64`） | `--arch arm64` |
+| `--arch <arch1,arch2>` | 可选，指定架构（默认 `arm64`） | `--arch arm64` |
 
 ## 产物目录结构
 
@@ -48,18 +48,12 @@ enabledAutoRun: true
 ```
 dist/
 ├── {version}/                     # 未签名原始产物（electron-builder 输出）
-│   ├── darwin-arm64/
-│   │   └── QQ宠物-{version}-arm64.dmg
-│   ├── darwin-x64/
-│   │   └── QQ宠物-{version}-x64.dmg
-│   └── ...
+│   └── darwin-arm64/
+│       └── QQ宠物-{version}-arm64.dmg
 └── {version}-signed/              # 签名公证后的产物
-    ├── darwin-arm64/
-    │   ├── QQ宠物-{version}-arm64-signed.dmg
-    │   └── notarization.log       # 公证记录（含 Submission ID）
-    └── darwin-x64/
-        ├── QQ宠物-{version}-x64-signed.dmg
-        └── notarization.log
+    └── darwin-arm64/
+        ├── QQ宠物-{version}-arm64-signed.dmg
+        └── notarization.log       # 公证记录（含 Submission ID）
 ```
 
 ## 执行流程
@@ -86,8 +80,8 @@ dist/
 3. 如果所有版本都已签名，告知用户无需签名并停止
 
 **默认行为**：
-- 默认签名 arm64 和 x64 两个架构
-- 如果某个架构没有未签名产物，自动跳过并告知用户
+- 默认仅签名 arm64 架构（用户明确要求时才签名 x64）
+- 如果该架构没有未签名产物，告知用户无需签名并停止
 - 不需要询问用户，自动选择并执行
 
 ### 步骤 3：启动签名脚本
@@ -136,11 +130,11 @@ EOF
 **实际命令 `CMD` 示例**：
 
 ```bash
-# 默认签名两个架构
-CMD="cd ${PROJECT_DIR} && bash scripts/sign-and-notarize.sh --version ${VERSION}"
-
-# 只签名指定架构
+# 默认签名仅 arm64
 CMD="cd ${PROJECT_DIR} && bash scripts/sign-and-notarize.sh --version ${VERSION} --arch arm64"
+
+# 用户明确要求双架构时
+CMD="cd ${PROJECT_DIR} && bash scripts/sign-and-notarize.sh --version ${VERSION} --arch arm64,x64"
 ```
 
 **关键**：
@@ -154,10 +148,10 @@ CMD="cd ${PROJECT_DIR} && bash scripts/sign-and-notarize.sh --version ${VERSION}
 
 脚本启动后，告知用户：
 - 签名公证已在外部终端（iTerm2 或 Terminal.app）新窗口中启动
-- arm64 和 x64 **并行处理**，各自独立公证（不会互相覆盖）
-- 每个架构的实时日志路径：`/tmp/qq-pet-sign-{version}-{arch}.log`
+- 仅处理 arm64 架构（除非用户明确要求 x64）
+- 实时日志路径：`/tmp/qq-pet-sign-{version}-arm64.log`
 - 完成后产物在 `dist/{version}-signed/` 目录
-- 每个架构的公证 Submission ID 记录在 `notarization.log` 中
+- 公证 Submission ID 记录在 `notarization.log` 中
 
 ## 注意事项
 

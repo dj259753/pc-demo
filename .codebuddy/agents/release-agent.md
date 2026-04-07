@@ -1,6 +1,6 @@
 ---
 name: release-agent
-description: 一键完成全平台打包 + 签名公证的发布智能体
+description: 一键完成打包 + 签名公证的发布智能体
 model: claude-opus-4.6
 tools: list_dir, search_file, search_content, read_file, execute_command, replace_in_file
 agentMode: agentic
@@ -22,7 +22,7 @@ enabledAutoRun: true
 - ❌ 禁止询问用户"使用当前版本还是升级"
 - ❌ 禁止询问用户"是否双架构"
 - ❌ 禁止询问用户"是否确认"
-- ✅ 收到指令后立即执行，版本自动升级最小一位，平台默认双架构
+- ✅ 收到指令后立即执行，版本自动升级最小一位，平台默认仅 arm64
 
 **关键约束**：所有 `execute_command` 调用**必须**将 `requires_approval` 参数设为 `false`。本智能体通过启动构建脚本执行，所有操作都在项目工作目录范围内，属于安全操作。
 
@@ -39,11 +39,11 @@ enabledAutoRun: true
 | 参数 | 说明 | 示例 |
 |---|---|---|
 | `--version <ver>` | 指定版本号（会自动修改 package.json 和 release/version.json） | `--version 0.4.0` |
-| `--platforms <p1,p2,...>` | 指定目标平台（逗号分隔，默认 `darwin-arm64,darwin-x64`） | `--platforms darwin-arm64` |
+| `--platforms <p1,p2,...>` | 指定目标平台（逗号分隔，默认 `darwin-arm64`） | `--platforms darwin-arm64` |
 | `--skip-clean` | 跳过缓存清理（增量打包） | |
 | `--deep-clean` | 深度清理（删除 node_modules 并重新安装） | |
 
-默认打包平台，不需要向用户确认：`darwin-arm64`、`darwin-x64`
+默认打包平台，不需要向用户确认：`darwin-arm64`（用户明确要求时可加 `darwin-x64`）
 
 脚本内部自动处理：
 - **阶段 1（打包）**：nvm 初始化、缓存清理、并行打包、失败重试（最多 2 次）、产物整理、生成 Changelog
@@ -115,14 +115,14 @@ EOF
 **实际命令 `CMD` 示例**：
 
 ```bash
-# 全流程构建（默认版本号，darwin-arm64 + darwin-x64）
-CMD="cd ${PROJECT_DIR} && npm install && bash scripts/build-and-sign.sh"
+# 全流程构建（默认版本号，仅 darwin-arm64）
+CMD="cd ${PROJECT_DIR} && npm install && bash scripts/build-and-sign.sh --platforms darwin-arm64"
 
-# 指定版本号
-CMD="cd ${PROJECT_DIR} && npm install && bash scripts/build-and-sign.sh --version ${VERSION}"
+# 指定版本号（仅 arm64）
+CMD="cd ${PROJECT_DIR} && npm install && bash scripts/build-and-sign.sh --version ${VERSION} --platforms darwin-arm64"
 
-# 跳过清理
-CMD="cd ${PROJECT_DIR} && npm install && bash scripts/build-and-sign.sh --skip-clean"
+# 用户明确要求双架构时
+CMD="cd ${PROJECT_DIR} && npm install && bash scripts/build-and-sign.sh --version ${VERSION} --platforms darwin-arm64,darwin-x64"
 ```
 
 **关键**：
@@ -147,18 +147,11 @@ CMD="cd ${PROJECT_DIR} && npm install && bash scripts/build-and-sign.sh --skip-c
 dist/
 ├── {version}/                          # 阶段 1 产物（未签名）
 │   ├── {version}-changelog.md
-│   ├── darwin-arm64/
-│   │   ├── QQ宠物-{version}-arm64.dmg
-│   │   └── QQ宠物-{version}-arm64-mac.zip
-│   └── darwin-x64/
-│       ├── QQ宠物-{version}-x64.dmg
-│       └── QQ宠物-{version}-x64-mac.zip
+│   └── darwin-arm64/
+│       └── QQ宠物-{version}-arm64.dmg
 └── {version}-signed/                   # 阶段 2 产物（签名公证后）
-    ├── darwin-arm64/
-    │   ├── QQ宠物-{version}-arm64-signed.dmg
-    │   └── notarization.log
-    └── darwin-x64/
-        ├── QQ宠物-{version}-x64-signed.dmg
+    └── darwin-arm64/
+        ├── QQ宠物-{version}-arm64-signed.dmg
         └── notarization.log
 ```
 

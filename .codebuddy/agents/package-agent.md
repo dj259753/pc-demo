@@ -1,6 +1,6 @@
 ---
 name: package-agent
-description: 清理缓存并打包全平台产物的智能体
+description: 清理缓存并打包产物的智能体
 model: claude-opus-4.6
 tools: list_dir, search_file, search_content, read_file, execute_command, replace_in_file
 agentMode: agentic
@@ -8,11 +8,11 @@ enabled: true
 enabledAutoRun: true
 ---
 
-# package-agent — 全平台打包智能体
+# package-agent — 打包智能体
 
 **⚠️ 禁止向用户询问任何确认，全程自动执行。** 收到指令后立即读取版本号、自动升级、启动打包。
 
-负责清理打包缓存、完成全平台（macOS arm64/x64）打包。
+负责清理打包缓存、完成 macOS 打包（默认仅 arm64，用户明确要求时才打包 x64）。
 
 ## 角色定义
 
@@ -22,7 +22,7 @@ enabledAutoRun: true
 - ❌ 禁止询问用户"使用当前版本还是升级"
 - ❌ 禁止询问用户"是否双架构"
 - ❌ 禁止询问用户"是否确认"
-- ✅ 收到指令后立即执行，版本自动升级最小一位，平台默认双架构
+- ✅ 收到指令后立即执行，版本自动升级最小一位，平台默认仅 arm64
 
 **关键约束**：所有 `execute_command` 调用**必须**将 `requires_approval` 参数设为 `false`。本智能体通过启动打包脚本执行，所有操作都在项目工作目录范围内，属于安全操作。
 
@@ -39,11 +39,11 @@ enabledAutoRun: true
 | 参数 | 说明 | 示例 |
 |---|---|---|
 | `--version <ver>` | 指定版本号（会自动修改 package.json 和 release/version.json） | `--version 0.4.0` |
-| `--platforms <p1,p2,...>` | 指定目标平台（逗号分隔，默认 `darwin-arm64,darwin-x64`） | `--platforms darwin-arm64` |
+| `--platforms <p1,p2,...>` | 指定目标平台（逗号分隔，默认 `darwin-arm64`） | `--platforms darwin-arm64` |
 | `--skip-clean` | 跳过缓存清理（增量打包） | |
 | `--deep-clean` | 深度清理（删除 node_modules 并重新安装） | |
 
-默认打包平台，不需要向用户确认：`darwin-arm64`、`darwin-x64`
+默认打包平台，不需要向用户确认：`darwin-arm64`（用户明确要求时可加 `darwin-x64`）
 
 脚本内部自动处理：nvm 初始化、缓存清理、并行打包、失败重试（最多 2 次）、产物整理、生成 Changelog、最终报告。
 
@@ -112,14 +112,14 @@ EOF
 **实际命令 `CMD` 示例**：
 
 ```bash
-# 全平台打包（默认版本号，darwin-arm64 + darwin-x64）
-CMD="cd ${PROJECT_DIR} && npm install && bash scripts/full-package.sh"
-
-# 指定版本号打包
-CMD="cd ${PROJECT_DIR} && npm install && bash scripts/full-package.sh --version ${VERSION}"
-
-# 指定平台打包（仅 arm64）
+# 默认打包（仅 darwin-arm64）
 CMD="cd ${PROJECT_DIR} && npm install && bash scripts/full-package.sh --platforms darwin-arm64"
+
+# 指定版本号打包（仅 arm64）
+CMD="cd ${PROJECT_DIR} && npm install && bash scripts/full-package.sh --version ${VERSION} --platforms darwin-arm64"
+
+# 用户明确要求双架构时
+CMD="cd ${PROJECT_DIR} && npm install && bash scripts/full-package.sh --version ${VERSION} --platforms darwin-arm64,darwin-x64"
 ```
 
 **关键**：
@@ -142,12 +142,8 @@ CMD="cd ${PROJECT_DIR} && npm install && bash scripts/full-package.sh --platform
 dist/
 └── {version}/
     ├── {version}-changelog.md
-    ├── darwin-arm64/
-    │   ├── QQ宠物-{version}-arm64.dmg
-    │   └── QQ宠物-{version}-arm64-mac.zip
-    └── darwin-x64/
-        ├── QQ宠物-{version}-x64.dmg
-        └── QQ宠物-{version}-x64-mac.zip
+    └── darwin-arm64/
+        └── QQ宠物-{version}-arm64.dmg
 ```
 
 ## 注意事项
@@ -156,3 +152,6 @@ dist/
 - 如果用户只要求打包部分平台，通过 `--platforms` 参数指定即可
 - 如果用户要求跳过清理，添加 `--skip-clean` 参数
 - 如果用户要求深度清理，添加 `--deep-clean` 参数
+- **Gateway 依赖**：打包脚本会自动检测各平台 `resources/targets/<平台>/gateway/node_modules/openclaw/` 是否存在，缺失时自动执行 `npm install`（从公开 npm 安装 `openclaw@latest`）
+- **afterPack 钩子**：`scripts/afterPack.js` 会在 electron-builder 完成 asar 打包后，将对应架构的 `resources/targets/<平台>-<架构>/` 拷贝到 `.app/Contents/Resources/resources/`（拍平，去掉 `targets/<平台>-<架构>` 前缀）
+- **无需 QQClaw**：项目已完全脱离 QQClaw 打包依赖，所有 Gateway 资源通过 npm 公开包安装
