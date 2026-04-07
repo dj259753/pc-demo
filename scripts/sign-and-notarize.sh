@@ -118,9 +118,9 @@ sign_and_notarize_arch() {
     # 创建输出目录
     mkdir -p "$signed_dir"
 
-    # ---------- 阶段 1/7：挂载 DMG 提取 .app ----------
+    # ---------- 阶段 1/9：挂载 DMG 提取 .app ----------
     echo ""
-    echo "🔴 阶段 1/7：从 DMG 提取 .app..."
+    echo "🔴 阶段 1/9：从 DMG 提取 .app..."
     local STAGE_START
     STAGE_START=$(date +%s)
 
@@ -161,9 +161,9 @@ sign_and_notarize_arch() {
     echo "   ✅ 提取完成: $app_path"
     print_duration "$STAGE_START"
 
-    # ---------- 阶段 2/7：清除旧签名 ----------
+    # ---------- 阶段 2/9：清除旧签名 ----------
     echo ""
-    echo "🔴 阶段 2/7：清除旧签名..."
+    echo "🔴 阶段 2/9：清除旧签名..."
     STAGE_START=$(date +%s)
 
     find "$app_path" -type d -name "*.app" -o -type d -name "*.framework" | while read -r bundle; do
@@ -174,62 +174,60 @@ sign_and_notarize_arch() {
     echo "   ✅ 旧签名已清除"
     print_duration "$STAGE_START"
 
-    # ---------- 阶段 3/7：签名所有二进制文件（由内到外）----------
+    # ---------- 阶段 3/9：签名所有二进制文件（由内到外）----------
     echo ""
-    echo "🟢 阶段 3/7：签名所有二进制文件..."
+    echo "🟢 阶段 3/9：签名所有二进制文件..."
     STAGE_START=$(date +%s)
 
-    # 1) .dylib 和 .node
+    # 1) .dylib 和 .node 文件（按扩展名直接签名）
     find "$app_path" -type f \( -name "*.dylib" -o -name "*.node" \) | while read -r file; do
       codesign "${SIGN_ARGS[@]}" "$file"
     done
 
-    # 2) Resources 下的 Mach-O 可执行文件
-    find "$app_path/Contents/Resources" -type f -perm +111 ! -name "*.dylib" ! -name "*.node" 2>/dev/null | while read -r file; do
+    # 2) 所有其他 Mach-O 二进制文件（用 file 命令检测，不依赖扩展名和权限位）
+    #    这能捕获像 spawn-helper 这样没有扩展名的可执行文件
+    find "$app_path" -type f ! -name "*.dylib" ! -name "*.node" ! -name "*.js" ! -name "*.json" \
+      ! -name "*.html" ! -name "*.css" ! -name "*.map" ! -name "*.png" ! -name "*.jpg" \
+      ! -name "*.svg" ! -name "*.gif" ! -name "*.ico" ! -name "*.woff" ! -name "*.woff2" \
+      ! -name "*.ttf" ! -name "*.eot" ! -name "*.txt" ! -name "*.md" ! -name "*.plist" \
+      ! -name "*.strings" ! -name "*.nib" ! -name "*.lproj" ! -name "*.pak" ! -name "*.dat" \
+      ! -name "*.bin" ! -name "*.asar" ! -name "*.swf" \
+      2>/dev/null | while read -r file; do
       local file_type
-      file_type=$(file -b "$file")
+      file_type=$(file -b "$file" 2>/dev/null || echo "")
       if echo "$file_type" | grep -q "Mach-O"; then
         codesign "${SIGN_ARGS[@]}" "$file"
       fi
     done
 
-    # 3) Frameworks 下的 Mach-O 文件
-    find "$app_path/Contents/Frameworks" -type f -perm +111 ! -name "*.dylib" ! -name "*.node" | while read -r file; do
-      local file_type
-      file_type=$(file -b "$file")
-      if echo "$file_type" | grep -q "Mach-O"; then
-        codesign "${SIGN_ARGS[@]}" "$file"
-      fi
-    done
-
-    # 4) .framework bundle
+    # 3) .framework bundle
     find "$app_path/Contents/Frameworks" -maxdepth 1 -type d -name "*.framework" | while read -r fw; do
       codesign "${SIGN_ARGS[@]}" "$fw"
     done
 
-    # 5) Helper .app
+    # 4) Helper .app
     find "$app_path/Contents/Frameworks" -type d -name "*.app" | sort -r | while read -r helper; do
       codesign "${SIGN_ARGS[@]}" "$helper"
     done
 
-    # 6) 顶层 .app
+    # 5) 顶层 .app
     codesign "${SIGN_ARGS[@]}" "$app_path"
 
     echo "   ✅ 签名完成"
     print_duration "$STAGE_START"
 
-    # ---------- 阶段 4/7：验证签名 ----------
+    # ---------- 阶段 4/9：验证签名 ----------
     echo ""
-    echo "🟢 阶段 4/7：验证签名..."
+    echo "🟢 阶段 4/9：验证签名..."
     STAGE_START=$(date +%s)
 
     codesign --verify --deep --strict "$app_path"
     echo "   ✅ 签名验证通过"
     print_duration "$STAGE_START"
 
-    # ---------- 阶段 5/7：提交苹果公证 ----------
+    # ---------- 阶段 5/9：提交苹果公证（.app） ----------
     echo ""
-    echo "🟢 阶段 5/7：提交苹果公证..."
+    echo "🟢 阶段 5/9：提交苹果公证（.app）..."
     STAGE_START=$(date +%s)
 
     local zip_path="${signed_dir}/${APP_NAME}-${arch}.zip"
@@ -237,14 +235,10 @@ sign_and_notarize_arch() {
 
     # 提交公证并捕获输出以提取 submission ID
     local notary_output
+    local notary_exit_code=0
     notary_output=$(xcrun notarytool submit "$zip_path" \
       --keychain-profile "$NOTARY_PROFILE" \
-      --wait 2>&1) || {
-      echo "❌ 公证失败！"
-      echo "$notary_output"
-      echo "$notary_output" > "$notary_log"
-      return 1
-    }
+      --wait 2>&1) || notary_exit_code=$?
 
     echo "$notary_output"
 
@@ -263,22 +257,46 @@ sign_and_notarize_arch() {
       echo "$notary_output"
     } > "$notary_log"
 
+    # 检查公证实际状态（notarytool 即使 Invalid 也可能返回 exit code 0）
+    if echo "$notary_output" | grep -qi "status: invalid\|status: rejected"; then
+      echo "   ❌ .app 公证被 Apple 拒绝！(status: Invalid)"
+      echo "   📝 公证记录: $notary_log"
+      echo ""
+      echo "   💡 查看拒绝详情: xcrun notarytool log ${submission_id} --keychain-profile ${NOTARY_PROFILE}"
+      print_duration "$STAGE_START"
+      return 1
+    fi
+
+    if [ "$notary_exit_code" -ne 0 ]; then
+      echo "   ❌ 公证命令失败！(exit code: $notary_exit_code)"
+      echo "   📝 公证记录: $notary_log"
+      print_duration "$STAGE_START"
+      return 1
+    fi
+
+    if ! echo "$notary_output" | grep -qi "status: accepted"; then
+      echo "   ❌ 公证状态异常，未获得 Accepted 状态"
+      echo "   📝 公证记录: $notary_log"
+      print_duration "$STAGE_START"
+      return 1
+    fi
+
     echo "   ✅ 公证通过 (Submission ID: ${submission_id})"
     echo "   📝 公证记录: $notary_log"
     print_duration "$STAGE_START"
 
-    # ---------- 阶段 6/7：stapler 绑定公证结果 ----------
+    # ---------- 阶段 6/9：stapler 绑定 .app 公证结果 ----------
     echo ""
-    echo "🟢 阶段 6/7：stapler 绑定公证结果..."
+    echo "🟢 阶段 6/9：stapler 绑定 .app 公证结果..."
     STAGE_START=$(date +%s)
 
     xcrun stapler staple "$app_path"
-    echo "   ✅ Staple 完成"
+    echo "   ✅ .app Staple 完成"
     print_duration "$STAGE_START"
 
-    # ---------- 阶段 7/7：生成签名版 DMG ----------
+    # ---------- 阶段 7/9：生成签名版 DMG ----------
     echo ""
-    echo "🟢 阶段 7/7：生成签名版 DMG..."
+    echo "🟢 阶段 7/9：生成签名版 DMG..."
     STAGE_START=$(date +%s)
 
     local signed_dmg="${signed_dir}/${APP_NAME}-${VERSION}-${arch}-signed.dmg"
@@ -326,6 +344,54 @@ sign_and_notarize_arch() {
       return 1
     fi
     print_duration "$STAGE_START"
+
+    # ---------- 阶段 8/9：公证 DMG ----------
+    echo ""
+    echo "🟢 阶段 8/9：公证签名版 DMG..."
+    STAGE_START=$(date +%s)
+
+    local dmg_notary_output
+    dmg_notary_output=$(xcrun notarytool submit "$signed_dmg" \
+      --keychain-profile "$NOTARY_PROFILE" \
+      --wait 2>&1) || {
+      echo "   ❌ DMG 公证失败！"
+      echo "$dmg_notary_output"
+      {
+        echo ""
+        echo "## DMG 公证输出"
+        echo "$dmg_notary_output"
+      } >> "$notary_log"
+      print_duration "$STAGE_START"
+      # DMG 公证失败不阻塞，.app 已经公证过了
+      echo "   ⚠️  DMG 公证失败，但 .app 已公证。用户可能需要手动 xattr -cr"
+    }
+
+    if echo "$dmg_notary_output" | grep -qi "accepted\|status: valid"; then
+      echo "$dmg_notary_output"
+      local dmg_submission_id
+      dmg_submission_id=$(echo "$dmg_notary_output" | grep -i "id:" | head -1 | awk '{print $NF}')
+      echo "   ✅ DMG 公证通过 (Submission ID: ${dmg_submission_id})"
+
+      {
+        echo ""
+        echo "## DMG 公证"
+        echo "DMG Submission ID: ${dmg_submission_id}"
+        echo "$dmg_notary_output"
+      } >> "$notary_log"
+
+      print_duration "$STAGE_START"
+
+      # ---------- 阶段 9/9：staple DMG ----------
+      echo ""
+      echo "🟢 阶段 9/9：stapler 绑定 DMG 公证结果..."
+      STAGE_START=$(date +%s)
+
+      xcrun stapler staple "$signed_dmg"
+      echo "   ✅ DMG Staple 完成"
+      print_duration "$STAGE_START"
+    else
+      print_duration "$STAGE_START"
+    fi
 
     # ---------- 清理临时文件（只保留 DMG 和公证日志） ----------
     rm -f "$zip_path"

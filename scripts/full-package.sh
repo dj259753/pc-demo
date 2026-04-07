@@ -83,13 +83,24 @@ echo "🎯 目标平台: ${PLATFORM_LIST[*]}"
 if [ "$SKIP_CLEAN" = false ]; then
   echo ""
   echo "🧹 步骤 1/5: 清理缓存..."
-  rm -rf dist
+  # 只清理当前打包会用到的临时目录，保留之前版本的产物
+  for platform in "${PLATFORM_LIST[@]}"; do
+    if [ -d "dist/$platform" ]; then
+      echo "   清理临时目录: dist/$platform"
+      rm -rf "dist/$platform"
+    fi
+  done
+  # 如果指定了版本号，也清理该版本的产物目录（将被重新生成）
+  if [ -n "$VERSION" ] && [ -d "dist/$VERSION" ]; then
+    echo "   清理旧版本产物: dist/$VERSION"
+    rm -rf "dist/$VERSION"
+  fi
   if [ "$DEEP_CLEAN" = true ]; then
     echo "   深度清理: rm -rf node_modules"
     rm -rf node_modules
     npm install
   fi
-  echo "   ✅ 缓存清理完成"
+  echo "   ✅ 缓存清理完成（已保留其他版本产物）"
 else
   echo ""
   echo "⏭️  步骤 1/5: 跳过缓存清理"
