@@ -1,6 +1,6 @@
 {
   "dependencies": {
-    "openclaw": "/Users/Apple/Desktop/qqclaw/.cache/openclaw-local.tgz"
+    "openclaw": "latest"
   },
   "overrides": {
     "undici": "7.22.0"
