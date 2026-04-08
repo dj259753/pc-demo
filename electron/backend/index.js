@@ -14,7 +14,7 @@ const { ipcMain, BrowserWindow } = require('electron');
 const constants = require('./constants');
 const { GatewayProcess } = require('./gateway-process');
 const { GatewayRpcClient } = require('./gateway-rpc');
-const { resolveGatewayAuthToken, ensureGatewayAuthTokenInConfig } = require('./gateway-auth');
+const { resolveGatewayAuthToken, ensureGatewayAuthTokenInConfig, ensureControlUiAllowedOriginsInConfig } = require('./gateway-auth');
 const { readUserConfig, writeUserConfig, verifyCustom, saveProviderConfig, getCurrentProviderConfig, ensureConfigSanitizedAndMigrated, ensureDreamingEnabled } = require('./provider-config');
 const { backupCurrentUserConfig, recordSetupBaselineConfigSnapshot, recordLastKnownGoodConfigSnapshot, getConfigRecoveryData } = require('./config-backup');
 const { ensureWorkspace, getDefaultPetSoul } = require('./workspace-init');
@@ -56,6 +56,17 @@ async function startGateway() {
   if (gateway && gateway.getState() === 'running') {
     console.log('[backend] Gateway 已在运行');
     return 'running';
+  }
+
+  // FIX: Ensure controlUi.allowedOrigins is configured for Electron file:// origin
+  // This allows the WebSocket RPC client to connect without "origin not allowed" errors
+  let config = readUserConfig();
+  const before = JSON.stringify(config);
+  ensureControlUiAllowedOriginsInConfig(config);
+  const after = JSON.stringify(config);
+  if (before !== after) {
+    writeUserConfig(config);
+    console.log('[backend] 已补全 gateway.controlUi.allowedOrigins 配置');
   }
 
   // 读取或生成 auth token
@@ -213,6 +224,8 @@ function registerIPC() {
       const config = saveProviderConfig(apiKey, baseURL, modelID);
       // 确保 gateway auth token
       ensureGatewayAuthTokenInConfig(config);
+      // FIX: Ensure controlUi.allowedOrigins is configured
+      ensureControlUiAllowedOriginsInConfig(config);
       writeUserConfig(config);
       // 记录基线快照
       recordSetupBaselineConfigSnapshot();

@@ -130,7 +130,13 @@ class GatewayRpcClient {
     console.log(`${TAG} websocket opening ${this.url}`);
 
     try {
-      this.ws = new WebSocket(this.url);
+      // FIX: Add Origin header to WebSocket connection for gateway origin validation
+      // The ws library accepts options as second parameter: new WebSocket(url, [protocols], [options])
+      this.ws = new WebSocket(this.url, undefined, {
+        headers: {
+          'Origin': 'http://127.0.0.1'
+        }
+      });
     } catch (err) {
       console.error(`${TAG} WebSocket constructor error:`, err.message);
       this.scheduleReconnect();
