@@ -122,8 +122,7 @@ for platform in "${PLATFORM_LIST[@]}"; do
     echo "   ✅ $platform Gateway 依赖已就绪"
   else
     echo "   📦 $platform Gateway 依赖缺失，执行 npm install..."
-    # 禁用 openclaw 的 bundled plugin postinstall，避免嵌套安装 ~1GB 的插件依赖
-    (cd "$gateway_dir" && OPENCLAW_DISABLE_BUNDLED_PLUGIN_POSTINSTALL=1 npm install)
+    (cd "$gateway_dir" && npm install)
     if [ -f "$openclaw_entry" ]; then
       echo "   ✅ $platform Gateway 依赖安装完成"
     else
@@ -132,14 +131,6 @@ for platform in "${PLATFORM_LIST[@]}"; do
     fi
   fi
 
-  # 确保 OpenClaw 扩展的运行时依赖被提升到包根级 node_modules
-  # （postinstall 被禁用后这些依赖只在 dist/extensions/*/node_modules/ 下，node 解析不到）
-  openclaw_postinstall="$gateway_dir/node_modules/openclaw/scripts/postinstall-bundled-plugins.mjs"
-  if [ -f "$openclaw_postinstall" ]; then
-    echo "   🔗 $platform 提升 OpenClaw 扩展依赖..."
-    (cd "$gateway_dir/node_modules/openclaw" && node scripts/postinstall-bundled-plugins.mjs 2>&1) || true
-    echo "   ✅ $platform 扩展依赖提升完成"
-  fi
 done
 
 # ---------- 步骤 2: 并行打包 ----------
@@ -308,13 +299,7 @@ echo "📝 步骤 5/5: 生成 Changelog..."
 
 CHANGELOG_FILE="dist/$CURRENT_VERSION/${CURRENT_VERSION}-changelog.md"
 
-PREV_VERSION_COMMIT=$(git log --oneline --all --grep="bump version" --format="%H %s" | while read hash msg; do
-  if echo "$msg" | grep -q "$CURRENT_VERSION"; then
-    continue
-  fi
-  echo "$hash"
-  break
-done)
+PREV_VERSION_COMMIT=$(git log --oneline --all --grep="bump version" --format="%H %s" | grep -v "$CURRENT_VERSION" | head -1 | cut -d' ' -f1 || true)
 
 {
   echo "# QQ宠物 v${CURRENT_VERSION} 更新日志"
@@ -325,12 +310,12 @@ done)
   echo ""
 
   if [ -n "$PREV_VERSION_COMMIT" ]; then
-    git log "${PREV_VERSION_COMMIT}..HEAD" --format="%s" --no-merges | grep -v "^chore: bump version" | while read line; do
-      echo "- ${line}"
+    git log "${PREV_VERSION_COMMIT}..HEAD" --format="%s" --no-merges | { grep -v "^chore: bump version" || true; } | while read line; do
+      [ -n "$line" ] && echo "- ${line}"
     done
   else
-    git log -20 --format="%s" --no-merges | grep -v "^chore: bump version" | while read line; do
-      echo "- ${line}"
+    git log -20 --format="%s" --no-merges | { grep -v "^chore: bump version" || true; } | while read line; do
+      [ -n "$line" ] && echo "- ${line}"
     done
   fi
 
