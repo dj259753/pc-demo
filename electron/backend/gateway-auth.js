@@ -34,6 +34,12 @@ function ensureControlUiAllowedOriginsInConfig(config) {
     normalized.push(LOOPBACK_ORIGIN);
   }
   controlUi.allowedOrigins = normalized;
+
+  // 内嵌 Gateway 场景：跳过 device-auth 以保留 operator.admin scopes
+  // 否则无 device identity 的本地 token 客户端 scopes 会被清空
+  if (controlUi.dangerouslyDisableDeviceAuth !== true) {
+    controlUi.dangerouslyDisableDeviceAuth = true;
+  }
 }
 
 /** 统一整理 gateway.auth：确保 mode=token 且 token 存在 */
