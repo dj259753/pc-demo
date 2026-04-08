@@ -23,6 +23,34 @@ let gateway = null;
 let rpcClient = null;   // Gateway WebSocket RPC 客户端
 
 /**
+ * 清理旧 session 文件
+ * 避免残留的失败 run（如 API key 过期导致的 isError=true）导致
+ * Agent 启动时反复尝试恢复未完成的任务
+ */
+function cleanStaleSessions() {
+  const fs = require('fs');
+  const path = require('path');
+  const sessionsDir = path.join(constants.resolveUserStateDir(), 'agents', 'main', 'sessions');
+  if (!fs.existsSync(sessionsDir)) return;
+
+  try {
+    const files = fs.readdirSync(sessionsDir);
+    let cleaned = 0;
+    for (const file of files) {
+      if (file === '.DS_Store') continue;
+      const filePath = path.join(sessionsDir, file);
+      fs.unlinkSync(filePath);
+      cleaned++;
+    }
+    if (cleaned > 0) {
+      console.log(`[backend] 已清理 ${cleaned} 个旧 session 文件`);
+    }
+  } catch (err) {
+    console.warn('[backend] 清理旧 session 失败:', err.message);
+  }
+}
+
+/**
  * 初始化 Backend
  * - 确保 workspace 目录结构
  * - 如果配置已完成，启动 Gateway
@@ -36,6 +64,9 @@ async function init() {
 
   // 确保 Dreaming（做梦模式）默认开启
   ensureDreamingEnabled();
+
+  // 启动前清理旧 session（避免残留的失败 run 导致 Agent 反复尝试恢复）
+  cleanStaleSessions();
 
   // 2. 检查是否需要首次配置
   if (!constants.isSetupComplete()) {
