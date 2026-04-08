@@ -155,6 +155,24 @@ const PanelManager = (() => {
       });
     }
 
+    // 🌙 做梦按钮 → 手动触发做梦模式（睡觉动画 + 记忆整理）
+    const btnDream = document.getElementById('btn-dream');
+    if (btnDream) {
+      btnDream.addEventListener('click', (e) => {
+        e.stopPropagation();
+        BehaviorEngine.notifyInteraction();
+        // 如果已经在做梦，忽略
+        if (typeof ClawBridge !== 'undefined' && ClawBridge.isDreaming) {
+          BubbleSystem.show('已经在做梦了...💤', 2000);
+          return;
+        }
+        // 触发做梦模式（默认15秒）
+        if (typeof ClawBridge !== 'undefined') {
+          ClawBridge.triggerDream(15000);
+        }
+      });
+    }
+
     async function toggleVoiceBySkill() {
       if (typeof VoiceMode === 'undefined' || !VoiceMode.isSupported) {
         BubbleSystem.show('语音功能不可用', 2200);

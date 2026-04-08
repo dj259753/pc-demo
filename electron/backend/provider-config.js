@@ -218,6 +218,27 @@ function jsonRequest(url, opts) {
   });
 }
 
+/**
+ * 确保 OpenClaw Dreaming（做梦模式）默认开启
+ * Dreaming 是 OpenClaw 4.5 的后台记忆巩固功能（Light/Deep/REM 三阶段）
+ * 默认关闭，QQ 宠物场景下默认启用
+ */
+function ensureDreamingEnabled() {
+  const config = readUserConfig();
+  const dreaming = config?.plugins?.entries?.['memory-core']?.config?.dreaming;
+  if (dreaming?.enabled === true) return; // 已启用，无需修改
+
+  config.plugins ??= {};
+  config.plugins.entries ??= {};
+  config.plugins.entries['memory-core'] ??= {};
+  config.plugins.entries['memory-core'].config ??= {};
+  config.plugins.entries['memory-core'].config.dreaming ??= {};
+  config.plugins.entries['memory-core'].config.dreaming.enabled = true;
+
+  writeUserConfig(config);
+  console.log('[backend] 已默认启用 OpenClaw Dreaming（做梦模式）');
+}
+
 module.exports = {
   readUserConfig,
   writeUserConfig,
@@ -227,5 +248,6 @@ module.exports = {
   verifyCustom,
   saveProviderConfig,
   getCurrentProviderConfig,
+  ensureDreamingEnabled,
   jsonRequest,
 };

@@ -57,6 +57,10 @@ class GatewayProcess {
     this.lastCrashTime = 0;
     this.onStateChange = opts.onStateChange || null;
     this.onAgentLog = opts.onAgentLog || null;  // 回调：解析到 agent 事件时触发
+
+    // Dreaming（做梦模式）状态
+    this._dreamingActive = false;
+    this._dreamingEndTimer = null;
   }
 
   getState() { return this.state; }
@@ -416,6 +420,11 @@ class GatewayProcess {
    *   "embedded run agent start: runId=xxx"
    *   "embedded run agent end: runId=xxx"
    *   "embedded run compaction start: runId=xxx"
+   *
+   * Dreaming（做梦模式）日志：
+   *   "memory-core: light dreaming staged N candidate(s)"
+   *   "memory-core: REM dreaming wrote reflections"
+   *   "memory-core: dream diary entry written for X phase"
    */
   _parseAgentLog(text) {
     if (!this.onAgentLog) return;
@@ -447,6 +456,41 @@ class GatewayProcess {
       if (line.includes('embedded run compaction start:')) {
         this.onAgentLog({ type: 'compaction_start' });
         continue;
+      }
+
+      // ── Dreaming（做梦模式）检测 ──
+      if (line.includes('memory-core:') && line.includes('dreaming')) {
+        // 检测做梦阶段活动
+        let dreamPhase = null;
+        if (line.includes('light dreaming staged')) {
+          dreamPhase = 'light';
+        } else if (line.includes('REM dreaming wrote')) {
+          dreamPhase = 'rem';
+        } else if (line.includes('dream diary entry written')) {
+          dreamPhase = 'diary';
+        }
+
+        if (dreamPhase) {
+          // 首次检测到做梦活动 → 发送 dreaming_start
+          if (!this._dreamingActive) {
+            this._dreamingActive = true;
+            this.onAgentLog({ type: 'dreaming_start' });
+            diagLog(`dreaming: sweep started (phase=${dreamPhase})`);
+          }
+
+          // 重置做梦结束计时器（60s 无活动后视为做梦结束）
+          clearTimeout(this._dreamingEndTimer);
+          this._dreamingEndTimer = setTimeout(() => {
+            if (this._dreamingActive) {
+              this._dreamingActive = false;
+              this.onAgentLog({ type: 'dreaming_end' });
+              diagLog('dreaming: sweep ended (inactivity timeout)');
+            }
+          }, 60000);
+
+          this.onAgentLog({ type: 'dreaming_phase', phase: dreamPhase });
+          continue;
+        }
       }
     }
   }

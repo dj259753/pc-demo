@@ -25,6 +25,9 @@ const ClawBridge = (() => {
   let actionIndex = 0;
   let lastMainAgentSummary = '';
 
+  // ─── 做梦模式状态 ───
+  let isDreaming = false;
+
   // ─── 动作关键词 → 中文文案映射 ───
   const ACTION_MAP = {
     // 文件操作
@@ -88,6 +91,14 @@ const ClawBridge = (() => {
       if (window.electronAPI.onOpenClawEvent) {
         window.electronAPI.onOpenClawEvent((event) => {
           handleOpenClawEvent(event);
+        });
+      }
+
+      // 监听 agent-event（来自 Gateway 子进程日志解析），处理做梦模式
+      if (window.electronAPI.onAgentEvent) {
+        window.electronAPI.onAgentEvent((evt) => {
+          if (evt.type === 'dreaming_start') onDreamingStart();
+          if (evt.type === 'dreaming_end') onDreamingEnd();
         });
       }
     }
@@ -371,6 +382,62 @@ const ClawBridge = (() => {
   }
 
   // ═══════════════════════════════════════════
+  // 做梦模式（Dreaming）
+  // ═══════════════════════════════════════════
+
+  function onDreamingStart() {
+    if (isDreaming) return;
+    isDreaming = true;
+    console.log('🌙 做梦模式开始 — OpenClaw 记忆巩固中...');
+
+    // 暂停行为引擎，切换到睡觉动画
+    if (typeof BehaviorEngine !== 'undefined') BehaviorEngine.pause();
+    if (typeof SpriteRenderer !== 'undefined') SpriteRenderer.setAnimation('sleeping_lie');
+
+    // 显示做梦气泡
+    if (typeof BubbleSystem !== 'undefined') {
+      BubbleSystem.show('💤 进入梦乡...', 4000);
+    }
+
+    if (typeof PetDiary !== 'undefined') {
+      PetDiary.addEntry('dreaming', '进入做梦模式，整理今天的记忆...');
+    }
+  }
+
+  function onDreamingEnd() {
+    if (!isDreaming) return;
+    isDreaming = false;
+    console.log('🌙 做梦模式结束 — 醒来了');
+
+    // 恢复到 idle 动画
+    if (typeof SpriteRenderer !== 'undefined') SpriteRenderer.setAnimation('idle');
+
+    // 显示醒来气泡
+    if (typeof BubbleSystem !== 'undefined') {
+      BubbleSystem.show('😴 做了个好梦~', 4000);
+    }
+
+    if (typeof PetDiary !== 'undefined') {
+      PetDiary.addEntry('dreaming', '从梦中醒来，记忆整理完毕！');
+    }
+
+    // 恢复行为引擎
+    setTimeout(() => {
+      if (typeof BehaviorEngine !== 'undefined') BehaviorEngine.resume();
+    }, 2000);
+  }
+
+  /**
+   * 手动触发做梦模式（供按钮/外部调用）
+   * @param {number} durationMs - 做梦持续时间（毫秒），默认15秒
+   */
+  function triggerDream(durationMs = 15000) {
+    if (isDreaming) return;
+    onDreamingStart();
+    setTimeout(() => onDreamingEnd(), durationMs);
+  }
+
+  // ═══════════════════════════════════════════
   // 外部接口
   // ═══════════════════════════════════════════
 
@@ -399,8 +466,10 @@ const ClawBridge = (() => {
     notifyClawAction,
     notifyClawDone,
     getStatus,
+    triggerDream,
     get isClawWorking() { return isClawWorking; },
     get isOpenClawRunning() { return isOpenClawRunning; },
     get isPetAgentReady() { return isPetAgentReady; },
+    get isDreaming() { return isDreaming; },
   };
 })();

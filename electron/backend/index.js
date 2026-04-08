@@ -15,7 +15,7 @@ const constants = require('./constants');
 const { GatewayProcess } = require('./gateway-process');
 const { GatewayRpcClient } = require('./gateway-rpc');
 const { resolveGatewayAuthToken, ensureGatewayAuthTokenInConfig } = require('./gateway-auth');
-const { readUserConfig, writeUserConfig, verifyCustom, saveProviderConfig, getCurrentProviderConfig, ensureConfigSanitizedAndMigrated } = require('./provider-config');
+const { readUserConfig, writeUserConfig, verifyCustom, saveProviderConfig, getCurrentProviderConfig, ensureConfigSanitizedAndMigrated, ensureDreamingEnabled } = require('./provider-config');
 const { backupCurrentUserConfig, recordSetupBaselineConfigSnapshot, recordLastKnownGoodConfigSnapshot, getConfigRecoveryData } = require('./config-backup');
 const { ensureWorkspace, getDefaultPetSoul } = require('./workspace-init');
 
@@ -33,6 +33,9 @@ async function init() {
   ensureWorkspace();
   // 迁移 ~/.openclaw → ~/.qq-pet，并修正与当前 OpenClaw 不兼容的字段（仅宠物使用的配置）
   ensureConfigSanitizedAndMigrated();
+
+  // 确保 Dreaming（做梦模式）默认开启
+  ensureDreamingEnabled();
 
   // 2. 检查是否需要首次配置
   if (!constants.isSetupComplete()) {
