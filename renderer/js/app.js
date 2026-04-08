@@ -638,19 +638,29 @@
 
       // ─── 打招呼 ───
       if (typeof AIBrain !== 'undefined') {
-        try {
-          const aiGreeting = await AIBrain.speak('startup_greeting', {
-            description: '刚启动，和主人打招呼',
-            constraint: '一句自然开场，20-35字，友好简洁，不要卖萌',
-          });
-          if (aiGreeting) {
-            BubbleSystem.show(aiGreeting, 4000, { force: true });
-            SoundEngine.happy();
-            return;
-          }
-        } catch {}
+        // 等待 AI 配置加载完成（Gateway 可能还在启动中）
+        let configLoaded = false;
+        for (let attempt = 0; attempt < 5; attempt++) {
+          configLoaded = await AIBrain.loadAIConfig();
+          if (configLoaded) break;
+          await new Promise(r => setTimeout(r, 2000));
+        }
+        if (configLoaded) {
+          try {
+            const aiGreeting = await AIBrain.speak('startup_greeting', {
+              description: '刚启动，和主人打招呼',
+              constraint: '一句自然开场，20-35字，友好简洁，不要卖萌',
+            });
+            if (aiGreeting) {
+              BubbleSystem.show(aiGreeting, 4000, { force: true });
+              SoundEngine.happy();
+              return;
+            }
+          } catch {}
+        }
       }
-      enterOfflineSleep('没网了，我先睡着了。连上网再叫我。');
+      // 开场白失败不进入长时间离线睡眠，只静默待机
+      console.log('🐧 开场白生成失败，静默待机');
     }, 1000);
 
     console.log('🐧 所有系统就绪！(v3.0 AI驱动主动说话/性格/记忆/情绪)');
