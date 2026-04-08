@@ -35,10 +35,14 @@ function ensureControlUiAllowedOriginsInConfig(config) {
   }
   controlUi.allowedOrigins = normalized;
 
-  // 内嵌 Gateway 场景：跳过 device-auth 以保留 operator.admin scopes
-  // 否则无 device identity 的本地 token 客户端 scopes 会被清空
+  // 内嵌 Gateway 场景：允许本地 token 认证的 controlUi 客户端保留 scopes
+  // dangerouslyDisableDeviceAuth: 跳过 device-auth pairing 要求
+  // allowInsecureAuth: 允许 token 认证保留 scopes（不要求 device identity）
   if (controlUi.dangerouslyDisableDeviceAuth !== true) {
     controlUi.dangerouslyDisableDeviceAuth = true;
+  }
+  if (controlUi.allowInsecureAuth !== true) {
+    controlUi.allowInsecureAuth = true;
   }
 }
 

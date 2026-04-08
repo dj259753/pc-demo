@@ -205,7 +205,7 @@ class GatewayRpcClient {
       minProtocol: 3,
       maxProtocol: 3,
       client: {
-        id: 'gateway-client',
+        id: 'openclaw-control-ui',
         displayName: 'QQ宠物',
         version: '1.0',
         platform: process.platform,
