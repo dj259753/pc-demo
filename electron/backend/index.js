@@ -312,6 +312,53 @@ function registerIPC() {
     };
   });
 
+  // ── 手动触发做梦（执行 openclaw memory promote --apply） ──
+  ipcMain.handle('backend-trigger-dreaming', async () => {
+    const { execFile } = require('child_process');
+    const nodeBin = constants.resolveNodeBin();
+    const entry = constants.resolveGatewayEntry();
+    const cwd = constants.resolveGatewayCwd();
+    const stateDir = constants.resolveUserStateDir();
+
+    return new Promise((resolve) => {
+      console.log('[backend] 手动触发做梦: memory promote --apply');
+
+      // 通知渲染进程做梦开始
+      for (const win of BrowserWindow.getAllWindows()) {
+        if (!win.isDestroyed()) {
+          win.webContents.send('agent-event', { type: 'dreaming_start' });
+        }
+      }
+
+      const child = execFile(nodeBin, [entry, 'memory', 'promote', '--apply'], {
+        cwd,
+        timeout: 120_000,
+        env: {
+          ...process.env,
+          OPENCLAW_STATE_DIR: stateDir,
+          OPENCLAW_HOME: stateDir,
+          OPENCLAW_LENIENT_CONFIG: '1',
+        },
+      }, (err, stdout, stderr) => {
+        const output = (stdout || '') + (stderr || '');
+        console.log('[backend] 做梦完成:', output.slice(0, 500));
+
+        // 通知渲染进程做梦结束
+        for (const win of BrowserWindow.getAllWindows()) {
+          if (!win.isDestroyed()) {
+            win.webContents.send('agent-event', { type: 'dreaming_end' });
+          }
+        }
+
+        if (err) {
+          resolve({ success: false, message: err.message, output });
+        } else {
+          resolve({ success: true, output });
+        }
+      });
+    });
+  });
+
   console.log('[backend] IPC handlers 已注册');
 }
 

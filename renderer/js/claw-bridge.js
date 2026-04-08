@@ -429,12 +429,35 @@ const ClawBridge = (() => {
 
   /**
    * 手动触发做梦模式（供按钮/外部调用）
-   * @param {number} durationMs - 做梦持续时间（毫秒），默认15秒
+   * 调用后端执行 openclaw memory promote --apply，真正进行记忆巩固
+   * 同时触发前端睡觉动画
    */
-  function triggerDream(durationMs = 15000) {
+  async function triggerDream() {
     if (isDreaming) return;
+
+    // 立即触发前端睡觉动画
     onDreamingStart();
-    setTimeout(() => onDreamingEnd(), durationMs);
+
+    // 调用后端执行真正的做梦
+    if (window.electronAPI && window.electronAPI.backendTriggerDreaming) {
+      try {
+        const result = await window.electronAPI.backendTriggerDreaming();
+        console.log('🌙 做梦后端执行结果:', result);
+        if (!result.success) {
+          console.warn('🌙 做梦执行失败:', result.message);
+          if (typeof BubbleSystem !== 'undefined') {
+            BubbleSystem.show('做梦被打断了...😵', 3000);
+          }
+        }
+      } catch (err) {
+        console.error('🌙 做梦调用失败:', err);
+      }
+    }
+
+    // 后端会通过 agent-event 发送 dreaming_end，如果没收到则兜底 30s 后醒来
+    setTimeout(() => {
+      if (isDreaming) onDreamingEnd();
+    }, 30000);
   }
 
   // ═══════════════════════════════════════════

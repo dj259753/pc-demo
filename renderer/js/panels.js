@@ -166,9 +166,9 @@ const PanelManager = (() => {
           BubbleSystem.show('已经在做梦了...💤', 2000);
           return;
         }
-        // 触发做梦模式（默认15秒）
+        // 触发做梦模式（调用后端执行真正的记忆整理）
         if (typeof ClawBridge !== 'undefined') {
-          ClawBridge.triggerDream(15000);
+          ClawBridge.triggerDream();
         }
       });
     }

@@ -173,6 +173,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   backendGetGatewayState: () => ipcRenderer.invoke('backend-get-gateway-state'),
   backendRestartGateway: () => ipcRenderer.invoke('backend-restart-gateway'),
   backendIsSetupComplete: () => ipcRenderer.invoke('backend-is-setup-complete'),
+  backendTriggerDreaming: () => ipcRenderer.invoke('backend-trigger-dreaming'),
   onGatewayStateChanged: (callback) => ipcRenderer.on('gateway-state-changed', (_, state) => callback(state)),
   onAgentEvent: (callback) => ipcRenderer.on('agent-event', (_, evt) => callback(evt)),
 });
