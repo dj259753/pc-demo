@@ -11,8 +11,9 @@ const { resolveUserConfigPath } = require('./constants');
 const { backupCurrentUserConfig } = require('./config-backup');
 
 const FILE_ORIGIN_NULL = 'null';
+const LOOPBACK_ORIGIN = 'http://127.0.0.1';
 
-/** 为 Electron file:// 页面补全 Control UI 的 null origin 白名单 */
+/** 为 Electron file:// 页面和主进程 RPC 连接补全 origin 白名单 */
 function ensureControlUiAllowedOriginsInConfig(config) {
   config.gateway ??= {};
   config.gateway.controlUi ??= {};
@@ -24,8 +25,13 @@ function ensureControlUiAllowedOriginsInConfig(config) {
     .map(v => v.trim())
     .filter(Boolean);
 
+  // file:// 页面的 origin 是 "null"
   if (!normalized.some(v => v.toLowerCase() === FILE_ORIGIN_NULL)) {
     normalized.push(FILE_ORIGIN_NULL);
+  }
+  // 主进程 RPC WebSocket 的 origin 是 "http://127.0.0.1"
+  if (!normalized.some(v => v.toLowerCase() === LOOPBACK_ORIGIN)) {
+    normalized.push(LOOPBACK_ORIGIN);
   }
   controlUi.allowedOrigins = normalized;
 }
