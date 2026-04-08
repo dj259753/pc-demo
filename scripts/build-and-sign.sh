@@ -67,7 +67,30 @@ echo "║  ✍️  阶段 2/3: 签名公证                                ║"
 echo "╚══════════════════════════════════════════════════════════╝"
 echo ""
 
-if ! bash "$SCRIPT_DIR/sign-and-notarize.sh" --version "$ACTUAL_VERSION"; then
+# 根据 --platforms 参数推导签名架构
+SIGN_ARCHS=""
+if [ -n "$PLATFORMS" ]; then
+  IFS=',' read -ra _PLATS <<< "$PLATFORMS"
+  for _p in "${_PLATS[@]}"; do
+    case "$_p" in
+      darwin-arm64) _a="arm64" ;;
+      darwin-x64)   _a="x64" ;;
+      *) continue ;;
+    esac
+    if [ -z "$SIGN_ARCHS" ]; then
+      SIGN_ARCHS="$_a"
+    else
+      SIGN_ARCHS="$SIGN_ARCHS,$_a"
+    fi
+  done
+fi
+
+SIGN_ARGS=("--version" "$ACTUAL_VERSION")
+if [ -n "$SIGN_ARCHS" ]; then
+  SIGN_ARGS+=("--arch" "$SIGN_ARCHS")
+fi
+
+if ! bash "$SCRIPT_DIR/sign-and-notarize.sh" "${SIGN_ARGS[@]}"; then
   echo ""
   echo "❌ 签名公证失败。请检查签名日志。"
   exit 1
