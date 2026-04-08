@@ -1,12 +1,14 @@
 {
   "name": "qq-pet-skills",
-  "version": "0.5.2",
+  "version": "0.5.4",
   "description": "QQ宠物 - 基于 OpenClaw 多Agent架构的桌面宠物",
   "main": "electron/main.js",
   "author": "Jerry",
   "license": "MIT",
   "scripts": {
     "start": "npx electron .",
+    "setup:gateway": "node -e \"const p=process.platform+'-'+process.arch; const d='resources/targets/'+p+'/gateway/node_modules/openclaw'; require('child_process').execSync('node scripts/postinstall-bundled-plugins.mjs',{cwd:d,stdio:'inherit'})\"",
+    "postinstall": "npm run setup:gateway 2>/dev/null || true",
     "build": "npx electron-builder --mac",
     "build:dmg": "npx electron-builder --mac dmg",
     "build:zip": "npx electron-builder --mac zip",

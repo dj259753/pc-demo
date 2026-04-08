@@ -122,13 +122,23 @@ for platform in "${PLATFORM_LIST[@]}"; do
     echo "   ✅ $platform Gateway 依赖已就绪"
   else
     echo "   📦 $platform Gateway 依赖缺失，执行 npm install..."
-    (cd "$gateway_dir" && npm install)
+    # 禁用 openclaw 的 bundled plugin postinstall，避免嵌套安装 ~1GB 的插件依赖
+    (cd "$gateway_dir" && OPENCLAW_DISABLE_BUNDLED_PLUGIN_POSTINSTALL=1 npm install)
     if [ -f "$openclaw_entry" ]; then
       echo "   ✅ $platform Gateway 依赖安装完成"
     else
       echo "   ❌ $platform Gateway 依赖安装失败！"
       exit 1
     fi
+  fi
+
+  # 确保 OpenClaw 扩展的运行时依赖被提升到包根级 node_modules
+  # （postinstall 被禁用后这些依赖只在 dist/extensions/*/node_modules/ 下，node 解析不到）
+  openclaw_postinstall="$gateway_dir/node_modules/openclaw/scripts/postinstall-bundled-plugins.mjs"
+  if [ -f "$openclaw_postinstall" ]; then
+    echo "   🔗 $platform 提升 OpenClaw 扩展依赖..."
+    (cd "$gateway_dir/node_modules/openclaw" && node scripts/postinstall-bundled-plugins.mjs 2>&1) || true
+    echo "   ✅ $platform 扩展依赖提升完成"
   fi
 done
 
