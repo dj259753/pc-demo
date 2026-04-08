@@ -177,6 +177,12 @@ function connectGatewayRpc() {
     },
     onConnected: () => {
       console.log('[backend] Gateway RPC 已连接');
+      // 重置 session，清除旧的未完成 run 残留
+      rpcClient.chatSend('/new').then(() => {
+        console.log('[backend] Gateway session 已重置');
+      }).catch((err) => {
+        console.warn('[backend] Gateway session 重置失败:', err.message);
+      });
       for (const win of BrowserWindow.getAllWindows()) {
         if (!win.isDestroyed()) {
           win.webContents.send('gateway-rpc-connected');
