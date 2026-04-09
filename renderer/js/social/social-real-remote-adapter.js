@@ -288,6 +288,8 @@ const SocialRealRemoteAdapter = (() => {
     const visitReqsRes = await apiRequest('getPendingVisitRequests', '/api/visits/requests/pending');
     const miniGameReqsRes = await apiRequest('getPendingMiniGameRequests', '/api/visits/game-requests/pending');
     const currentGameRes = await apiRequest('getCurrentGame', '/api/visits/game/current');
+    // 获取拜访中状态（哪些好友在活跃拜访中）
+    const activeVisitsRes = await apiRequest('getActiveVisits', '/api/visits/active-visits');
 
     return {
       success: true,
@@ -300,6 +302,7 @@ const SocialRealRemoteAdapter = (() => {
         visitRequests: visitReqsRes?.success ? (visitReqsRes.data || []) : [],
         miniGameRequests: miniGameReqsRes?.success ? (miniGameReqsRes.data || []) : [],
         currentGame: currentGameRes?.success ? (currentGameRes.data || null) : null,
+        activeVisits: activeVisitsRes?.success ? (activeVisitsRes.data || { myself: null, friendsInVisit: [] }) : { myself: null, friendsInVisit: [] },
         lastGameEvent: null,
         featureFlags: {
           socialEnabled: true,
@@ -364,6 +367,7 @@ const SocialRealRemoteAdapter = (() => {
     cancelVisitRequest: (payload = {}) => apiRequest('cancelVisitRequest', '/api/visits/request', { method: 'POST', body: { ...payload, action: 'cancel' } }),
     respondVisitRequest: (payload = {}) => apiRequest('respondVisitRequest', '/api/visits/respond', { method: 'POST', body: payload }),
     getPendingVisitRequests: () => apiRequest('getPendingVisitRequests', '/api/visits/requests/pending'),
+    getActiveVisits: () => apiRequest('getActiveVisits', '/api/visits/active-visits'),
     sendMiniGameRequest: (payload = {}) => apiRequest('sendMiniGameRequest', '/api/visits/game-request', { method: 'POST', body: payload }),
     respondMiniGameRequest: (payload = {}) => apiRequest('respondMiniGameRequest', '/api/visits/game-respond', { method: 'POST', body: payload }),
     startMiniGame: (payload = {}) => {

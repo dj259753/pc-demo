@@ -169,6 +169,16 @@
       );
       const isWaitingOutbound = !!outboundPending;
 
+      // ── 检查是否在「拜访中」（自己或对方都在活跃房间）──
+      const activeVisits = state.activeVisits || { myself: null, friendsInVisit: [] };
+      const myVisit = activeVisits.myself;           // 我是否在拜访中
+      const friendInVisit = activeVisits.friendsInVisit?.find(v => v.userId === f.friendUserId);
+      const iAmInVisit = !!myVisit;
+      const friendIsVisiting = !!friendInVisit;
+
+      // 正在拜访该好友（我是 guest）或 该好友正在拜访我 / 别人
+      const isFriendBusy = friendIsVisiting || (iAmInVisit && friendInVisit);
+
       // ── 亲密度徽章 ──
       const score = (f.intimacy && typeof f.intimacy.score === 'number') ? f.intimacy.score : 0;
       let intimacyIcon = '🥚', intimacyName = '初识', intimacyColor = '#9E9E9E';
@@ -179,10 +189,16 @@
       else if (score >= 100)  { intimacyIcon = '🌱'; intimacyName = '熟人'; intimacyColor = '#8BC34A'; }
       const intimacyBadge = `<span class="sw-intimacy-badge" style="--ic:${intimacyColor}" title="${intimacyName}${score > 0 ? ' · ' + score + ' 分' : ''}">${intimacyIcon} ${intimacyName}${score > 0 ? ' <small>❤️' + score + '</small>' : ''}</span>`;
 
-      // 按钮状态：外发待处理 > disabled > 正常
+      // 按钮状态：拜访中 > 外发待处理 > disabled > 正常
       let visitBtnHtml = '';
       if (isOnline) {
-        if (isWaitingOutbound) {
+        if (isFriendBusy) {
+          const busyLabel = friendInVisit?.role === 'host'
+            ? `🔒 拜访中` : '🔒 拜访中';
+          visitBtnHtml = `<button class="sw-btn-visit sw-btn-visit-busy" disabled title="对方正在拜访会话中">${busyLabel}</button>`;
+        } else if (iAmInVisit) {
+          visitBtnHtml = `<button class="sw-btn-visit sw-btn-visit-busy" disabled title="你正在拜访中">🚶 拜访中</button>`;
+        } else if (isWaitingOutbound) {
           visitBtnHtml = `<button class="sw-btn-visit sw-btn-visit-waiting" data-social-action="cancel-outbound-visit" data-friend-id="${f.friendUserId}" data-visit-request-id="${outboundPending.visitRequestId || ''}" title="点击撤销待处理的拜访申请">⏳ 等待中</button>`;
         } else if (visitDisabled) {
           visitBtnHtml = `<button class="sw-btn-visit disabled" disabled title="${escapeHtml(visitCheck.message||'暂不可访')}">拜访</button>`;
@@ -877,6 +893,21 @@
 
   async function handleVisit(friendId) {
     const state = SocialState.getState();
+
+    // ── 检查是否已在拜访中 ──
+    if (state.currentRoom) {
+      toast('你当前正在拜访中，请先离开当前拜访', 2400);
+      return;
+    }
+
+    // ── 检查对方是否在拜访中 ──
+    const activeVisits = state.activeVisits || { myself: null, friendsInVisit: [] };
+    const friendInVisit = activeVisits.friendsInVisit?.find(v => v.userId === friendId);
+    if (friendInVisit) {
+      toast('对方正在拜访会话中，请稍后再试', 2400);
+      return;
+    }
+
     const check = typeof SocialVisitRules !== 'undefined' ? SocialVisitRules.canVisitFriend(friendId, state) : { ok: true };
     if (!check.ok) { toast(check.message || '当前不可拜访', 2400); return; }
 
@@ -933,7 +964,21 @@
       setTab('visit');
       toast('已接受拜访，双宠同屏！', 1800);
     } else {
-      toast(`接受失败：${res?.message || '未知错误'}`, 2400);
+      const errMsg = res?.message || '';
+      if (errMsg.includes('request-not-found') || errMsg.includes('request-expired')) {
+        // 请求已过期或不存在，从 UI 清理
+        toast('该拜访申请已过期，对方可能已取消 📨', 2400);
+        // 刷新状态，清理掉过期的请求
+        try {
+          const fresh = await SocialGateway.bootstrap();
+          if (fresh?.success && fresh.data) {
+            SocialState.bootstrap(fresh.data);
+            renderAll();
+          }
+        } catch (_) {}
+      } else {
+        toast(`接受失败：${errMsg}`, 2400);
+      }
     }
   }
 

@@ -102,7 +102,8 @@ router.post('/request', (req, res) => {
 
   const now = nowISO();
   const visitRequestId = makeId('vr');
-  const expiresAt = new Date(Date.now() + 60000).toISOString();
+  // 拜访请求有效期 5 分钟（给对方足够时间看到通知并操作）
+  const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
   const fromUser = db.prepare('SELECT * FROM users WHERE userId = ?').get(userId);
 
   db.prepare(`
@@ -266,6 +267,48 @@ router.get('/requests/pending', (req, res) => {
   const outbound = db.prepare("SELECT * FROM visit_requests WHERE fromUserId = ? AND state = 'pending' ORDER BY createdAt DESC").all(userId).map(r => ({ ...r, direction: 'outbound' }));
 
   res.json({ success: true, data: [...inbound, ...outbound] });
+});
+
+// 查询当前所有活跃的拜访会话（用于判断好友是否在「拜访中」）
+router.get('/active-visits', (req, res) => {
+  const userId = req.userId;
+  if (!userId) return res.json({ success: false, message: 'auth-required' });
+
+  const db = getDb();
+
+  // 自己是否在拜访中
+  const myRoom = db.prepare("SELECT * FROM rooms WHERE (hostUserId = ? OR guestUserId = ?) AND roomState = 'active'")
+    .get(userId, userId);
+
+  const myVisitStatus = myRoom ? {
+    roomId: myRoom.roomId,
+    role: myRoom.hostUserId === userId ? 'host' : 'guest',
+    otherUserId: myRoom.hostUserId === userId ? myRoom.guestUserId : myRoom.hostUserId,
+    since: myRoom.createdAt,
+  } : null;
+
+  // 查询我的好友中有谁正在拜访中
+  const friendVisits = db.prepare(`
+    SELECT r.roomId,
+           CASE WHEN r.hostUserId = ? THEN r.guestUserId ELSE r.hostUserId END AS otherUserId,
+           CASE WHEN r.hostUserId = ? THEN 'host' ELSE 'guest' END AS myRole,
+           r.createdAt AS since
+    FROM rooms r
+    WHERE r.roomState = 'active'
+      AND (r.hostUserId = ? OR r.guestUserId = ?)
+  `).all(userId, userId, userId, userId);
+
+  res.json({
+    success: true,
+    data: {
+      myself: myVisitStatus,
+      friendsInVisit: friendVisits.map(r => ({
+        userId: r.otherUserId,
+        role: r.myRole,        // 我是 host 还是 guest
+        since: r.since,
+      })),
+    },
+  });
 });
 
 // 发送小游戏邀请（当前先支持五子棋）
