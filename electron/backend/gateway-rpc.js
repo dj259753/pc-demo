@@ -277,6 +277,10 @@ class GatewayRpcClient {
       const pending = this.pending.get(parsed.id);
       if (!pending) return;
       this.pending.delete(parsed.id);
+      console.log(`${TAG} ⇐ res ${pending.method} ok=${parsed.ok} id=${parsed.id.slice(0,8)}`);
+      if (!parsed.ok) {
+        console.error(`${TAG} ⇐ res ERROR detail:`, JSON.stringify(parsed.error || parsed.payload, null, 2));
+      }
       if (parsed.ok) {
         pending.resolve(parsed.payload);
       } else {
@@ -289,6 +293,9 @@ class GatewayRpcClient {
   dispatchEvent(evt) {
     if (evt.event === 'chat') {
       console.log(`${TAG} chat event: state=${evt.payload?.state} runId=${(evt.payload?.runId || '').slice(0,8)}`);
+      if (evt.payload?.state === 'error') {
+        console.error(`${TAG} chat error detail:`, JSON.stringify(evt.payload, null, 2));
+      }
       if (this.onChatEvent) {
         try { this.onChatEvent(evt.payload); } catch (e) {
           console.error(`${TAG} chat event handler error:`, e);
@@ -317,8 +324,9 @@ class GatewayRpcClient {
     }
     const id = crypto.randomUUID();
     const frame = { type: 'req', id, method, params };
+    console.log(`${TAG} ⇒ req ${method} id=${id.slice(0,8)}`);
     return new Promise((resolve, reject) => {
-      this.pending.set(id, { resolve, reject });
+      this.pending.set(id, { resolve, reject, method });
       this.ws.send(JSON.stringify(frame));
     });
   }

@@ -50,10 +50,18 @@ module.exports = async function afterPack(context) {
   fs.mkdirSync(destDir, { recursive: true });
 
   // 用 rsync 拷贝，排除不需要的文件
+  // 注意：不能用 '*.md' 全局排除，因为 openclaw/docs/reference/templates/*.md
+  //       是 Agent 运行必需的模板文件（AGENTS.md, SOUL.md 等）
   const rsyncArgs = [
     '-a',                           // 递归 + 保留权限
     '--exclude', '.DS_Store',
-    '--exclude', '*.md',            // Gateway node_modules 里的 README 不需要
+    '--exclude', 'README.md',       // 各模块的 README 不需要
+    '--exclude', 'README*.md',
+    '--exclude', 'CHANGELOG.md',
+    '--exclude', 'CHANGELOG*.md',
+    '--exclude', 'CONTRIBUTING.md',
+    '--exclude', 'LICENSE.md',
+    '--exclude', 'HISTORY.md',
     '--exclude', 'package-lock.json', // gateway 的 lockfile 不需要打进包
     `${srcDir}/`,                   // 源（尾部 / 表示拷贝内容而非目录本身）
     `${destDir}/`,                  // 目标
