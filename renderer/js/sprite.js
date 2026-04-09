@@ -495,9 +495,19 @@ const SpriteRenderer = (() => {
     if (show) {
       createGuestRufflePlayer();
       // 确保容器有可见尺寸（避免 0x0 导致 Ruffle 不渲染）
-      if (guestRuffleContainer && guestRuffleContainer.offsetWidth < 10) {
-        guestRuffleContainer.style.width = '144px';
-        guestRuffleContainer.style.height = '144px';
+      if (guestRuffleContainer) {
+        if (guestRuffleContainer.offsetWidth < 10 || guestRuffleContainer.offsetHeight < 10) {
+          guestRuffleContainer.style.width = '144px';
+          guestRuffleContainer.style.height = '144px';
+          guestRuffleContainer.style.display = 'block';
+        }
+      }
+      // ★ 同样确保外层容器尺寸
+      if (container) {
+        if (container.offsetWidth < 10 || container.offsetHeight < 10) {
+          container.style.width = '160px';
+          container.style.height = '160px';
+        }
       }
     }
 
@@ -532,12 +542,43 @@ const SpriteRenderer = (() => {
     }
   }
 
+  /** 客宠渲染失败时的自动重试计数器 */
+  let _guestRenderRetries = 0;
+
   function setGuestStand(mood = 'peaceful', options = {}) {
     const stand = getQCStand(mood) || getQCStand('peaceful');
-    setGuestVisible(true, options);
-    if (stand) {
-      loadGuestSwf(stand);
+
+    if (!stand) {
+      console.warn('[sprite] setGuestStand: no stand anim for mood:', mood);
+      return null;
     }
+
+    setGuestVisible(true, options);
+
+    // ★ 延迟一点等 DOM reflow 完成（opacity transition）后再加载 SWF
+    // 避免在容器仍 opacity:0 时加载导致 Ruffle 渲染空白
+    const doLoad = () => {
+      loadGuestSwf(stand).then((ok) => {
+        if (!ok) {
+          // ★ 加载失败自动重试（最多3次，间隔递增）
+          if (_guestRenderRetries < 3) {
+            _guestRenderRetries++;
+            console.warn(`[sprite] Guest SWF load failed, retry ${_guestRenderRetries}/3...`);
+            setTimeout(doLoad, 800 * _guestRenderRetries);
+            return;
+          }
+          console.error('[sprite] Guest SWF load failed after all retries:', stand);
+        } else {
+          _guestRenderRetries = 0; // 成功后重置计数
+          console.log(`[sprite] ✅ Guest pet rendered: ${stand}`);
+        }
+      });
+    };
+
+    // 首次显示时给多一点时间让 CSS transition + Ruffle 初始化完成
+    const delay = (!guestRufflePlayer || guestCurrentSwfPath === '') ? 300 : 50;
+    setTimeout(doLoad, delay);
+
     return stand;
   }
 

@@ -183,6 +183,14 @@ const SocialState = (() => {
       case 'visit.game.updated':
         patch({ currentGame: payload || null }, type);
         break;
+      case 'visit.game.resigned':
+        // 对方认输/退出：清除 currentGame + 记录退出信息用于 UI 提示
+        patch({
+          currentGame: null,
+          _gameResignedInfo: { winner: payload?.winner, reason: payload?.reason, at: new Date().toISOString() },
+          lastGameEvent: null,
+        }, type);
+        break;
       case 'visit.game.event':
         patch({ lastGameEvent: payload || null }, type);
         break;

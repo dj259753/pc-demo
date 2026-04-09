@@ -797,11 +797,19 @@
     });
 
     // 状态变化监听
+    let _gomokuAutoOpened = false;
     SocialState.on('change', ({ state } = {}) => {
       const next = state || SocialState.getState();
-      if (next.currentGame?.type === 'gomoku' && next.currentGame?.roomId === next.currentRoom?.roomId) {
-        // 五子棋对局开始/更新，打开独立窗口
-        window.electronAPI?.openGomokuWindow?.();
+      const hasGame = next.currentGame?.type === 'gomoku' && next.currentGame?.roomId === next.currentRoom?.roomId;
+      if (hasGame) {
+        // 只在游戏首次出现时自动打开一次，不反复重开
+        if (!_gomokuAutoOpened) {
+          _gomokuAutoOpened = true;
+          window.electronAPI?.openGomokuWindow?.();
+        }
+      } else {
+        // 游戏结束时重置标记，下次新游戏可以再次自动打开
+        _gomokuAutoOpened = false;
       }
       renderAll();
     });
@@ -973,6 +981,14 @@
     if (res?.success) {
       setTab('visit');
       toast('已接受拜访，双宠同屏！', 1800);
+      // ★ 强制刷新 pending 列表（确保 banner 卡片消失）
+      try {
+        const fresh = await SocialGateway.getPendingVisitRequests();
+        if (fresh?.success && fresh.data !== undefined && fresh.data !== null) {
+          SocialState.patch({ visitRequests: Array.isArray(fresh.data) ? fresh.data : [] }, 'visit.request.accepted-refresh');
+        }
+        renderAll();
+      } catch (_) {}
     } else {
       const errMsg = res?.message || '';
       if (errMsg.includes('request-not-found') || errMsg.includes('request-expired')) {

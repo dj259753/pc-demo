@@ -720,6 +720,26 @@ const GomokuWindowApp = (() => {
     showResult();
   }
 
+  /** 关闭窗口：在线模式下先退出游戏并通知对方 */
+  async function handleClose() {
+    // 在线模式且游戏进行中：先放弃游戏再关闭
+    if (!soloMode && engine.getStatus() === 'active' && myStone) {
+      console.log('[gomoku] 主动关闭窗口，退出对局');
+      try {
+        await SocialActions.playMiniGameMove('gomoku', {
+          resign: true,
+          stone: myStone,
+          source: 'gomoku-window',
+          reason: 'window-closed',
+        });
+      } catch (e) {
+        console.warn('[gomoku] exit-game on close failed:', e);
+      }
+    }
+    stopTimer();
+    window.electronAPI?.closeGomokuWindow?.();
+  }
+
   async function handleReset() {
     if (actionPending) return;
     if (engine.getStatus() !== 'ended') return;
@@ -785,10 +805,8 @@ const GomokuWindowApp = (() => {
   /* ─── 事件绑定 ─── */
 
   function bindEvents() {
-    // 关闭
-    $('gm-close')?.addEventListener('click', () => {
-      window.electronAPI?.closeGomokuWindow?.();
-    });
+    // 关闭（先退出游戏再关窗口）
+    $('gm-close')?.addEventListener('click', handleClose);
 
     // Solo 模式开始按钮
     $('gm-solo-start')?.addEventListener('click', () => {
@@ -872,6 +890,30 @@ const GomokuWindowApp = (() => {
           const resultModal = $('gm-result-modal');
           if (resultModal && resultModal.classList.contains('hidden')) {
             showResult();
+          }
+        }
+
+        // ★ 对方退出游戏（认输/关闭窗口）
+        if (!game && reason === 'visit.game.resigned') {
+          const resignInfo = next._gameResignedInfo;
+          if (resignInfo) {
+            const isWin = resignInfo.winner === myStone;
+            stopTimer();
+            engine.reset();
+            if (isWin) {
+              setStatus('对方已退出，你赢了！', 'is-ended');
+            } else {
+              const msg = resignInfo.reason === 'window-closed' ? '对方关闭了游戏窗口' : '对方已认输';
+              setStatus(`${msg}，对局结束`, 'is-ended');
+            }
+            // 显示结果弹窗
+            const titleEl = $('gm-result-title');
+            const textEl = $('gm-result-text');
+            if (titleEl) titleEl.textContent = isWin ? '你赢了！' : '对局已结束';
+            if (textEl) textEl.textContent = isWin ? '对方退出了对局。' : '下次再战吧。';
+            const modal = $('gm-result-modal');
+            if (modal) modal.classList.remove('hidden');
+            renderBoard();
           }
         }
       });

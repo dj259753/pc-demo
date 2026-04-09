@@ -5,6 +5,7 @@ const { readStore, mutateStore, ensureStoreFile } = require('./social-store');
 const { resolveFeatureFlags } = require('./social-feature-flags');
 const { emitSocialEvent } = require('./social-events');
 const { addPoints, resolveLevel, getProgressToNext, createEmptyIntimacy } = require('./social-intimacy');
+const petStatsClient = require('./pet-stats-client');
 
 const ALLOWED_USER_STATUS = new Set(['online', 'busy', 'focus', 'away', 'offline']);
 const ALLOWED_SESSION_STATUS = new Set(['idle', 'inviting', 'visiting', 'playing', 'recovering']);
@@ -151,7 +152,8 @@ function resolveGomokuWinner(board, row, col, stone) {
   });
 }
 
-function createGomokuGame({ roomId, interactionId = null, now = nowISO() } = {}) {
+function createGomokuGame({ roomId, interactionId = null, blackUserId = null, whiteUserId = null,
+  blackOwnerName = '', whiteOwnerName = '', now = nowISO() } = {}) {
   if (!roomId) {
     throw new Error('visit-room-not-found');
   }
@@ -166,6 +168,12 @@ function createGomokuGame({ roomId, interactionId = null, now = nowISO() } = {})
     moveCount: 0,
     lastMove: null,
     sourceInteractionId: interactionId,
+    // ★ 黑白方用户ID（邀请方=黑，接受方=白）
+    blackUserId: blackUserId || '',
+    whiteUserId: whiteUserId || '',
+    // ★ 黑白方显示名
+    blackOwnerName: blackOwnerName || '',
+    whiteOwnerName: whiteOwnerName || '',
     createdAt: now,
     updatedAt: now,
   };
@@ -367,7 +375,7 @@ class SocialClient {
     return readStore().identity;
   }
 
-  ensureIdentity({ ownerName, petName, petGender }) {
+  async ensureIdentity({ ownerName, petName, petGender }) {
     const safeOwnerName = normalizeName(ownerName, 2, 12);
     const safePetName = normalizeName(petName, 1, 12);
     const safePetGender = (petGender === 'mm') ? 'mm' : 'gg';
@@ -413,6 +421,33 @@ class SocialClient {
     });
     emitSocialEvent('profile.updated', next.identity);
     emitSocialEvent('presence.updated', normalizedPresence);
+
+    // ── 云端注册：将本地身份同步到服务端 ──
+    if (!petStatsClient.isAuthenticated()) {
+      try {
+        const regResult = await petStatsClient.register({
+          ownerName: safeOwnerName,
+          petName: safePetName,
+          petGender: safePetGender,
+        });
+        if (regResult.success) {
+          // 用服务端返回的 userId 和 friendCode 更新本地身份
+          const synced = mutateStore((draft) => {
+            if (draft.identity) {
+              draft.identity.userId = regResult.data.userId || draft.identity.userId;
+              draft.identity.displayCode = regResult.data.displayCode || draft.identity.displayCode;
+              draft.identity.friendCode = regResult.data.friendCode || draft.identity.friendCode;
+              draft.identity.updatedAt = nowISO();
+            }
+          });
+          emitSocialEvent('profile.updated', synced.identity);
+          return synced.identity;
+        }
+      } catch (err) {
+        console.warn('[social-client] 云端注册失败，继续本地模式:', err.message);
+      }
+    }
+
     return next.identity;
   }
 
@@ -1040,7 +1075,29 @@ class SocialClient {
       }
 
       if (nextAction === 'accept') {
-        game = createGomokuGame({ roomId: draft.visitRoom.roomId, interactionId: target.gameRequestId, now });
+        // ★ 接受游戏时分配黑白方：
+        //   邀请方（对方）= 黑子，接受方（自己）= 白子
+        const myId = draft.identity.userId;
+        const roomId = draft.visitRoom.roomId;
+        // 对方 ID：如果我是 host 则对方是 guest，反之亦然
+        const iAmHost = (draft.visitRoom.hostUserId === myId);
+        const opponentId = iAmHost ? draft.visitRoom.guestUserId : draft.visitRoom.hostUserId;
+        // 对方名字：从好友列表或房间字段查找
+        const opponentFriend = draft.friends.find(f => f.friendUserId === opponentId);
+        const opponentName = opponentFriend
+          ? `${opponentFriend.ownerName || ''}·${opponentFriend.petName || ''}`.replace(/^·|·$/g, '')
+          : (iAmHost
+            ? (draft.visitRoom.guestOwnerName || draft.visitRoom.guestPetName || '对方')
+            : '对方');
+        game = createGomokuGame({
+          roomId,
+          interactionId: target.gameRequestId,
+          blackUserId: opponentId || '',   // ★ 邀请方=黑
+          blackOwnerName: opponentName,
+          whiteUserId: myId,               // ★ 接受方=白
+          whiteOwnerName: `${draft.identity.ownerName || ''}·${draft.identity.petName || ''}`.replace(/^·|·$/g, ''),
+          now,
+        });
         gameEvent = {
           eventId: makeId('ge'),
           roomId: draft.visitRoom.roomId,
@@ -1305,6 +1362,11 @@ class SocialClient {
       game = createGomokuGame({
         roomId: room.roomId,
         interactionId: interaction.interactionId,
+        // ★ 邀请方=黑子，被邀请方（room.guestUserId）=白子
+        blackUserId: draft.identity.userId,
+        blackOwnerName: draft.identity.ownerName || draft.identity.petName || '',
+        whiteUserId: room.guestUserId,
+        whiteOwnerName: room.guestOwnerName || room.guestPetName || '',
         now,
       });
 
@@ -1367,6 +1429,12 @@ class SocialClient {
 
   playMiniGameMove({ gameType = 'gomoku', payload = {} } = {}) {
     const safeGameType = normalizeGameType(gameType);
+
+    // ★ 认输 / 退出游戏：不需要 row/col
+    if (payload?.resign) {
+      return _handleResignGame(safeGameType, payload);
+    }
+
     const row = Number(payload?.row);
     const col = Number(payload?.col);
     if (!Number.isInteger(row) || !Number.isInteger(col)) {
@@ -1470,6 +1538,80 @@ class SocialClient {
       game,
       event: gameEvent,
     };
+  }
+
+  /** 处理认输/退出游戏 */
+  function _handleResignGame(safeGameType, payload = {}) {
+    const now = nowISO();
+    let game = null;
+    let gameEvent = null;
+    const resignStone = payload.stone || '';
+    const reason = payload.reason || 'resign';
+
+    const next = mutateStore((draft) => {
+      if (!draft.identity) throw new Error('identity-required');
+      if (!draft.visitRoom) throw new Error('visit-room-not-found');
+      if (!draft.currentGame) throw new Error('mini-game-not-found');
+      if (draft.currentGame.type !== safeGameType) throw new Error('mini-game-type-mismatch');
+      if (draft.currentGame.status !== 'active') throw new Event('mini-game-not-active');
+
+      // 对方获胜（认输方 stone 的反色）
+      const winnerStone = resignStone === 'black' ? 'white' : (resignStone === 'white' ? 'black' : 'black');
+
+      // 标记游戏结束
+      game = {
+        ...draft.currentGame,
+        status: 'finished',
+        winner: winnerStone,
+        finishedAt: now,
+        updatedAt: now,
+      };
+
+      // 清除当前对局（双方都清除）
+      draft.currentGame = null;
+      draft.lastGameEvent = null;
+
+      // 恢复 presence
+      draft.presence = normalizePresence({
+        ...(draft.presence || {}),
+        userStatus: normalizeUserStatus(draft.presence?.userStatus, 'online'),
+        sessionStatus: 'visiting',
+        statusMessage: reason === 'window-closed' ? '已退出对局' : '',
+        updatedAt: now,
+      }, {
+        userStatus: 'online',
+        sessionStatus: 'visiting',
+        statusMessage: '',
+        updatedAt: now,
+      });
+
+      gameEvent = {
+        eventId: makeId('ge'),
+        roomId: draft.visitRoom.roomId,
+        gameId: game.gameId,
+        gameType: safeGameType,
+        kind: 'resigned',
+        actorUserId: draft.identity.userId,
+        createdAt: now,
+        payload: {
+          winner: winnerStone,
+          resignedStone: resignStone,
+          reason,
+        },
+      };
+    });
+
+    // 推送事件：对方收到后也会清除 currentGame
+    emitSocialEvent('visit.game.resigned', { gameId: game?.gameId, winner: game?.winner, reason });
+    emitSocialEvent('visit.game.updated', null);  // ★ 发 null 让双方都清除 currentGame
+    emitSocialEvent('visit.game.event', gameEvent);
+    emitSocialEvent('presence.updated', normalizePresence(next.presence, {
+      userStatus: 'online',
+      sessionStatus: 'visiting',
+      statusMessage: '',
+    }));
+
+    return { game, event: gameEvent };
   }
 
   resetMiniGame({ gameType = 'gomoku' } = {}) {
