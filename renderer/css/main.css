@@ -48,6 +48,223 @@ body {
   image-rendering: pixelated;
 }
 
+#ruffle-container,
+#guest-ruffle-container {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+#guest-ruffle-container {
+  /* 确保子容器有明确尺寸（父级可能被 JS 动态调整） */
+  min-width: 144px;
+  min-height: 144px;
+}
+
+#guest-pet-container {
+  position: absolute;
+  top: 200px;
+  left: 152px;
+  width: 160px;
+  height: 160px;
+  z-index: 280;
+  pointer-events: none;
+  cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='28' viewBox='0 0 28 28'%3E%3Ctext x='2' y='22' font-size='22'%3E🤚%3C/text%3E%3C/svg%3E") 14 6, pointer;
+  opacity: 0;
+  transform: translateX(14px) scale(0.96);
+  transform-origin: center bottom;
+  transition: opacity 0.22s ease, transform 0.22s ease;
+  /* 兜底：即使内部 Ruffle 未加载完也显示占位 */
+  background: transparent;
+}
+
+#guest-pet-container.visible {
+  opacity: 1;
+  transform: translateX(0) scale(1);
+  pointer-events: auto;
+}
+
+#guest-pet-label {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 6px);
+  transform: translateX(-50%);
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(91, 124, 250, 0.16);
+  color: rgba(51, 65, 85, 0.96);
+  font-size: 11px;
+  white-space: nowrap;
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.1);
+}
+
+body.visit-dual-mode #pet-container,
+body.visit-dual-mode #guest-pet-container {
+  top: 206px;
+  width: 144px;
+  height: 144px;
+}
+
+body.visit-dual-mode #pet-container {
+  left: 12px;
+}
+
+body.visit-dual-mode #guest-pet-container {
+  left: 164px;
+}
+
+/* ─── 拜访模式 HUD / 邀请卡 / 客宠菜单 ─── */
+#visit-hud {
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: 10px;
+  z-index: 610;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 16px;
+  background: rgba(15, 23, 42, 0.78);
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  box-shadow: 0 12px 28px rgba(2, 6, 23, 0.28);
+  backdrop-filter: blur(14px);
+}
+
+#visit-hud.hidden,
+#guest-context-menu.hidden,
+#visit-game-request-card.hidden {
+  display: none !important;
+}
+
+.visit-hud-main {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.visit-hud-title {
+  font-size: 11px;
+  color: rgba(191, 219, 254, 0.92);
+  letter-spacing: 0.04em;
+}
+
+.visit-hud-subtitle {
+  color: rgba(255, 255, 255, 0.94);
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.visit-hud-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.visit-hud-btn {
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  border-radius: 999px;
+  padding: 7px 12px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.16s ease, transform 0.16s ease, border-color 0.16s ease;
+}
+
+.visit-hud-btn:hover {
+  background: rgba(255, 255, 255, 0.16);
+  transform: translateY(-1px);
+}
+
+.visit-hud-btn.is-danger {
+  background: rgba(239, 68, 68, 0.16);
+  border-color: rgba(248, 113, 113, 0.34);
+}
+
+.visit-hud-btn.is-secondary {
+  background: rgba(148, 163, 184, 0.12);
+}
+
+#guest-context-menu {
+  position: absolute;
+  z-index: 720;
+  min-width: 164px;
+  padding: 6px;
+  border-radius: 14px;
+  background: rgba(15, 23, 42, 0.94);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  box-shadow: 0 14px 32px rgba(2, 6, 23, 0.38);
+  backdrop-filter: blur(16px);
+}
+
+.guest-context-item {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: #fff;
+  padding: 9px 10px;
+  border-radius: 10px;
+  text-align: left;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.guest-context-item:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.guest-context-item.is-danger {
+  color: #fecaca;
+}
+
+.guest-context-separator {
+  height: 1px;
+  margin: 5px 4px;
+  background: rgba(148, 163, 184, 0.18);
+}
+
+#visit-game-request-card {
+  position: absolute;
+  right: 10px;
+  top: 88px;
+  z-index: 650;
+  width: 220px;
+  padding: 12px;
+  border-radius: 16px;
+  background: rgba(15, 23, 42, 0.9);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  box-shadow: 0 12px 30px rgba(2, 6, 23, 0.28);
+  backdrop-filter: blur(14px);
+}
+
+.visit-game-request-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: #f8fafc;
+  margin-bottom: 6px;
+}
+
+.visit-game-request-text {
+  font-size: 12px;
+  line-height: 1.55;
+  color: rgba(226, 232, 240, 0.92);
+}
+
+.visit-game-request-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 10px;
+}
+
 /* ─── 快捷对话框（屏幕中央） ─── */
 #quick-chat {
   position: absolute;
@@ -422,4 +639,195 @@ body {
 @keyframes subtitlePulse {
   0%, 100% { opacity: 1; transform: scale(1); }
   50%      { opacity: 0.4; transform: scale(0.7); }
+}
+
+/* ─── 拜访聊天输入框 ─── */
+#visit-chat-input {
+  position: absolute;
+  left: 50%;
+  bottom: 58px;
+  transform: translateX(-50%);
+  z-index: 650;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
+  border-radius: 14px;
+  background: rgba(15, 23, 42, 0.88);
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  box-shadow: 0 10px 26px rgba(2, 6, 23, 0.28);
+  backdrop-filter: blur(14px);
+  width: 240px;
+  animation: bubbleFadeIn 0.2s ease;
+}
+
+#visit-chat-input.hidden {
+  display: none !important;
+}
+
+#visit-chat-text {
+  flex: 1;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  border-radius: 10px;
+  padding: 6px 10px;
+  font-size: 12px;
+  background: rgba(255, 255, 255, 0.92);
+  color: #1f2937;
+  outline: none;
+  font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', sans-serif;
+}
+
+#visit-chat-text:focus {
+  border-color: rgba(91, 124, 250, 0.6);
+  box-shadow: 0 0 0 2px rgba(91, 124, 250, 0.12);
+}
+
+#visit-chat-send {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  background: #111827;
+  color: #fff;
+  border: 0;
+  border-radius: 50%;
+  font-size: 14px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+#visit-chat-send:hover { background: #000; }
+
+/* ─── 客宠气泡（金色边框） ─── */
+.guest-bubble {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 6px);
+  transform: translateX(-50%);
+  padding: 5px 12px;
+  border-radius: 14px;
+  background: rgba(255, 248, 220, 0.95);
+  border: 2px solid rgba(234, 179, 8, 0.5);
+  color: #78350f;
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-width: 200px;
+  box-shadow: 0 8px 20px rgba(234, 179, 8, 0.15);
+  pointer-events: none;
+  opacity: 0;
+  transform: translateX(-50%) translateY(4px);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.guest-bubble.visible {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+.guest-bubble.hidden {
+  opacity: 0;
+  transform: translateX(-50%) translateY(4px);
+}
+
+/* ─── 猜拳面板 ─── */
+#guess-game-panel {
+  position: absolute;
+  left: 50%;
+  bottom: 58px;
+  transform: translateX(-50%);
+  z-index: 660;
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: rgba(15, 23, 42, 0.92);
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  box-shadow: 0 14px 32px rgba(2, 6, 23, 0.32);
+  backdrop-filter: blur(16px);
+  text-align: center;
+  min-width: 180px;
+  animation: bubbleFadeIn 0.2s ease;
+}
+
+#guess-game-panel.hidden {
+  display: none !important;
+}
+
+.guess-game-header {
+  font-size: 13px;
+  font-weight: 700;
+  color: #f8fafc;
+  margin-bottom: 10px;
+}
+
+.guess-game-countdown {
+  font-size: 24px;
+  font-weight: 700;
+  color: #fbbf24;
+  margin-bottom: 8px;
+}
+
+.guess-game-countdown.hidden {
+  display: none;
+}
+
+.guess-game-choices {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+}
+
+.guess-choice-btn {
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  border-radius: 12px;
+  padding: 10px 14px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.16s ease, transform 0.1s ease;
+}
+
+.guess-choice-btn:hover {
+  background: rgba(255, 255, 255, 0.18);
+  transform: translateY(-2px);
+}
+
+.guess-choice-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.guess-game-result {
+  margin-top: 10px;
+  font-size: 14px;
+  font-weight: 700;
+  color: #fbbf24;
+  padding: 6px 0;
+}
+
+.guess-game-result.hidden {
+  display: none;
+}
+
+/* ─── 猜拳邀请卡（复用 visit-game-request-card 样式） ─── */
+#guess-game-request-card {
+  position: absolute;
+  right: 10px;
+  top: 88px;
+  z-index: 650;
+  width: 220px;
+  padding: 12px;
+  border-radius: 16px;
+  background: rgba(15, 23, 42, 0.9);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  box-shadow: 0 12px 30px rgba(2, 6, 23, 0.28);
+  backdrop-filter: blur(14px);
+}
+
+#guess-game-request-card.hidden {
+  display: none !important;
 }

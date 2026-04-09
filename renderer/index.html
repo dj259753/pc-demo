@@ -114,6 +114,77 @@
     <div id="ruffle-container" style="width:160px;height:160px;overflow:hidden;"></div>
   </div>
 
+  <!-- 拜访模式：客宠同屏容器 -->
+  <div id="guest-pet-container" aria-hidden="true">
+    <div id="guest-pet-label"></div>
+    <div id="guest-ruffle-container"></div>
+  </div>
+
+  <!-- 拜访模式：桌面 HUD -->
+  <div id="visit-hud" class="hidden" aria-hidden="true">
+    <div class="visit-hud-main">
+      <div class="visit-hud-title">正在拜访</div>
+      <div id="visit-hud-subtitle" class="visit-hud-subtitle">等待进入会话…</div>
+    </div>
+    <div class="visit-hud-actions">
+      <button id="visit-hud-btn-interact" class="visit-hud-btn" type="button">互动</button>
+      <button id="visit-hud-btn-chat" class="visit-hud-btn" type="button">💬</button>
+      <button id="visit-hud-btn-game" class="visit-hud-btn" type="button">下棋</button>
+      <button id="visit-hud-btn-leave" class="visit-hud-btn is-danger" type="button">离开</button>
+    </div>
+  </div>
+
+  <!-- 客宠右键互动菜单 -->
+  <div id="guest-context-menu" class="hidden" aria-hidden="true">
+    <button class="guest-context-item" type="button" data-guest-action="wave">👋 打招呼</button>
+    <button class="guest-context-item" type="button" data-guest-action="handshake">🤝 握手</button>
+    <button class="guest-context-item" type="button" data-guest-action="hug">🤗 贴贴</button>
+    <button class="guest-context-item" type="button" data-guest-action="highfive">✋ 击掌</button>
+    <div class="guest-context-separator"></div>
+    <button class="guest-context-item" type="button" data-guest-action="invite-game">♟ 邀请五子棋</button>
+    <button class="guest-context-item" type="button" data-guest-action="guess-game">✊ 猜拳</button>
+    <button class="guest-context-item" type="button" data-guest-action="open-social">🐾 查看社交卡</button>
+    <button class="guest-context-item is-danger" type="button" data-guest-action="leave-room">🚪 结束拜访</button>
+  </div>
+
+  <!-- 小游戏邀请卡 -->
+  <div id="visit-game-request-card" class="hidden" aria-hidden="true">
+    <div class="visit-game-request-title">小游戏邀请</div>
+    <div id="visit-game-request-text" class="visit-game-request-text">对方向你发来了五子棋邀请。</div>
+    <div class="visit-game-request-actions">
+      <button id="visit-game-request-accept" class="visit-hud-btn" type="button">接受</button>
+      <button id="visit-game-request-reject" class="visit-hud-btn is-secondary" type="button">拒绝</button>
+    </div>
+  </div>
+
+  <!-- 拜访模式：快速聊天输入框 -->
+  <div id="visit-chat-input" class="hidden" aria-hidden="true">
+    <input type="text" id="visit-chat-text" placeholder="说点什么..." maxlength="80" autocomplete="off">
+    <button id="visit-chat-send" type="button">↑</button>
+  </div>
+
+  <!-- 猜拳面板 -->
+  <div id="guess-game-panel" class="hidden" aria-hidden="true">
+    <div class="guess-game-header" id="guess-game-header">✊ 猜拳</div>
+    <div class="guess-game-countdown hidden" id="guess-game-countdown"></div>
+    <div class="guess-game-choices" id="guess-game-choices">
+      <button class="guess-choice-btn" type="button" data-choice="rock">✊ 石头</button>
+      <button class="guess-choice-btn" type="button" data-choice="paper">✋ 布</button>
+      <button class="guess-choice-btn" type="button" data-choice="scissors">✌ 剪刀</button>
+    </div>
+    <div class="guess-game-result hidden" id="guess-game-result"></div>
+  </div>
+
+  <!-- 猜拳邀请卡 -->
+  <div id="guess-game-request-card" class="hidden" aria-hidden="true">
+    <div class="visit-game-request-title">✊ 猜拳邀请</div>
+    <div id="guess-game-request-text" class="visit-game-request-text">对方向你发来了猜拳邀请！</div>
+    <div class="visit-game-request-actions">
+      <button id="guess-game-request-accept" class="visit-hud-btn" type="button">接受</button>
+      <button id="guess-game-request-reject" class="visit-hud-btn is-secondary" type="button">拒绝</button>
+    </div>
+  </div>
+
   <!-- 浮动控制面板（悬浮 1s 后显示，状态栏+动作栏统一） -->
   <div id="hover-panel">
     <!-- 状态条区域 -->
@@ -159,6 +230,11 @@
       <button class="action-bar-btn" id="btn-dream" title="做梦 🌙">
         <span class="action-bar-icon">🌙</span>
         <span class="action-bar-label">做梦</span>
+      </button>
+      <button class="action-bar-btn" id="btn-social" title="社交中心">
+        <span class="action-bar-icon">🐾</span>
+        <span class="action-bar-label">社交</span>
+        <span class="action-bar-badge hidden" id="social-entry-badge">0</span>
       </button>
       <div class="hover-actions-spacer"></div>
       <span class="hover-clock" id="taskbar-clock">--:--</span>
@@ -333,9 +409,14 @@
         </div>
         <div class="settings-item">
           <span></span>
-          <button id="setting-open-ai-setup" class="settings-action-btn">更改配置</button>
+          <div style="display:flex;gap:6px;">
+            <button id="setting-open-ai-setup" class="settings-action-btn">更改配置</button>
+            <button id="setting-restart-engine" class="settings-action-btn">重启引擎</button>
+          </div>
         </div>
       </div>
+
+
 
       <div class="settings-section">
         <div class="settings-section-title">🔍 诊断 & 日志</div>
@@ -355,6 +436,135 @@
         <div class="settings-section-title">关于</div>
         <div class="settings-item"><span>版本号</span><span id="settings-version">v0.0.0</span></div>
         <div class="settings-item"><span>反馈和建议</span><span>联系riojdai</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 👥 好友面板（单列长条） -->
+  <div id="social-panel" class="retro-panel hidden">
+    <div class="panel-titlebar social-titlebar">
+      <span>👥 好友</span>
+      <div class="social-title-meta">
+        <span id="social-gateway-mode" class="social-gateway-mode">服务器在线</span>
+        <button class="panel-close" data-panel="social-panel">×</button>
+      </div>
+    </div>
+    <div class="panel-body social-body social-single-col">
+
+      <!-- 头像 + 名字摘要 + 编辑 -->
+      <div class="social-header-card">
+        <div class="social-header-main">
+          <div class="social-header-avatar">🐧</div>
+          <div class="social-header-text">
+            <div style="display:flex;align-items:center;gap:6px;">
+              <span id="social-profile-summary" class="social-profile-summary">先起个名字吧</span>
+              <button id="social-edit-btn" class="social-edit-pencil" title="编辑资料">✏️</button>
+            </div>
+            <div id="social-presence-summary" class="social-presence-summary" style="display:none"></div>
+            <div id="social-visit-summary" class="social-visit-summary" style="display:none"></div>
+          </div>
+        </div>
+
+        <!-- 内嵌编辑表单（默认隐藏） -->
+        <div id="social-inline-editor" class="social-inline-editor hidden">
+          <div class="social-edit-row">
+            <label class="social-edit-label">主人名</label>
+            <input id="edit-owner-name" class="social-edit-input" type="text" placeholder="你的昵称" maxlength="12">
+          </div>
+          <div class="social-edit-row">
+            <label class="social-edit-label">宠物名</label>
+            <input id="edit-pet-name" class="social-edit-input" type="text" placeholder="宠物名字" maxlength="12">
+          </div>
+          <div class="social-edit-row">
+            <label class="social-edit-label">性别</label>
+            <div class="social-edit-gender">
+              <button type="button" class="gender-opt active" data-gender="gg">GG ♂</button>
+              <button type="button" class="gender-opt" data-gender="mm">MM ♀</button>
+            </div>
+          </div>
+          <div class="social-edit-actions">
+            <button id="social-cancel-edit" class="btn-secondary-style">取消</button>
+            <button id="social-save-edit" class="btn-primary-style">保存</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 状态切换按钮 -->
+      <div id="social-presence-buttons" class="social-presence-bar">
+        <button class="social-presence-btn active" data-status="online">在线</button>
+        <button class="social-presence-btn" data-status="busy">忙碌</button>
+        <button class="social-presence-btn" data-status="focus">专注</button>
+        <button class="social-presence-btn" data-status="away">离开</button>
+      </div>
+
+      <!-- 好友码 + 复制 -->
+      <div class="social-code-row">
+        <span class="social-code-label">好友码</span>
+        <span id="social-display-code" class="social-code-value">未生成</span>
+        <button id="social-copy-code" class="social-btn-inline" title="复制好友码">📋</button>
+      </div>
+
+      <!-- 搜索 + 添加好友 -->
+      <div class="social-friends-toolbar">
+        <input id="social-friend-code-input" class="settings-input" type="text" placeholder="搜索好友 / 输入好友码添加..." autocomplete="off" style="flex:1">
+        <button id="social-send-friend-request" class="settings-action-btn" style="margin-left:6px;white-space:nowrap">＋ 添加</button>
+      </div>
+
+      <!-- 待处理申请 -->
+      <div class="social-subsection" id="social-requests-section" style="display:none">
+        <div class="social-subsection-title">
+          好友申请
+          <span id="social-request-count" class="social-count-badge">0</span>
+        </div>
+        <div id="social-request-list" class="social-list"></div>
+      </div>
+
+      <!-- 好友列表 -->
+      <div class="social-subsection">
+        <div class="social-subsection-title">
+          好友
+          <span id="social-friends-count" class="social-count-badge">0</span>
+        </div>
+        <div id="social-friends-list" class="social-list"></div>
+      </div>
+
+      <!-- 在线大厅 -->
+      <div class="social-subsection">
+        <div class="social-subsection-title">
+          在线大厅
+          <span id="social-online-count" class="social-count-badge">0</span>
+        </div>
+        <div id="social-online-list" class="social-list"></div>
+      </div>
+
+      <!-- 隐藏占位：已移除功能的 DOM 元素，防止 JS getEl 报 null -->
+      <div style="display:none">
+        <div id="social-profile-section"></div>
+        <span id="social-display-code-duplicate"></span>
+        <button id="social-save-profile"></button>
+        <input id="social-owner-name-input" type="text">
+        <input id="social-pet-name-input" type="text">
+        <div id="social-gender-selector"></div>
+        <button id="social-close-profile"></button>
+        <input id="social-friend-message-input" type="text">
+        <button id="social-send-loopback-request"></button>
+        <div id="social-room-state"></div>
+        <div id="social-room-hint"></div>
+        <div id="social-visit-actions"></div>
+        <button id="social-leave-room"></button>
+        <div id="social-gomoku-host"></div>
+        <div id="social-gomoku-board"></div>
+        <div id="social-gomoku-status"></div>
+        <button id="social-gomoku-reset"></button>
+        <span id="social-overview-status"></span>
+        <span id="social-overview-friends"></span>
+        <span id="social-overview-visit"></span>
+        <span id="social-presencesummary2"></span>
+        <button id="social-switch-local"></button>
+        <button id="social-switch-remote"></button>
+        <div id="social-entry-badge" class="action-bar-badge hidden">0</div>
+        <div id="social-panel-tabs"></div>
+        <div id="social-friends-debug-list"></div>
       </div>
     </div>
   </div>
@@ -396,7 +606,7 @@
       <span class="sidebar-text" id="start-menu-version">QQ Pet v0.0.0</span>
     </div>
     <div class="menu-items">
-      <button class="menu-item" data-action="focus">🎯 专注模式</button>
+      <div class="menu-separator"></div>
       <button class="menu-item" data-action="skills">🧩 Skills 接入</button>
       <div class="menu-separator"></div>
       <button class="menu-item" data-action="onboarding">🆕 新手引导</button>
@@ -418,9 +628,14 @@
   </div>
   <div id="skill-mode-menu" class="hidden">
     <button class="voice-mode-item" data-action="voice-toggle">语音对话</button>
-    <!-- 翻译模式入口已屏蔽：恢复时加回按钮 id=skill-translate-toggle + data-action=translate-toggle，以及下方 #translate-pill -->
+    <button class="voice-mode-item" data-action="translate-toggle" id="skill-translate-toggle">翻译模式：关闭</button>
     <button class="voice-mode-item" data-action="meeting-notes">录音纪要</button>
+    <div style="height:1px;background:rgba(0,0,0,0.08);margin:4px 8px;"></div>
+    <button class="voice-mode-item" data-action="focus">🎯 专注模式</button>
   </div>
+
+  <!-- 划词翻译浮标 -->
+  <div id="translate-pill" class="hidden" style="position:fixed;top:8px;left:50%;transform:translateX(-50%);z-index:1200;padding:6px 14px;border-radius:999px;background:rgba(91,124,250,0.92);color:#fff;font-size:12px;cursor:pointer;box-shadow:0 4px 12px rgba(91,124,250,0.3);white-space:nowrap;">翻译模式开启中 ✕</div>
 
   <!-- 新手引导弹窗 -->
   <div id="onboarding-overlay" class="hidden" style="position:fixed;inset:0;background:rgba(15,23,42,0.28);backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px);z-index:1800;display:flex;align-items:center;justify-content:center;">
@@ -474,6 +689,22 @@
   <script src="js/system-settings.js"></script>
   <script src="js/new-user-guide.js"></script>
   <script src="js/meeting-notes.js"></script>
+  <!-- 社交架构壳（先落底层，不侵入既有业务） -->
+  <script src="js/social/social-state.js"></script>
+  <script src="js/social/social-bridge.js"></script>
+  <script src="js/social/social-remote-adapter.js"></script>
+  <script src="js/social/social-real-remote-adapter.js"></script>
+  <script src="js/social/social-gateway.js"></script>
+  <script src="js/visit/visit-session.js"></script>
+  <script src="js/visit/guess-game-engine.js"></script>
+  <script src="js/visit/visit-scene.js"></script>
+  <script src="js/social/social-actions.js"></script>
+  <script src="js/social/social-intimacy-listener.js"></script>
+  <script src="js/social/social-visit-rules.js"></script>
+  <script src="js/social/social-visit-feedback.js"></script>
+  <script src="js/social/social-onboarding.js"></script>
+  <script src="js/social/social-panel.js"></script>
+  <script src="js/social/social-bootstrap.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>

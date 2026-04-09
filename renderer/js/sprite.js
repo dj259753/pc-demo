@@ -11,6 +11,12 @@ const SpriteRenderer = (() => {
   let currentAnim = 'idle';
   let currentSwfPath = '';
 
+  let guestRufflePlayer = null;
+  let guestRuffleContainer = null;
+  let guestCurrentAnim = '';
+  let guestCurrentSwfPath = '';
+  let guestFallbackTimer = null;
+
   // ─── 原版路由状态机（复刻 swfPet.js 的 next/old 语义） ───
   let currentRoute = null;       // 当前动画路由（oldNext）
   let currentRouteStartedAt = 0; // 当前路由生效时间，用于避免未加载完就提前切走
@@ -29,6 +35,7 @@ const SpriteRenderer = (() => {
   // ─── SWF 清单 ───
   let swfManifest = null;        // 动画名 → SWF 相对路径
   let qcLoaded = false;
+  let currentGender = 'gg';      // 当前宠物性别，影响 manifest 路径
 
   // 读取 SWF 文件需要跳过前缀
   const fs = typeof require !== 'undefined' ? require('fs') : null;
@@ -155,9 +162,14 @@ const SpriteRenderer = (() => {
   //  加载 SWF 清单并分类
   // ═══════════════════════════════════════════
 
-  async function loadSwfManifest() {
+  async function loadSwfManifest(gender) {
+    const g = (gender === 'mm') ? 'mm' : 'gg';
+    currentGender = g;
+    const manifestPath = g === 'mm'
+      ? 'sprites/qc/mm-swf-manifest.json'
+      : 'sprites/qc/swf-manifest.json';
     try {
-      const resp = await fetch('sprites/qc/swf-manifest.json');
+      const resp = await fetch(manifestPath);
       if (!resp.ok) throw new Error('swf-manifest not found');
       swfManifest = await resp.json();
 
@@ -188,7 +200,8 @@ const SpriteRenderer = (() => {
           const mood = parts[0];
           if (parts.length === 2) {
             const t = parts[1].toLowerCase().replace(/\d+$/, '');
-            if (t === 'stand')       { (QC_POOLS.stand[mood] = QC_POOLS.stand[mood] || []).push(name); }
+            if (mood === 'game' || t === 'game') { QC_COMMON.game.push(name); }
+            else if (t === 'stand')       { (QC_POOLS.stand[mood] = QC_POOLS.stand[mood] || []).push(name); }
             else if (t === 'speak')  { (QC_POOLS.speak[mood] = QC_POOLS.speak[mood] || []).push(name); }
             else if (t === 'appear') { (QC_POOLS.appear[mood] = QC_POOLS.appear[mood] || []).push(name); }
             else if (t === 'hide')   { (QC_POOLS.hide[mood] = QC_POOLS.hide[mood] || []).push(name); }
@@ -235,10 +248,43 @@ const SpriteRenderer = (() => {
     }
 
     rufflePlayer = ruffle.createPlayer();
-    rufflePlayer.style.width = '160px';
-    rufflePlayer.style.height = '160px';
+    rufflePlayer.style.width = '100%';
+    rufflePlayer.style.height = '100%';
     ruffleContainer.appendChild(rufflePlayer);
     console.log('🐧 Ruffle Player 已创建');
+    return true;
+  }
+
+  function createGuestRufflePlayer() {
+    guestRuffleContainer = document.getElementById('guest-ruffle-container');
+    if (!guestRuffleContainer) {
+      console.warn('[sprite] 找不到 #guest-ruffle-container，客宠渲染不可用');
+      return false;
+    }
+
+    if (guestRufflePlayer) {
+      return true;
+    }
+
+    const ruffle = window.RufflePlayer?.newest();
+    if (!ruffle) {
+      console.error('[sprite] Ruffle 未加载（客宠），尝试延迟初始化');
+      // 延迟重试：等主 Ruffle 就绪后再创建客宠播放器
+      setTimeout(() => {
+        if (!guestRufflePlayer && !window.RufflePlayer?.newest()) return;
+        console.log('[sprite] 延迟重试创建 Guest Ruffle Player...');
+        createGuestRufflePlayer();
+      }, 1500);
+      return false;
+    }
+
+    guestRufflePlayer = ruffle.createPlayer();
+    guestRufflePlayer.style.width = '100%';
+    guestRufflePlayer.style.height = '100%';
+    guestRuffleContainer.innerHTML = '';
+    guestRuffleContainer.appendChild(guestRufflePlayer);
+    hidePlayerOverlays(guestRufflePlayer, 'guest-ruffle-hide-style');
+    console.log('🐧 Guest Ruffle Player 已创建');
     return true;
   }
 
@@ -319,6 +365,201 @@ const SpriteRenderer = (() => {
       console.warn('SWF加载失败:', animName, e.message);
       return false;
     }
+  }
+
+  function ensureGuestPlayer() {
+    return guestRufflePlayer || createGuestRufflePlayer();
+  }
+
+  async function loadGuestSwf(animName) {
+    if (!animName || !swfManifest?.[animName]) {
+      return false;
+    }
+    if (!ensureGuestPlayer()) {
+      return false;
+    }
+
+    const swfPath = swfManifest[animName];
+    if (swfPath === guestCurrentSwfPath) {
+      try {
+        guestRufflePlayer.rewind?.();
+        guestRufflePlayer.play?.();
+      } catch (e) {}
+      guestCurrentAnim = animName;
+      return true;
+    }
+
+    try {
+      const resp = await fetch(swfPath);
+      const buf = await resp.arrayBuffer();
+      const arr = new Uint8Array(buf);
+
+      let offset = 0;
+      for (let i = 0; i < Math.min(64, arr.length - 3); i++) {
+        const s = String.fromCharCode(arr[i], arr[i + 1], arr[i + 2]);
+        if (s === 'CWS' || s === 'FWS' || s === 'ZWS') {
+          offset = i;
+          break;
+        }
+      }
+
+      const cleanData = arr.slice(offset);
+      await guestRufflePlayer.load({ data: cleanData });
+      guestCurrentSwfPath = swfPath;
+      guestCurrentAnim = animName;
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      guestRufflePlayer.play?.();
+      hidePlayerOverlays(guestRufflePlayer, 'guest-ruffle-hide-style');
+      return true;
+    } catch (e) {
+      console.warn('Guest SWF加载失败:', animName, e.message);
+      return false;
+    }
+  }
+
+  function listManifestByPrefixes(prefixes = []) {
+    if (!swfManifest) return [];
+    const keys = Object.keys(swfManifest);
+    const matched = [];
+    prefixes.forEach((prefix) => {
+      const safePrefix = String(prefix || '').trim();
+      if (!safePrefix) return;
+      keys.forEach((name) => {
+        if (name.startsWith(safePrefix) && swfManifest[name]) {
+          matched.push(name);
+        }
+      });
+    });
+    return [...new Set(matched)];
+  }
+
+  function pickVisitAnimByPrefixes(prefixes = [], fallback = null) {
+    const pool = listManifestByPrefixes(prefixes);
+    if (pool.length > 0) {
+      return pickRandom(pool);
+    }
+    return fallback;
+  }
+
+  function getQCVisitAction(action, mood = 'peaceful') {
+    const safeMood = String(mood || 'peaceful').trim() || 'peaceful';
+    switch (String(action || '').trim()) {
+      case 'wave':
+        return pickVisitAnimByPrefixes([
+          `${safeMood}-interact-H`,
+          `${safeMood}-interact-RH`,
+          `${safeMood}-interact-LH`,
+          'peaceful-interact-H',
+          'peaceful-interact-RH',
+          'happy-interact-H',
+        ], getQCInteract(safeMood) || getQCStand(safeMood));
+      case 'handshake':
+        return pickVisitAnimByPrefixes([
+          `${safeMood}-interact-RH`,
+          `${safeMood}-interact-H`,
+          'peaceful-interact-RH',
+          'happy-interact-RH',
+        ], getQCInteract(safeMood) || getQCStand(safeMood));
+      case 'hug':
+        return pickVisitAnimByPrefixes([
+          `${safeMood}-interact-BE`,
+          `${safeMood}-interact-H`,
+          'peaceful-interact-BE',
+          'happy-interact-BE',
+        ], getQCInteract(safeMood) || getQCStand(safeMood));
+      case 'highfive':
+        return pickVisitAnimByPrefixes([
+          `${safeMood}-interact-RH`,
+          `${safeMood}-interact-H`,
+          'happy-interact-RH',
+          'peaceful-interact-RH',
+        ], getQCInteract(safeMood) || getQCStand(safeMood));
+      case 'invite-game':
+        return getQCCommon('game') || pickVisitAnimByPrefixes([
+          'game-Game',
+          `${safeMood}-play-`,
+          'happy-play-',
+        ], getQCPlay(safeMood) || getQCStand(safeMood));
+      default:
+        return getQCInteract(safeMood) || getQCStand(safeMood);
+    }
+  }
+
+  function setGuestVisible(visible, options = {}) {
+    const container = document.getElementById('guest-pet-container');
+    const labelEl = document.getElementById('guest-pet-label');
+    const show = !!visible;
+    const label = String(options.label || '').trim();
+
+    // 先确保客宠 Ruffle Player 已创建（懒初始化）
+    if (show) {
+      createGuestRufflePlayer();
+      // 确保容器有可见尺寸（避免 0x0 导致 Ruffle 不渲染）
+      if (guestRuffleContainer && guestRuffleContainer.offsetWidth < 10) {
+        guestRuffleContainer.style.width = '144px';
+        guestRuffleContainer.style.height = '144px';
+      }
+    }
+
+    document.body.classList.toggle('visit-dual-mode', show);
+
+    if (container) {
+      container.classList.toggle('hidden', !show);
+      container.classList.toggle('visible', show);
+      container.setAttribute('aria-hidden', show ? 'false' : 'true');
+      // 强制重绘，确保 transition 触发
+      void container.offsetHeight;
+    }
+
+    if (labelEl) {
+      labelEl.textContent = label ? `来访中 · ${label}` : '来访中';
+      labelEl.classList.toggle('hidden', !show);
+    }
+
+    if (!show) {
+      guestCurrentAnim = '';
+      guestCurrentSwfPath = '';
+      if (guestFallbackTimer) {
+        clearTimeout(guestFallbackTimer);
+        guestFallbackTimer = null;
+      }
+      try {
+        guestRufflePlayer?.pause?.();
+      } catch (e) {}
+    } else {
+      // 可见时确保播放器状态
+      try { guestRufflePlayer?.play?.(); } catch (e) {}
+    }
+  }
+
+  function setGuestStand(mood = 'peaceful', options = {}) {
+    const stand = getQCStand(mood) || getQCStand('peaceful');
+    setGuestVisible(true, options);
+    if (stand) {
+      loadGuestSwf(stand);
+    }
+    return stand;
+  }
+
+  function playGuestVisitAction(action, mood = 'peaceful', options = {}) {
+    const anim = getQCVisitAction(action, mood);
+    setGuestVisible(true, options);
+    if (!anim) {
+      return null;
+    }
+    loadGuestSwf(anim).then((ok) => {
+      if (!ok) return;
+      if (guestFallbackTimer) {
+        clearTimeout(guestFallbackTimer);
+      }
+      guestFallbackTimer = setTimeout(() => {
+        guestFallbackTimer = null;
+        if (document.body.classList.contains('visit-dual-mode')) {
+          setGuestStand(mood, options);
+        }
+      }, action === 'invite-game' ? 2600 : 1800);
+    });
+    return anim;
   }
 
   /** 绑定 Ruffle canvas 的 mousedown 事件到拖拽系统 */
@@ -412,23 +653,20 @@ const SpriteRenderer = (() => {
   }
 
   /** 强制隐藏 Ruffle shadow DOM 内的 play-button / splash-screen 等 UI，保留 unmute-overlay */
-  function hideRuffleOverlays() {
-    if (!rufflePlayer) return;
+  function hidePlayerOverlays(player, styleId = 'ruffle-hide-style') {
+    if (!player) return;
     try {
-      const shadow = rufflePlayer.shadowRoot;
+      const shadow = player.shadowRoot;
       if (!shadow) return;
-      // 只隐藏 play-button 和 splash-screen，不隐藏 unmute-overlay（音频解锁需要）
       const allEls = shadow.querySelectorAll('div, button, .play-button, .splash-screen, .context-menu-overlay');
       allEls.forEach(el => {
         if (el.querySelector('canvas') || el.tagName === 'CANVAS') return;
-        // 保留 unmute-overlay
         if (el.className && String(el.className).includes('unmute')) return;
         el.style.display = 'none';
       });
-      // 注入 style：只隐藏 play-button / splash，不碰 unmute
-      if (!shadow.querySelector('#ruffle-hide-style')) {
+      if (!shadow.querySelector(`#${styleId}`)) {
         const style = document.createElement('style');
-        style.id = 'ruffle-hide-style';
+        style.id = styleId;
         style.textContent = `
           .play-button, .splash-screen,
           .context-menu-overlay, [class*="play"], [class*="splash"] {
@@ -440,6 +678,10 @@ const SpriteRenderer = (() => {
     } catch (e) {
       // shadow DOM 不可访问，忽略
     }
+  }
+
+  function hideRuffleOverlays() {
+    hidePlayerOverlays(rufflePlayer, 'ruffle-hide-style');
   }
 
   /** 检测 Ruffle 是否显示了 panic/error 页面 */
@@ -971,11 +1213,16 @@ const SpriteRenderer = (() => {
       return;
     }
 
+    // 读取当前性别（优先从 SocialState，默认 gg）
+    const gender = (typeof SocialState !== 'undefined')
+      ? (SocialState.getState?.()?.profile?.petGender || 'gg')
+      : 'gg';
+
     // 加载 SWF 清单
-    loadSwfManifest().then(ok => {
+    loadSwfManifest(gender).then(ok => {
       if (ok) {
         qcLoaded = true;
-        console.log('🐧 Ruffle SWF 模式就绪');
+        console.log(`🐧 Ruffle SWF 模式就绪 (性别: ${currentGender})`);
 
         // 不在此处切动画，由 app.js 入场动画接管
         // 兜底：2秒后如果还没播任何东西，默认切 Stand
@@ -1012,6 +1259,20 @@ const SpriteRenderer = (() => {
     get currentAnim() { return currentAnim; },
     // QC 动画接口
     get qcLoaded() { return qcLoaded; },
+    get currentGender() { return currentGender; },
+    async reloadForGender(gender) {
+      const g = (gender === 'mm') ? 'mm' : 'gg';
+      if (g === currentGender && swfManifest) return; // 性别未变，跳过
+      const ok = await loadSwfManifest(g);
+      if (ok) {
+        qcLoaded = true;
+        console.log(`🐧 性别切换 → ${g}，SWF 清单已重载`);
+        // 切到当前心情的 Stand
+        const mood = typeof PetState !== 'undefined' ? (PetState.mood || 'peaceful') : 'peaceful';
+        const stand = getQCStand(mood);
+        if (stand) setAnimation(stand);
+      }
+    },
     getQCStand,
     getQCSpeak,
     getQCInteract,
@@ -1019,6 +1280,10 @@ const SpriteRenderer = (() => {
     getQCCommon,
     getQCStroke,
     getQCStruggle,
+    getQCVisitAction,
+    setGuestVisible,
+    setGuestStand,
+    playGuestVisitAction,
     preloadMoodSheets,
     loadQCSheet,
     QC_POOLS,

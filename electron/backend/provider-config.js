@@ -228,15 +228,10 @@ function ensureDreamingEnabled() {
   const dreaming = config?.plugins?.entries?.['memory-core']?.config?.dreaming;
   if (dreaming?.enabled === true) return; // 已启用，无需修改
 
-  config.plugins ??= {};
-  config.plugins.entries ??= {};
-  config.plugins.entries['memory-core'] ??= {};
-  config.plugins.entries['memory-core'].config ??= {};
-  config.plugins.entries['memory-core'].config.dreaming ??= {};
-  config.plugins.entries['memory-core'].config.dreaming.enabled = true;
-
-  writeUserConfig(config);
-  console.log('[backend] 已默认启用 OpenClaw Dreaming（做梦模式）');
+  // 注意（2026-04-08）：新版 OpenClaw 不允许 memory-core.config 有额外属性，
+  // 写入 dreaming 会导致 JSON Schema 校验失败 → gateway 启动崩溃 exit code=1
+  // 因此不再主动注入 dreaming 配置，由 OpenClaw 自行处理默认值。
+  console.log('[backend] Dreaming 默认启用已跳过（避免 Schema 校验冲突）');
 }
 
 module.exports = {

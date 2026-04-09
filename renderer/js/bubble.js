@@ -242,10 +242,30 @@ const BubbleSystem = (() => {
     return msg;
   }
 
+  /**
+   * 安全文本提取：确保传入值始终为纯字符串
+   * 防止 DOM 元素、对象、数字等非字符串值导致 «class HTML» 乱码
+   */
+  function safeText(value) {
+    if (value == null) return '';
+    if (typeof value === 'string') return value;
+    // 如果是 DOM 元素节点，取其文本内容
+    if (value instanceof Node || (value && typeof value.nodeType === 'number')) {
+      return value.textContent || value.innerText || String(value);
+    }
+    // 其他对象/数组等统一转字符串后再清理明显标记
+    let str = String(value);
+    // 清理 JS 原生 toString 产生的 [object Xxx] 和 «class HTML» 类乱码
+    str = str.replace(/«\s*class\s+\w+»[^\n]*/g, '');
+    str = str.replace(/\[object\s+\w+\]/g, '');
+    return str;
+  }
+
   // ─── 显示气泡（带全局节流，3秒内最多1条） ───
   // show(text, duration, opts)
   // opts.force = true → 专注模式下也强制显示（AI回复、专注提醒等）
   function show(text, duration = 8000, opts = {}) {
+    text = safeText(text);
     if (translatePriority && !opts.translate) return;
     // 专注模式下屏蔽所有非关键气泡
     if (!opts.force && typeof FocusMode !== 'undefined' && FocusMode.isActive) return;
@@ -635,5 +655,46 @@ const BubbleSystem = (() => {
     show(String(text).trim(), duration, { force: true, translate: true, expandable: false });
   }
 
-  return { show, hide, randomBubble, showAIReply, showThinking, hideThinking, showVoiceRecognizing, hideVoiceRecognizing, showSubtitle, hideSubtitle, updateStreamingBubble, showUpdateProgress, showToolProgress, setTranslatePriority, showTranslate };
+  // ─── 客宠头顶气泡（拜访模式专用，金色边框 + 发送者名前缀） ───
+  let guestBubbleEl = null;
+  let guestBubbleTimer = null;
+
+  function showGuestBubble(text, duration = 5000) {
+    if (!text || !String(text).trim()) return;
+    const guestContainer = document.getElementById('guest-pet-container');
+    if (!guestContainer) return;
+
+    // 确保 guest-bubble DOM 存在
+    let bubble = guestContainer.querySelector('.guest-bubble');
+    if (!bubble) {
+      bubble = document.createElement('div');
+      bubble.className = 'guest-bubble';
+      guestContainer.appendChild(bubble);
+    }
+    guestBubbleEl = bubble;
+
+    bubble.textContent = String(text).trim();
+    bubble.classList.remove('hidden');
+    bubble.classList.add('visible');
+
+    if (guestBubbleTimer) clearTimeout(guestBubbleTimer);
+    guestBubbleTimer = setTimeout(() => {
+      bubble.classList.remove('visible');
+      bubble.classList.add('hidden');
+      guestBubbleTimer = null;
+    }, duration);
+  }
+
+  function hideGuestBubble() {
+    if (guestBubbleEl) {
+      guestBubbleEl.classList.remove('visible');
+      guestBubbleEl.classList.add('hidden');
+    }
+    if (guestBubbleTimer) {
+      clearTimeout(guestBubbleTimer);
+      guestBubbleTimer = null;
+    }
+  }
+
+  return { show, hide, randomBubble, showAIReply, showThinking, hideThinking, showVoiceRecognizing, hideVoiceRecognizing, showSubtitle, hideSubtitle, updateStreamingBubble, showUpdateProgress, showToolProgress, setTranslatePriority, showTranslate, showGuestBubble, hideGuestBubble };
 })();

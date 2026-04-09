@@ -1034,6 +1034,8 @@
       activeRequestStartedAt = Date.now();
       activeRequestText = text || '[附件消息]';
       activeRunId = '';
+      _gatewayFinalRendered = false;
+      _currentUsesGatewayRPC = false; // 重置
       showProcessTip('已收到，正在思考...');
       startProcessTicker();
 
@@ -1044,6 +1046,7 @@
 
       // 优先走 Gateway RPC chat.send（完整 Agent loop）
       if (window.quickChatAPI.gatewayChatSend) {
+        _currentUsesGatewayRPC = true; // 标记本轮走 Gateway
         window.quickChatAPI.gatewayChatSend(activeRequestText)
           .then((result) => {
             if (result && result.success) {
@@ -1051,12 +1054,14 @@
               showProcessTip('正在规划执行步骤...');
             } else {
               console.warn('[quick-chat] RPC 失败，回退旧路径:', result && result.error);
+              _currentUsesGatewayRPC = false; // 回退旧路径，onAIReply 需要渲染
               showProcessTip('连接不稳定，正在自动重试...');
               window.quickChatAPI.sendMessage(activeRequestText, []);
             }
           })
           .catch((err) => {
-            console.warn('[quick-chat] RPC 异常，回退旧路径:', err);
+            console.warn('[quick-chat] RPC 异常，回退旧路径:', err.message);
+            _currentUsesGatewayRPC = false; // 回退旧路径
             showProcessTip('连接不稳定，正在自动重试...');
             window.quickChatAPI.sendMessage(activeRequestText, []);
           });
@@ -1133,6 +1138,8 @@
     let activeRequestText = '';
     let activeRunId = '';
     let lastAssistantFingerprint = '';
+    let _gatewayFinalRendered = false; // Gateway final 已渲染标志，用于防止 onAIReply 重复追加
+    let _currentUsesGatewayRPC = false; // 当前请求是否走 Gateway RPC（用于 onAIReply 判断是否应该渲染）
 
     // ═══════════════════════════════════════════
     //  方案 A+B：50ms 节流 + 字符批量追加 + smooth 滚动
@@ -1211,9 +1218,27 @@
       });
     }
 
-    // ─── 接收 AI 最终回复 ───
+    // ─── 接收 AI 最终回复（旧路径：主窗口中转，Gateway 模式下会被 guard 跳过） ───
     if (window.quickChatAPI?.onAIReply) {
       window.quickChatAPI.onAIReply((text) => {
+        // Guard 1：如果本轮走 Gateway RPC 且已渲染，跳过避免重复
+        if (_currentUsesGatewayRPC) {
+          _currentUsesGatewayRPC = false; // 重置，供下一轮使用
+          return;
+        }
+        // 如果 Gateway final 事件已经渲染过（兜底），也跳过
+        if (_gatewayFinalRendered) {
+          _gatewayFinalRendered = false; // 重置，供下一轮使用
+          return;
+        }
+
+        // Guard 2：纯文本指纹去重（不依赖时间戳，避免两条路径时间戳不一致导致重复）
+        const textFp = text ? makeTextOnlyFingerprint(text) : '';
+        const lastTextFp = lastAssistantFingerprint ? lastAssistantFingerprint.split('::').slice(1).join('::') : '';
+        if (textFp && textFp === lastTextFp) {
+          return; // 同一条回复已由 Gateway 路径渲染过了
+        }
+
         hideThinkingAnim();
         clearProcessTip();
 
@@ -1556,6 +1581,11 @@
       return `${timestamp || '0'}::${short}`;
     }
 
+    // 纯文本指纹（不含时间戳），用于跨路径去重
+    function makeTextOnlyFingerprint(text) {
+      return String(text || '').trim().slice(0, 160);
+    }
+
     async function findAssistantReplyFromHistory(minTimestamp = 0) {
       if (!window.quickChatAPI?.gatewayChatHistory) return null;
       try {
@@ -1596,6 +1626,8 @@
       activeRequestStartedAt = 0;
       activeRequestText = '';
       activeRunId = '';
+      // _gatewayFinalRendered 由 onAIReply 消费后自行重置，这里不清除
+      // （因为 finishActiveRequestUI 可能在 onAIReply 之前被调用）
     }
 
     async function handleGatewayFinalEvent(payload) {
@@ -1629,6 +1661,7 @@
           appendMessage('ai', bestText);
         }
         lastAssistantFingerprint = makeAssistantFingerprint(bestText, getMessageTimestamp(payload.message));
+        _gatewayFinalRendered = true; // 标记本轮已由 Gateway 渲染，onAIReply 会跳过
         rendered = true;
       } else if (streamingMsgEl && streamText) {
         streamingBubbleEl.innerHTML = '';
@@ -1637,6 +1670,7 @@
         renderAIBubble(streamingBubbleEl, streamText);
         scrollToBottom();
         lastAssistantFingerprint = makeAssistantFingerprint(streamText, Date.now());
+        _gatewayFinalRendered = true; // 同上
         rendered = true;
       }
 

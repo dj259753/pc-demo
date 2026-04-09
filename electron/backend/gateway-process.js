@@ -26,12 +26,13 @@ const {
   resolveUserStateDir,
 } = require('./constants');
 
-// 诊断日志
+// 诊断日志（带管道断裂保护）
 const LOG_PATH = resolveGatewayLogPath();
+let _pipeBroken = false; // 子进程退出后管道断了就不再往 stdout/stderr 写
 
 function diagLog(msg) {
   const line = `[${new Date().toISOString()}] ${msg}\n`;
-  process.stderr.write(line);
+  if (!_pipeBroken) { try { process.stderr.write(line); } catch { _pipeBroken = true; } }
   try {
     fs.mkdirSync(path.dirname(LOG_PATH), { recursive: true });
     fs.appendFileSync(LOG_PATH, line);
@@ -87,6 +88,7 @@ class GatewayProcess {
     }
 
     this._setState('starting');
+    _pipeBroken = false; // 新进程启动时重置管道状态
 
     // Windows: 首次启动解压 tar.gz 资源包
     await this._extractTarGzResources();
@@ -213,13 +215,13 @@ class GatewayProcess {
 
     this.proc.stdout?.on('data', (d) => {
       const s = d.toString();
-      process.stdout.write(`[gateway] ${s}`);
+      if (!_pipeBroken) { try { process.stdout.write(`[gateway] ${s}`); } catch { _pipeBroken = true; } }
       diagLog(`stdout: ${s.trimEnd()}`);
       this._parseAgentLog(s);
     });
     this.proc.stderr?.on('data', (d) => {
       const s = d.toString();
-      process.stderr.write(`[gateway] ${s}`);
+      if (!_pipeBroken) { try { process.stderr.write(`[gateway] ${s}`); } catch { _pipeBroken = true; } }
       diagLog(`stderr: ${s.trimEnd()}`);
       this._parseAgentLog(s);
     });

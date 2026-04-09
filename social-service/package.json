@@ -1,0 +1,16 @@
+{
+  "name": "qq-pet-social-service",
+  "version": "0.1.0",
+  "description": "QQ Pet Social Service - multiplayer backend",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.0.0",
+    "express": "^4.21.0",
+    "ws": "^8.18.0",
+    "uuid": "^10.0.0"
+  }
+}

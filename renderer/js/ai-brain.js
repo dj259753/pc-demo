@@ -357,8 +357,26 @@ const AIBrain = (() => {
       const prompt = buildPrompt(trigger, context);
       const reply = await callAI(prompt, `触发：${trigger}`, 0.7);
 
-      // 清理回复（去掉可能的引号包裹）
-      let cleaned = reply.replace(/^["「『]|["」』]$/g, '').trim();
+      // 清理回复：先走完整 cleanModelOutput（去 tool_call 标签、思考标签等），再去引号包裹
+      let cleaned = cleanModelOutput(reply || '');
+      // 去掉可能的引号包裹
+      cleaned = cleaned.replace(/^["「『]|["」』]$/g, '').trim();
+
+      // ── Prompt 泄漏检测：模型有时会把系统提示词原样返回 ──
+      const leakPatterns = [
+        /【\s*本次任务\s*【/i,
+        /触发\s*类型\s*[:：]\s*\w+/i,
+        /场景描述\s*[:：]/i,
+        /输出要求\s*[:：]/i,
+        /注意\s*[:：].*只输出/i,
+        /我现在需要解决用户的问题/i,
+      ];
+      const isLeaked = leakPatterns.some(p => p.test(cleaned));
+      if (isLeaked || !cleaned) {
+        console.warn('🧠 AI speak: 模型返回疑似 Prompt 泄漏，丢弃回复', cleaned.slice(0, 80));
+        return null; // 返回 null 表示降级，调用方会静默忽略
+      }
+
       // 长度保护
       if (cleaned.length > 180) cleaned = cleaned.substring(0, 176) + '...';
 
@@ -636,10 +654,9 @@ const AIBrain = (() => {
       try {
         const result = await window.electronAPI.gatewayChatSend(userText);
         if (result && result.success) {
-          // chat.send 已被 Gateway 接受
-          // 流式回复和工具进度通过 IPC 事件自动推送（init 中已注册监听）
-          // 这里返回一个 Promise，等 chatFinalPromise 被 resolve
-          return awaitChatFinal();
+          // result.result 是 Gateway chat.send 的响应，通常含 runId
+          const runId = result.result?.runId || result.result?.run_id || '';
+          return awaitChatFinal(runId);
         }
         console.warn('🧠 Gateway RPC 返回失败，回退 fetch:', result && result.error);
       } catch (err) {
@@ -652,30 +669,40 @@ const AIBrain = (() => {
   }
 
   // ── Gateway chat.send 后等待 final 事件 ──
-  let _chatFinalResolve = null;
-  let _chatFinalReject = null;
-  let _chatFinalTimeout = null;
-  let _chatAccumulatedText = '';
+  // 用 runId → { resolve, reject, timeout, accumulated } Map 替代单例变量，
+  // 解决快速连续发消息时互相覆盖 Promise 的并发 bug。
+  const _chatPending = new Map();  // runId → { resolve, reject, timeout, accumulated }
 
-  function awaitChatFinal() {
-    // 清理上一轮
-    if (_chatFinalTimeout) clearTimeout(_chatFinalTimeout);
-    _chatAccumulatedText = '';
+  /**
+   * 等待指定 runId 的 final 事件
+   * @param {string} runId - Gateway 返回的 run 标识，用于对应事件
+   */
+  function awaitChatFinal(runId) {
+    // 如果 runId 为空（老 Gateway 不返回），fallback 到 '_fallback' key
+    const key = runId || '_fallback';
+
+    // 如果已有同 key 的 pending（理论上不应发生，防御性清理）
+    const existing = _chatPending.get(key);
+    if (existing) {
+      clearTimeout(existing.timeout);
+      existing.reject(new Error('同 runId 的新请求到来，旧请求被取消'));
+      _chatPending.delete(key);
+    }
 
     return new Promise((resolve, reject) => {
-      _chatFinalResolve = resolve;
-      _chatFinalReject = reject;
-      // 5分钟超时兜底
-      _chatFinalTimeout = setTimeout(() => {
-        const text = _chatAccumulatedText;
-        _chatFinalResolve = null;
-        _chatFinalReject = null;
-        if (text) {
-          resolve(cleanModelOutput(text));
+      const timeout = setTimeout(() => {
+        const entry = _chatPending.get(key);
+        if (!entry) return;
+        _chatPending.delete(key);
+        // 如果有累积文本，作为降级答案
+        if (entry.accumulated) {
+          resolve(cleanModelOutput(entry.accumulated));
         } else {
-          reject(new Error('Gateway 响应超时'));
+          reject(new Error('Gateway 响应超时，请稍后重试'));
         }
-      }, 300000);
+      }, 90000);  // 90 秒超时（原 5 分钟过长）
+
+      _chatPending.set(key, { resolve, reject, timeout, accumulated: '' });
     });
   }
 
@@ -685,10 +712,16 @@ const AIBrain = (() => {
   function handleGatewayChatEvent(payload) {
     if (!payload) return;
 
+    // runId 用于定位对应的 pending 条目；没有 runId 时 fallback
+    const key = payload.runId || '_fallback';
+
     if (payload.state === 'delta') {
       const text = extractChatText(payload.message);
       if (text !== null) {
-        _chatAccumulatedText = text;
+        // 更新累积文本（用于超时降级）
+        const e = _chatPending.get(key);
+        if (e) e.accumulated = text;
+        // 推送流式回调
         const cleaned = cleanModelOutput(text);
         if (cleaned && onStreamingReplyCallback) {
           onStreamingReplyCallback(cleaned);
@@ -696,30 +729,27 @@ const AIBrain = (() => {
       }
     } else if (payload.state === 'final') {
       const finalText = extractChatText(payload.message);
-      // 只在 final 有实质内容且比已累积的更长时才更新
-      if (finalText && finalText.trim().length > 0 && finalText.length >= _chatAccumulatedText.length) {
-        _chatAccumulatedText = finalText;
-      }
-      if (_chatFinalTimeout) clearTimeout(_chatFinalTimeout);
-      if (_chatFinalResolve) {
-        const cleaned = cleanModelOutput(_chatAccumulatedText);
-        _chatFinalResolve(cleaned || '✅ 已完成');
-        _chatFinalResolve = null;
-        _chatFinalReject = null;
+      const e = _chatPending.get(key);
+      if (e) {
+        clearTimeout(e.timeout);
+        _chatPending.delete(key);
+        const best = (finalText && finalText.trim().length > 0 && finalText.length >= e.accumulated.length)
+          ? finalText : e.accumulated;
+        e.resolve(cleanModelOutput(best) || '✅ 已完成');
       }
     } else if (payload.state === 'aborted') {
-      if (_chatFinalTimeout) clearTimeout(_chatFinalTimeout);
-      if (_chatFinalResolve) {
-        _chatFinalResolve(_chatAccumulatedText ? cleanModelOutput(_chatAccumulatedText) : '（已中断）');
-        _chatFinalResolve = null;
-        _chatFinalReject = null;
+      const e = _chatPending.get(key);
+      if (e) {
+        clearTimeout(e.timeout);
+        _chatPending.delete(key);
+        e.resolve(e.accumulated ? cleanModelOutput(e.accumulated) : '（已中断）');
       }
     } else if (payload.state === 'error') {
-      if (_chatFinalTimeout) clearTimeout(_chatFinalTimeout);
-      if (_chatFinalReject) {
-        _chatFinalReject(new Error(payload.errorMessage || 'Agent 执行出错'));
-        _chatFinalResolve = null;
-        _chatFinalReject = null;
+      const e = _chatPending.get(key);
+      if (e) {
+        clearTimeout(e.timeout);
+        _chatPending.delete(key);
+        e.reject(new Error(payload.errorMessage || 'Agent 执行出错'));
       }
     }
   }

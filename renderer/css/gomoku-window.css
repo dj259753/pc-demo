@@ -1,0 +1,382 @@
+/* ═══════════════════════════════════════════
+   五子棋窗口 — 像素风透明窗口样式
+   ═══════════════════════════════════════════ */
+
+:root {
+  --gm-px-font: 'Courier New', monospace;
+  --gm-bg: rgba(10, 10, 20, 0.88);
+  --gm-border: rgba(180, 160, 120, 0.35);
+  --gm-text: #e8dcc8;
+  --gm-text-dim: rgba(232, 220, 200, 0.55);
+  --gm-accent: #f0c040;
+  --gm-danger: #e04040;
+  --gm-board-bg: #c8a860;
+  --gm-board-line: #7a6030;
+  --gm-black-stone: #1a1a1a;
+  --gm-white-stone: #f0ece4;
+  --gm-win-glow: #ff4444;
+  --gm-pixel: 2px;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  image-rendering: pixelated;
+}
+
+html, body {
+  width: 100%;
+  height: 100%;
+  background: transparent;
+  font-family: var(--gm-px-font);
+  font-size: 10px;
+  color: var(--gm-text);
+  overflow: hidden;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+body {
+  padding: 0;
+}
+
+/* ─── 外壳 ─── */
+.gm-shell {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  background: var(--gm-bg);
+  border: var(--gm-pixel) solid var(--gm-border);
+  box-shadow: 0 0 0 var(--gm-pixel) rgba(0,0,0,0.5),
+              inset 0 0 40px rgba(0,0,0,0.2);
+}
+
+/* ─── 标题栏 ─── */
+.gm-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 8px;
+  background: rgba(0,0,0,0.3);
+  border-bottom: var(--gm-pixel) solid var(--gm-border);
+  -webkit-app-region: drag;
+}
+
+.gm-header-left {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.gm-title {
+  font-size: 11px;
+  font-weight: bold;
+  color: var(--gm-accent);
+  text-shadow: 1px 1px 0 rgba(0,0,0,0.5);
+}
+
+.gm-room-label {
+  font-size: 8px;
+  color: var(--gm-text-dim);
+}
+
+.gm-header-right {
+  -webkit-app-region: no-drag;
+}
+
+.gm-btn-icon {
+  background: none;
+  border: var(--gm-pixel) solid var(--gm-border);
+  color: var(--gm-text-dim);
+  font-family: var(--gm-px-font);
+  font-size: 10px;
+  padding: 2px 6px;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.gm-btn-icon:hover {
+  color: var(--gm-danger);
+  border-color: var(--gm-danger);
+}
+
+/* ─── 玩家信息栏 ─── */
+.gm-players {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 8px;
+  background: rgba(0,0,0,0.2);
+  border: var(--gm-pixel) solid var(--gm-border);
+}
+
+.gm-player {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 6px;
+  border: var(--gm-pixel) solid transparent;
+  transition: border-color 0.2s;
+}
+
+.gm-player.is-active {
+  border-color: var(--gm-accent);
+  background: rgba(240, 192, 64, 0.08);
+}
+
+.gm-stone-icon {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.gm-stone-icon.is-black {
+  background: var(--gm-black-stone);
+  border: 1px solid #444;
+  box-shadow: inset 1px 1px 0 rgba(255,255,255,0.15);
+}
+
+.gm-stone-icon.is-white {
+  background: var(--gm-white-stone);
+  border: 1px solid #bbb;
+  box-shadow: inset -1px -1px 0 rgba(0,0,0,0.08);
+}
+
+.gm-player-name {
+  font-size: 9px;
+  min-width: 40px;
+}
+
+.gm-player-timer {
+  font-size: 9px;
+  color: var(--gm-accent);
+  min-width: 24px;
+  text-align: right;
+}
+
+.gm-player-timer.is-warning {
+  color: var(--gm-danger);
+  animation: gm-blink 0.5s step-end infinite;
+}
+
+@keyframes gm-blink {
+  50% { opacity: 0; }
+}
+
+.gm-undo-badge {
+  font-size: 7px;
+  color: var(--gm-text-dim);
+}
+
+.gm-turn-indicator {
+  font-size: 10px;
+  color: var(--gm-accent);
+  animation: gm-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes gm-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+/* ─── 棋盘区域 ─── */
+.gm-board-wrap {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-height: 0;
+}
+
+.gm-status {
+  font-size: 8px;
+  color: var(--gm-text-dim);
+  text-align: center;
+  padding: 2px 0;
+  min-height: 14px;
+  line-height: 14px;
+}
+
+#gm-canvas {
+  cursor: crosshair;
+  border: var(--gm-pixel) solid var(--gm-board-line);
+  background: var(--gm-board-bg);
+  box-shadow: inset 0 0 20px rgba(0,0,0,0.15);
+  max-width: 100%;
+  max-height: 100%;
+}
+
+#gm-canvas.is-disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+/* ─── 全局计时 ─── */
+.gm-game-timer {
+  font-size: 8px;
+  color: var(--gm-text-dim);
+  text-align: center;
+  padding: 2px 0;
+}
+
+.gm-game-timer.is-warning {
+  color: var(--gm-danger);
+}
+
+/* ─── 操作栏 ─── */
+.gm-footer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border-top: var(--gm-pixel) solid var(--gm-border);
+  background: rgba(0,0,0,0.2);
+}
+
+.gm-btn {
+  font-family: var(--gm-px-font);
+  font-size: 8px;
+  padding: 4px 10px;
+  border: var(--gm-pixel) solid var(--gm-border);
+  background: rgba(255,255,255,0.06);
+  color: var(--gm-text);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.gm-btn:hover:not(:disabled) {
+  background: rgba(255,255,255,0.14);
+}
+
+.gm-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.gm-btn.is-primary {
+  border-color: var(--gm-accent);
+  color: var(--gm-accent);
+}
+
+.gm-btn.is-primary:hover:not(:disabled) {
+  background: rgba(240, 192, 64, 0.15);
+}
+
+.gm-btn.is-danger {
+  border-color: var(--gm-danger);
+  color: var(--gm-danger);
+}
+
+.gm-btn.is-danger:hover:not(:disabled) {
+  background: rgba(224, 64, 64, 0.15);
+}
+
+/* ─── 弹窗 ─── */
+.gm-modal {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0,0,0,0.6);
+  z-index: 100;
+}
+
+.gm-modal.hidden {
+  display: none;
+}
+
+.gm-modal-content {
+  background: var(--gm-bg);
+  border: var(--gm-pixel) solid var(--gm-accent);
+  padding: 16px;
+  max-width: 280px;
+  width: 90%;
+  text-align: center;
+  box-shadow: 0 0 0 var(--gm-pixel) rgba(240,192,64,0.2);
+}
+
+.gm-modal-title {
+  font-size: 10px;
+  font-weight: bold;
+  color: var(--gm-accent);
+  margin-bottom: 8px;
+}
+
+.gm-modal-text {
+  font-size: 8px;
+  color: var(--gm-text);
+  margin-bottom: 12px;
+  line-height: 1.6;
+}
+
+.gm-modal-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+}
+
+/* ─── 状态文字样式 ─── */
+.gm-status.is-waiting {
+  color: var(--gm-text-dim);
+}
+
+.gm-status.is-active {
+  color: var(--gm-accent);
+}
+
+.gm-status.is-ended {
+  color: var(--gm-danger);
+}
+
+/* ─── 悬浮子预览 ─── */
+.gm-hover-stone {
+  pointer-events: none;
+}
+
+/* ─── Solo 模式欢迎屏 ─── */
+.gm-solo-welcome {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  background: var(--gm-bg);
+  z-index: 50;
+}
+
+.gm-solo-welcome.hidden {
+  display: none;
+}
+
+.gm-solo-title {
+  font-size: 16px;
+  font-weight: bold;
+  color: var(--gm-accent);
+  text-shadow: 2px 2px 0 rgba(0,0,0,0.5);
+}
+
+.gm-solo-desc {
+  font-size: 8px;
+  color: var(--gm-text-dim);
+  text-align: center;
+  max-width: 240px;
+  line-height: 1.6;
+}
+
+.gm-solo-start {
+  font-size: 10px !important;
+  padding: 8px 24px !important;
+  margin-top: 4px;
+}

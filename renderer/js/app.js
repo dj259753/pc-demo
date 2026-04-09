@@ -265,7 +265,8 @@
         });
         document.addEventListener('mouseup', () => { dragging = false; });
       }
-      document.addEventListener('meeting-notes:start', () => window.MeetingNotes.start());
+      // 注意：meeting-notes:start 监听已移到 MeetingNotes 模块自身（meeting-notes.js init），
+      // 不再在此处重复注册，避免 fallback start() 覆盖原版 showControl() 导致 UI 不显示
       window.__meetingNotesReady = true;
     }
 
@@ -370,6 +371,46 @@
     // 5. 初始化任务栏
     TaskbarUI.init();
     TaskbarUI.updateBars();
+
+    // 5.1 社交按钮打开独立社交窗口
+    {
+      const btnSocial = document.getElementById('btn-social');
+      if (btnSocial) {
+        btnSocial.addEventListener('click', (e) => {
+          e.stopPropagation();
+          if (window.electronAPI?.openSocialWindow) {
+            window.electronAPI.openSocialWindow();
+          }
+        });
+      }
+    }
+
+    // 5.2 初始化社交架构壳（拉起状态层并同步到社交中心）
+    if (typeof SocialBootstrap !== 'undefined' && SocialBootstrap.init) {
+      try {
+        await SocialBootstrap.init();
+      } catch (err) {
+        console.warn('social bootstrap init failed:', err);
+      }
+    }
+
+    // 5.3 初始化拜访会话反馈（轻提示，不做留痕）
+    if (typeof SocialVisitFeedback !== 'undefined' && SocialVisitFeedback.init) {
+      try {
+        SocialVisitFeedback.init();
+      } catch (err) {
+        console.warn('social visit feedback init failed:', err);
+      }
+    }
+
+    // 5.4 初始化主窗口拜访表现层（双宠 HUD / 客宠右键菜单 / 小游戏邀请卡）
+    if (typeof VisitScene !== 'undefined' && VisitScene.init) {
+      try {
+        VisitScene.init();
+      } catch (err) {
+        console.warn('visit scene init failed:', err);
+      }
+    }
 
     // 6. 启动系统监控
     SystemMonitor.start();
@@ -662,6 +703,16 @@
       // 开场白失败不进入长时间离线睡眠，只静默待机
       console.log('🐧 开场白生成失败，静默待机');
     }, 1000);
+
+    // ─── 监听来自社交窗口的性别切换通知 ───
+    if (window.electronAPI?.onPetGenderChanged) {
+      window.electronAPI.onPetGenderChanged((gender) => {
+        console.log('🐾 收到性别切换通知:', gender);
+        if (typeof SpriteRenderer !== 'undefined' && SpriteRenderer.reloadForGender) {
+          SpriteRenderer.reloadForGender(gender);
+        }
+      });
+    }
 
     console.log('🐧 所有系统就绪！(v3.0 AI驱动主动说话/性格/记忆/情绪)');
   }
@@ -1594,6 +1645,14 @@
         ChatSystem.addLine('[系统] 无网络或模型不可用，宠物已睡眠', 'system');
         return;
       }
+      if (typeof reply === 'string' && reply.startsWith('__agent_error__:')) {
+        const errDetail = reply.slice('__agent_error__:'.length).trim();
+        const hint = errDetail.includes('超时') ? '处理时间过长，请重试一次～' : '哎，刚才没搞定，能再说一次吗？';
+        BubbleSystem.show(hint, 3000);
+        PetState.autoState();
+        BehaviorEngine.resume();
+        return;
+      }
       PetState.setState(PetState.STATES.TALKING, 3000);
       SpriteRenderer.setAnimation('talking');
       BubbleSystem.showAIReply(reply);
@@ -1653,6 +1712,18 @@
         }
         return;
       }
+      // Agent 执行出错或超时：显示简短提示，不进入睡眠
+      if (typeof reply === 'string' && reply.startsWith('__agent_error__:')) {
+        const errDetail = reply.slice('__agent_error__:'.length).trim();
+        const hint = errDetail.includes('超时') ? '处理时间过长，请重试一次～' : '哎，刚才没搞定，能再说一次吗？';
+        BubbleSystem.show(hint, 3000);
+        PetState.autoState();
+        BehaviorEngine.resume();
+        if (window.electronAPI && window.electronAPI.sendQuickChatReply) {
+          window.electronAPI.sendQuickChatReply(hint);
+        }
+        return;
+      }
       PetState.setState(PetState.STATES.TALKING, 3000);
       SpriteRenderer.setAnimation('talking');
       BubbleSystem.showAIReply(reply);
@@ -1660,6 +1731,8 @@
       ChatSystem.addLine(reply, 'ai');
 
       // 转发 AI 回复给对话终端窗口
+      // 注意：当走 Gateway RPC 路径时，对话窗口通过 _currentUsesGatewayRPC 标志
+      // 在 onAIReply 中自动跳过渲染，这里不需要额外判断
       if (window.electronAPI && window.electronAPI.sendQuickChatReply) {
         window.electronAPI.sendQuickChatReply(reply);
       }
@@ -1752,6 +1825,7 @@
     ChatSystem.addLine(reply, 'ai');
 
     // 语音链路也要给快捷对话窗口发送 final，避免流式气泡悬空/丢失
+    // 去重由 quick-chat.html 的 _currentUsesGatewayRPC 标志处理
     if (window.electronAPI && window.electronAPI.sendQuickChatReply) {
       window.electronAPI.sendQuickChatReply(reply);
     }
@@ -1803,7 +1877,13 @@
         return reply;
       }
       return null;
-    } catch {
+    } catch (err) {
+      const msg = (err && err.message) || '';
+      // Gateway 超时或 Agent 执行出错：不触发离线睡眠，只显示错误提示
+      if (msg.includes('超时') || msg.includes('timeout') || msg.includes('Agent') || msg.includes('已完成')) {
+        return '__agent_error__:' + msg;
+      }
+      // 真正的网络/配置错误 → return null → 外层触发离线睡眠
       return null;
     }
   }

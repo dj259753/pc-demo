@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>好友</title>
+  <link rel="stylesheet" href="css/social-window.css">
+</head>
+<body>
+  <!-- ═══ 自绘标题栏 ═══ -->
+  <header class="sw-titlebar" id="sw-titlebar">
+    <div class="sw-titlebar-left">
+      <span class="sw-titlebar-icon">👥</span>
+      <span class="sw-titlebar-text">好友</span>
+      <span id="sw-gateway-mode" class="sw-gateway-badge is-online">服务器在线</span>
+    </div>
+    <div class="sw-titlebar-right">
+      <button class="sw-titlebar-btn sw-btn-close" id="sw-btn-close" title="关闭">×</button>
+    </div>
+  </header>
+
+  <!-- ═══ 个人信息条（名字+性别+状态紧凑一行） ═══ -->
+  <section class="sw-profile-bar" id="sw-profile-bar">
+    <div class="sw-profile-avatar">🐧</div>
+    <div class="sw-profile-info">
+      <div class="sw-profile-name-row">
+        <span id="sw-profile-name" class="sw-profile-name">先起个名字吧</span>
+        <!-- 性别标签：GG ♂ 蓝色 / MM ♀ 粉色 -->
+        <span id="sw-pet-gender-tag" class="sw-pet-gender-tag" title="宠物性别"></span>
+        <!-- 状态触发器：点击「在线/忙碌/…」文字拉起下拉菜单 -->
+        <div class="sw-presence-trigger" id="sw-presence-trigger">
+          <span id="sw-presence-dot" class="sw-presence-dot is-offline"></span>
+          <span id="sw-presence-label" class="sw-presence-label">离线</span>
+          <span class="sw-presence-arrow">▾</span>
+        </div>
+        <!-- 编辑资料按钮 -->
+        <button id="sw-edit-profile-btn" class="sw-edit-btn" title="编辑资料">✏️</button>
+        <!-- 下拉菜单 -->
+        <div class="sw-presence-dropdown hidden" id="sw-presence-dropdown">
+          <button class="sw-dropdown-item" data-status="online"><span class="sw-presence-dot is-online"></span>在线</button>
+          <button class="sw-dropdown-item" data-status="busy"><span class="sw-presence-dot is-busy"></span>忙碌</button>
+          <button class="sw-dropdown-item" data-status="focus"><span class="sw-presence-dot is-focus"></span>专注</button>
+          <button class="sw-dropdown-item" data-status="away"><span class="sw-presence-dot is-away"></span>离开</button>
+        </div>
+      </div>
+      <div class="sw-profile-code-row">
+        <span class="sw-code-label">好友码</span>
+        <span id="sw-friend-code" class="sw-code-value">未生成</span>
+        <button id="sw-copy-code" class="sw-btn-inline" title="复制好友码">📋</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ 内嵌编辑资料面板（点击 ✏️ 展开收起） ═══ -->
+  <section class="sw-edit-panel hidden" id="sw-edit-panel">
+    <div class="sw-edit-field">
+      <label>主人名</label>
+      <input id="sw-edit-owner" type="text" placeholder="你的昵称">
+    </div>
+    <div class="sw-edit-field">
+      <label>宠物名</label>
+      <input id="sw-edit-pet" type="text" placeholder="宠物名字">
+    </div>
+    <div class="sw-edit-field">
+      <label>宠物性别</label>
+      <div class="sw-gender-select">
+        <button type="button" class="sw-gender-btn active" data-gender="gg">GG ♂</button>
+        <button type="button" class="sw-gender-btn" data-gender="mm">MM ♀</button>
+      </div>
+    </div>
+    <div class="sw-edit-actions">
+      <button id="sw-save-edit-btn" class="sw-btn-primary">保存修改</button>
+      <button id="sw-cancel-edit-btn" class="sw-btn-secondary">取消</button>
+    </div>
+  </section>
+
+  <!-- ═══ Toast 容器 ═══ -->
+  <div id="sw-toast" class="sw-toast hidden"></div>
+
+  <!-- ═══ 主内容区：单列布局（去掉右侧活动面板） ═══ -->
+  <main class="sw-main sw-single-column">
+
+    <!-- 搜索 + 添加好友 -->
+    <section class="sw-friends-area">
+      <div class="sw-friends-toolbar">
+        <div class="sw-search-box">
+          <input id="sw-search-input" type="text" placeholder="搜索好友..." autocomplete="off">
+        </div>
+        <button id="sw-btn-add-friend" class="sw-btn-icon" title="添加好友">＋</button>
+      </div>
+
+      <!-- 添加好友弹出区（去掉本地模拟按钮） -->
+      <div id="sw-add-friend-panel" class="sw-add-friend-panel hidden">
+        <div class="sw-add-field">
+          <input id="sw-friend-code-input" type="text" placeholder="好友码 QP-XXXX-XX" autocomplete="off">
+        </div>
+        <div class="sw-add-field">
+          <input id="sw-friend-message-input" type="text" placeholder="打个招呼（可选）" autocomplete="off">
+        </div>
+        <div class="sw-add-actions">
+          <button id="sw-send-request" class="sw-btn-primary">发送申请</button>
+        </div>
+      </div>
+
+      <!-- 待处理申请 -->
+      <div id="sw-requests-section" class="sw-section hidden">
+        <div class="sw-section-header">
+          <span>好友申请</span>
+          <span id="sw-request-count" class="sw-count-badge">0</span>
+        </div>
+        <div id="sw-request-list" class="sw-friend-list"></div>
+      </div>
+
+      <!-- 好友列表（在线在上、离线在下，合并为一组） -->
+      <div class="sw-section">
+        <div class="sw-section-header">
+          <span>好友</span>
+          <span id="sw-friends-count" class="sw-count-badge">0</span>
+        </div>
+        <div id="sw-friends-list" class="sw-friend-list"></div>
+      </div>
+
+      <!-- 在线大厅：所有在线用户（不论好友关系） -->
+      <div id="sw-lobby-section" class="sw-section">
+        <div class="sw-section-header">
+          <span>在线大厅</span>
+          <span id="sw-lobby-count" class="sw-count-badge">0</span>
+          <button id="sw-lobby-refresh" class="sw-btn-inline" title="刷新">↻</button>
+        </div>
+        <div id="sw-lobby-list" class="sw-friend-list"></div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- 隐藏：已移除功能的 id 占位，防止 JS 报错 -->
+  <div style="display:none">
+    <div id="sw-activity-tabs"></div>
+    <aside class="sw-activity-area"></aside>
+    <section data-panel="visit"></section>
+    <section data-panel="game"></section>
+    <section data-panel="profile"></section>
+    <section data-panel="devtools"></section>
+    <button id="sw-send-loopback"></button>
+    <button id="sw-switch-local"></button>
+    <button id="sw-switch-remote"></button>
+    <button id="sw-switch-real-remote"></button>
+    <div id="sw-debug-friend-list"></div>
+    <div id="sw-room-state"></div>
+    <div id="sw-room-hint"></div>
+    <button id="sw-leave-room"></button>
+    <div id="sw-visit-actions"></div>
+    <div id="sw-gomoku-host"></div>
+    <div id="sw-gomoku-board"></div>
+    <div id="sw-gomoku-status"></div>
+    <button id="sw-gomoku-reset"></button>
+    <span id="sw-profile-code"></span>
+    <!-- 资料设置区（隐藏保留供 JS 引用） -->
+    <section class="sw-inline-profile-section" id="sw-inline-profile-section">
+      <input id="sw-owner-name" type="text">
+      <input id="sw-pet-name" type="text">
+      <div class="sw-gender-select">
+        <button type="button" class="sw-gender-btn" data-gender="gg">GG</button>
+        <button type="button" class="sw-gender-btn" data-gender="mm">MM</button>
+      </div>
+      <button id="sw-save-profile"></button>
+      <button id="sw-close-inline-profile"></button>
+    </section>
+  </div>
+
+  <!-- 社交模块脚本（自洽，不依赖宠物核心） -->
+  <script src="js/social/social-state.js"></script>
+  <script src="js/social/social-bridge.js"></script>
+  <script src="js/social/social-remote-adapter.js"></script>
+  <script src="js/social/social-real-remote-adapter.js"></script>
+  <script src="js/social/social-gateway.js"></script>
+  <script src="js/visit/visit-session.js"></script>
+  <script src="js/social/social-actions.js"></script>
+  <script src="js/social/social-visit-rules.js"></script>
+  <script src="js/social/social-visit-feedback.js"></script>
+  <script src="js/social/social-onboarding.js"></script>
+  <script src="js/social/social-panel.js"></script>
+  <script src="js/social/social-bootstrap.js"></script>
+  <script src="js/social/social-window-app.js"></script>
+</body>
+</html>

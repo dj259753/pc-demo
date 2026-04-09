@@ -25,6 +25,7 @@ const ClickThrough = (() => {
     '.retro-panel:not(.hidden)',   // 背包/对话/进程/日记等面板
     '#work-timer:not(.hidden)',
     '#focus-timer:not(.hidden)',
+    '#translate-pill:not(.hidden)',
   ];
 
   function init() {

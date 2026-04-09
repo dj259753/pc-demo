@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>五子棋</title>
+  <link rel="stylesheet" href="css/gomoku-window.css">
+</head>
+<body>
+  <div class="gm-shell">
+    <!-- 标题栏（可拖拽） -->
+    <header class="gm-header" id="gm-header">
+      <div class="gm-header-left">
+        <span class="gm-title">♟ 五子棋</span>
+        <span class="gm-room-label" id="gm-room-label">等待拜访会话…</span>
+      </div>
+      <div class="gm-header-right">
+        <button class="gm-btn-icon" id="gm-close" type="button" title="关闭">✕</button>
+      </div>
+    </header>
+
+    <!-- 玩家信息栏 -->
+    <div class="gm-players" id="gm-players">
+      <div class="gm-player is-black" id="gm-player-black">
+        <span class="gm-stone-icon is-black"></span>
+        <span class="gm-player-name" id="gm-black-name">黑子</span>
+        <span class="gm-player-timer" id="gm-black-timer">60</span>
+        <span class="gm-undo-badge" id="gm-black-undo-badge" title="剩余悔棋次数">×3</span>
+      </div>
+      <div class="gm-turn-indicator" id="gm-turn-indicator">●</div>
+      <div class="gm-player is-white" id="gm-player-white">
+        <span class="gm-stone-icon is-white"></span>
+        <span class="gm-player-name" id="gm-white-name">白子</span>
+        <span class="gm-player-timer" id="gm-white-timer">60</span>
+        <span class="gm-undo-badge" id="gm-white-undo-badge" title="剩余悔棋次数">×3</span>
+      </div>
+    </div>
+
+    <!-- Solo 模式欢迎屏（无拜访对局时显示） -->
+    <div class="gm-solo-welcome" id="gm-solo-welcome">
+      <div class="gm-solo-title">♟ 本地双人</div>
+      <div class="gm-solo-desc">无需拜访会话，在同一屏幕上轮流下棋</div>
+      <button class="gm-btn is-primary gm-solo-start" id="gm-solo-start" type="button">开始对局</button>
+    </div>
+
+    <!-- 棋盘 -->
+    <div class="gm-board-wrap">
+      <div class="gm-status" id="gm-status">先进入拜访会话，再邀请对方开始。</div>
+      <canvas id="gm-canvas" width="450" height="450"></canvas>
+    </div>
+
+    <!-- 全局计时 -->
+    <div class="gm-game-timer" id="gm-game-timer">
+      ⏱ <span id="gm-game-timer-value">10:00</span>
+    </div>
+
+    <!-- 操作栏 -->
+    <footer class="gm-footer">
+      <button class="gm-btn" id="gm-undo" type="button" disabled title="请求悔棋">悔棋</button>
+      <button class="gm-btn is-danger" id="gm-resign" type="button" disabled title="认输">认输</button>
+      <button class="gm-btn is-primary" id="gm-reset" type="button" disabled title="再来一局">再来一局</button>
+    </footer>
+
+    <!-- 悔棋确认弹窗 -->
+    <div class="gm-modal hidden" id="gm-undo-modal">
+      <div class="gm-modal-content">
+        <div class="gm-modal-title">悔棋请求</div>
+        <div class="gm-modal-text" id="gm-undo-modal-text">对方请求悔棋，是否同意？</div>
+        <div class="gm-modal-actions">
+          <button class="gm-btn" id="gm-undo-accept" type="button">同意</button>
+          <button class="gm-btn is-danger" id="gm-undo-reject" type="button">拒绝</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 游戏结束弹窗 -->
+    <div class="gm-modal hidden" id="gm-result-modal">
+      <div class="gm-modal-content">
+        <div class="gm-modal-title" id="gm-result-title">游戏结束</div>
+        <div class="gm-modal-text" id="gm-result-text">胜负已分</div>
+        <div class="gm-modal-actions">
+          <button class="gm-btn is-primary" id="gm-result-again" type="button">再来一局</button>
+          <button class="gm-btn" id="gm-result-close" type="button">关闭</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/social/social-state.js"></script>
+  <script src="js/social/social-bridge.js"></script>
+  <script src="js/social/social-remote-adapter.js"></script>
+  <script src="js/social/social-real-remote-adapter.js"></script>
+  <script src="js/social/social-gateway.js"></script>
+  <script src="js/visit/visit-session.js"></script>
+  <script src="js/social/social-actions.js"></script>
+  <script src="js/social/social-bootstrap.js"></script>
+  <script src="js/visit/gomoku-engine.js"></script>
+  <script src="js/visit/gomoku-window-app.js"></script>
+</body>
+</html>

@@ -281,6 +281,35 @@ const SystemSettings = (() => {
       });
     }
 
+    // ─── 重启引擎 ───
+    const btnRestartEngine = document.getElementById('setting-restart-engine');
+    if (btnRestartEngine) {
+      btnRestartEngine.addEventListener('click', async () => {
+        if (!window.electronAPI?.backendRestartGateway) {
+          BubbleSystem.show('重启引擎接口不可用', 2200);
+          return;
+        }
+        const orig = btnRestartEngine.textContent;
+        btnRestartEngine.textContent = '重启中…';
+        btnRestartEngine.disabled = true;
+        try {
+          const r = await window.electronAPI.backendRestartGateway();
+          if (r && r.ok === false) {
+            BubbleSystem.show(`重启失败: ${r.error || '未知错误'}`, 3000);
+          } else {
+            BubbleSystem.show('✅ 引擎已重启', 2200);
+            // 延迟刷新状态，等 gateway 起来
+            setTimeout(() => renderAiStatus(), 3000);
+          }
+        } catch (e) {
+          BubbleSystem.show(`重启异常: ${e.message || e}`, 3000);
+        } finally {
+          btnRestartEngine.textContent = orig;
+          btnRestartEngine.disabled = false;
+        }
+      });
+    }
+
     // ─── 麦克风权限授权 ───
     const micStatusEl = document.getElementById('setting-mic-status');
     if (micStatusEl) {

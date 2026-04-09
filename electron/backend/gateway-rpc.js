@@ -32,6 +32,14 @@ class GatewayRpcClient {
     this.onConnected = opts.onConnected;     // () => void
     this.onDisconnected = opts.onDisconnected; // () => void
 
+    // 从 url 解析端口，用于构造 Origin header（Gateway 校验 controlUi.allowedOrigins）
+    try {
+      const u = new URL(opts.url);
+      this._port = u.port || 19790;
+    } catch {
+      this._port = 19790;
+    }
+
     this.ws = null;
     this.pending = new Map();   // id → { resolve, reject }
     this.closed = false;
@@ -130,12 +138,10 @@ class GatewayRpcClient {
     console.log(`${TAG} websocket opening ${this.url}`);
 
     try {
-      // FIX: Add Origin header to WebSocket connection for gateway origin validation
-      // The ws library accepts options as second parameter: new WebSocket(url, [protocols], [options])
-      this.ws = new WebSocket(this.url, undefined, {
-        headers: {
-          'Origin': 'http://127.0.0.1'
-        }
+      // 必须显式传 Origin；Gateway ≥ 某版本会校验 controlUi.allowedOrigins，
+      // ws 库在 Node 主进程中默认不带 Origin header，会被 Gateway 拒绝（code=1008）
+      this.ws = new WebSocket(this.url, {
+        headers: { Origin: `http://127.0.0.1:${this._port || 19790}` },
       });
     } catch (err) {
       console.error(`${TAG} WebSocket constructor error:`, err.message);
@@ -205,7 +211,7 @@ class GatewayRpcClient {
       minProtocol: 3,
       maxProtocol: 3,
       client: {
-        id: 'openclaw-control-ui',
+        id: 'gateway-client',
         displayName: 'QQ宠物',
         version: '1.0',
         platform: process.platform,

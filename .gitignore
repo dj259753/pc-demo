@@ -16,4 +16,5 @@ dist/
 release/*.zip
 # Gateway 资源可提交。runtime/node（及 Windows 的 node.exe）用 Git LFS 跟踪，见 .gitattributes
 # 克隆后: git lfs install && git lfs pull；无 LFS 时仍可用 CDN / npm run ensure:runtime-node
-# 若仍从 QQClaw 同步见 npm run prepare:gateway
+# 若仍从 QQClaw 同步见 npm run prepare:gatewayresources/targets/darwin-arm64/runtime/node
+resources/targets/darwin-arm64/runtime/node 2

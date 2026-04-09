@@ -1,0 +1,386 @@
+
+> qq-pet-skills@0.4.6 start
+> npm run ensure:runtime-node && npx electron .
+
+
+> qq-pet-skills@0.4.6 ensure:runtime-node
+> node scripts/ensure-runtime-node.js
+
+[ensure-runtime-node] 使用资源目录: resources/targets/darwin-arm64
+[ensure-runtime-node] 已存在有效 /Users/Apple/Desktop/pc-demo-new/resources/targets/darwin-arm64/runtime/node，跳过
+═══════════════════════════════════════════
+🐧 QQ宠物主进程启动，日志目录: /Users/Apple/.qq-pet/logs
+═══════════════════════════════════════════
+[backend] IPC handlers 已注册
+[workspace] 初始化完成: /Users/Apple/.qq-pet/workspace
+[backend] Social remote mock ready: http://127.0.0.1:64159/v1
+[backend] 配置已完成，启动 Gateway...
+[2026-04-07T11:17:23.244Z] state: stopped → starting
+[backend] Gateway state: starting
+[2026-04-07T11:17:25.802Z] --- gateway start ---
+[2026-04-07T11:17:25.802Z] platform=darwin arch=arm64 packaged=false
+[2026-04-07T11:17:25.803Z] resourcesPath=/Users/Apple/Desktop/pc-demo-new/resources/targets/darwin-arm64
+[2026-04-07T11:17:25.803Z] nodeBin=/Users/Apple/Desktop/pc-demo-new/resources/targets/darwin-arm64/runtime/node exists=true
+[2026-04-07T11:17:25.803Z] entry=/Users/Apple/Desktop/pc-demo-new/resources/targets/darwin-arm64/gateway/node_modules/openclaw/openclaw.mjs exists=true
+[2026-04-07T11:17:25.803Z] cwd=/Users/Apple/.qq-pet/workspace exists=true
+[2026-04-07T11:17:25.803Z] token=4d76...cf92 port=19790
+[2026-04-07T11:17:25.812Z] WARN: 端口 19790 已有服务响应，尝试自动停止旧 gateway
+[2026-04-07T11:17:25.812Z] exec: gateway stop (stateDir=/Users/Apple/.qq-pet)
+[2026-04-07T11:17:28.721Z] 旧 gateway 已停止
+[2026-04-07T11:17:33.750Z] WARN: 优雅停止超时，尝试直接 kill 端口 19790
+[2026-04-07T11:17:33.823Z] kill 端口占用进程: pid=23024
+[2026-04-07T11:17:34.326Z] 端口已释放（kill 后）
+[2026-04-07T11:17:34.326Z] spawn: /Users/Apple/Desktop/pc-demo-new/resources/targets/darwin-arm64/runtime/node /Users/Apple/Desktop/pc-demo-new/resources/targets/darwin-arm64/gateway/node_modules/openclaw/openclaw.mjs gateway run --port 19790 --bind loopback
+[gateway] 2026-04-07T19:17:35.302+08:00 [canvas] host mounted at http://127.0.0.1:19790/__openclaw__/canvas/ (root /Users/Apple/.qq-pet/canvas)
+[2026-04-07T11:17:35.302Z] stdout: 2026-04-07T19:17:35.302+08:00 [canvas] host mounted at http://127.0.0.1:19790/__openclaw__/canvas/ (root /Users/Apple/.qq-pet/canvas)
+[gateway] 2026-04-07T19:17:35.313+08:00 [heartbeat] started
+[2026-04-07T11:17:35.313Z] stdout: 2026-04-07T19:17:35.313+08:00 [heartbeat] started
+[gateway] 2026-04-07T19:17:35.314+08:00 [health-monitor] started (interval: 300s, startup-grace: 60s, channel-connect-grace: 120s)
+[2026-04-07T11:17:35.314Z] stdout: 2026-04-07T19:17:35.314+08:00 [health-monitor] started (interval: 300s, startup-grace: 60s, channel-connect-grace: 120s)
+[gateway] 2026-04-07T19:17:35.315+08:00 [gateway] agent model: custom/gemini-3-flash-preview
+[2026-04-07T11:17:35.315Z] stdout: 2026-04-07T19:17:35.315+08:00 [gateway] agent model: custom/gemini-3-flash-preview
+[gateway] 2026-04-07T19:17:35.315+08:00 [gateway] listening on ws://127.0.0.1:19790, ws://[::1]:19790 (PID 28530)
+[2026-04-07T11:17:35.315Z] stdout: 2026-04-07T19:17:35.315+08:00 [gateway] listening on ws://127.0.0.1:19790, ws://[::1]:19790 (PID 28530)
+[gateway] 2026-04-07T19:17:35.316+08:00 [gateway] log file: /tmp/openclaw/openclaw-2026-04-07.log
+[2026-04-07T11:17:35.316Z] stdout: 2026-04-07T19:17:35.316+08:00 [gateway] log file: /tmp/openclaw/openclaw-2026-04-07.log
+[gateway] 2026-04-07T19:17:35.322+08:00 [browser/server] Browser control listening on http://127.0.0.1:19792/ (auth=token)
+[2026-04-07T11:17:35.322Z] stdout: 2026-04-07T19:17:35.322+08:00 [browser/server] Browser control listening on http://127.0.0.1:19792/ (auth=token)
+[2026-04-07T11:17:35.637Z] health check passed, child alive
+[2026-04-07T11:17:35.637Z] state: starting → running
+[backend] Gateway state: running
+[backend] Gateway 启动成功: http://127.0.0.1:19790
+[gateway-rpc] websocket opening ws://127.0.0.1:19790/
+🐧 已有配置，Gateway 已启动，直接启动宠物
+[backend] Gateway 已在运行
+[27612:0407/191735.723358:ERROR:electron/shell/common/platform_util_mac.mm:264] Unable to set login item: 未能完成该操作。Operation not permitted
+🎤 腾讯云 ASR 流式识别就绪（按需连接）
+⌨️ 全局快捷键 CommandOrControl+U 注册成功 ✅
+⌨️ 全局快捷键 CommandOrControl+K 注册成功 ✅
+⌨️ 全局快捷键 CommandOrControl+I 注册成功 ✅
+⌨️ 全局快捷键 CommandOrControl+O 注册成功 ✅
+⌨️ 全局快捷键 Command+Shift+R 注册成功 ✅
+⌨️ 全局快捷键 Command+Shift+U 注册成功 ✅
+🔄 自动更新已启用，每 60 分钟检查一次
+[gateway-rpc] websocket opened
+[gateway-rpc] connect handshake failed: origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[gateway] 2026-04-07T19:17:35.741+08:00 [ws] closed before connect conn=ea22d3c5-162c-47dc-8a55-84dd821363f9 remote=127.0.0.1 fwd=n/a origin=n/a host=127.0.0.1:19790 ua=n/a code=1008 reason=origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[2026-04-07T11:17:35.746Z] stderr: 2026-04-07T19:17:35.741+08:00 [ws] closed before connect conn=ea22d3c5-162c-47dc-8a55-84dd821363f9 remote=127.0.0.1 fwd=n/a origin=n/a host=127.0.0.1:19790 ua=n/a code=1008 reason=origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[gateway-rpc] websocket closed code=1008 reason=origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[backend] Gateway RPC 已断开
+[gateway-rpc] scheduling reconnect in 800ms
+[gateway-rpc] websocket opening ws://127.0.0.1:19790/
+[gateway-rpc] websocket opened
+[gateway-rpc] connect handshake failed: origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[gateway-rpc] websocket closed code=1008 reason=origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[backend] Gateway RPC 已断开
+[gateway-rpc] scheduling reconnect in 1360ms
+[gateway] 2026-04-07T19:17:36.554+08:00 [ws] closed before connect conn=9f87e048-3c15-4b9b-b4e4-44234133f43b remote=127.0.0.1 fwd=n/a origin=n/a host=127.0.0.1:19790 ua=n/a code=1008 reason=origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[2026-04-07T11:17:36.554Z] stderr: 2026-04-07T19:17:36.554+08:00 [ws] closed before connect conn=9f87e048-3c15-4b9b-b4e4-44234133f43b remote=127.0.0.1 fwd=n/a origin=n/a host=127.0.0.1:19790 ua=n/a code=1008 reason=origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[gateway-rpc] websocket opening ws://127.0.0.1:19790/
+[gateway-rpc] websocket opened
+[gateway-rpc] connect handshake failed: origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[gateway-rpc] websocket closed code=1008 reason=origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[backend] Gateway RPC 已断开
+[gateway-rpc] scheduling reconnect in 2312ms
+[gateway] 2026-04-07T19:17:37.918+08:00 [ws] closed before connect conn=02e3c211-eb64-46ac-bda7-bdfa051b0473 remote=127.0.0.1 fwd=n/a origin=n/a host=127.0.0.1:19790 ua=n/a code=1008 reason=origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[2026-04-07T11:17:37.918Z] stderr: 2026-04-07T19:17:37.918+08:00 [ws] closed before connect conn=02e3c211-eb64-46ac-bda7-bdfa051b0473 remote=127.0.0.1 fwd=n/a origin=n/a host=127.0.0.1:19790 ua=n/a code=1008 reason=origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+🧠 Agent Profile: {"source":"fallback:/Users/Apple/.qq-pet/workspace","agentDir":"/Users/Apple/.qq-pet/workspace","soulPath":"/Users/Apple/.qq-pet/workspace/SOUL.md","identityPath":"/Users/Apple/.qq-pet/workspace/IDENTITY.md","hasSoul":true,"hasIdentity":false}
+[gateway-rpc] websocket opening ws://127.0.0.1:19790/
+[gateway-rpc] websocket opened
+[gateway-rpc] connect handshake failed: origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[gateway-rpc] websocket closed code=1008 reason=origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[backend] Gateway RPC 已断开
+[gateway-rpc] scheduling reconnect in 3930.4ms
+[gateway] 2026-04-07T19:17:40.343+08:00 [ws] closed before connect conn=55b238c1-9d76-49fe-800a-b1e856c42c63 remote=127.0.0.1 fwd=n/a origin=n/a host=127.0.0.1:19790 ua=n/a code=4008 reason=connect failed
+[2026-04-07T11:17:40.343Z] stderr: 2026-04-07T19:17:40.343+08:00 [ws] closed before connect conn=55b238c1-9d76-49fe-800a-b1e856c42c63 remote=127.0.0.1 fwd=n/a origin=n/a host=127.0.0.1:19790 ua=n/a code=4008 reason=connect failed
+[gateway] 2026-04-07T19:17:42.207+08:00 [ws] closed before connect conn=c5a2983c-94fa-4911-9ff9-b1b132607deb remote=127.0.0.1 fwd=n/a origin=n/a host=127.0.0.1:19790 ua=n/a code=4008 reason=connect failed
+[2026-04-07T11:17:42.207Z] stderr: 2026-04-07T19:17:42.207+08:00 [ws] closed before connect conn=c5a2983c-94fa-4911-9ff9-b1b132607deb remote=127.0.0.1 fwd=n/a origin=n/a host=127.0.0.1:19790 ua=n/a code=4008 reason=connect failed
+[gateway-rpc] websocket opening ws://127.0.0.1:19790/
+[gateway-rpc] websocket opened
+[gateway-rpc] connect handshake failed: origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[gateway-rpc] websocket closed code=1008 reason=origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[backend] Gateway RPC 已断开
+[gateway-rpc] scheduling reconnect in 6681.68ms
+[gateway] 2026-04-07T19:17:44.279+08:00 [ws] closed before connect conn=e253b7ed-8f33-4284-8ee0-f49085f11009 remote=127.0.0.1 fwd=n/a origin=n/a host=127.0.0.1:19790 ua=n/a code=1008 reason=origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[2026-04-07T11:17:44.280Z] stderr: 2026-04-07T19:17:44.279+08:00 [ws] closed before connect conn=e253b7ed-8f33-4284-8ee0-f49085f11009 remote=127.0.0.1 fwd=n/a origin=n/a host=127.0.0.1:19790 ua=n/a code=1008 reason=origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[gateway-rpc] websocket opening ws://127.0.0.1:19790/
+[gateway-rpc] websocket opened
+[gateway-rpc] connect handshake failed: origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[gateway-rpc] websocket closed code=1008 reason=origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[backend] Gateway RPC 已断开
+[gateway-rpc] scheduling reconnect in 11358.856ms
+[gateway] 2026-04-07T19:17:50.962+08:00 [ws] closed before connect conn=ba0834ad-bc84-4d5b-b410-58e47ab0a3ea remote=127.0.0.1 fwd=n/a origin=n/a host=127.0.0.1:19790 ua=n/a code=1008 reason=origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[2026-04-07T11:17:50.962Z] stderr: 2026-04-07T19:17:50.962+08:00 [ws] closed before connect conn=ba0834ad-bc84-4d5b-b410-58e47ab0a3ea remote=127.0.0.1 fwd=n/a origin=n/a host=127.0.0.1:19790 ua=n/a code=1008 reason=origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[gateway] 2026-04-07T19:17:57.210+08:00 [ws] closed before connect conn=47c75e96-6ace-4e86-af4e-0ed95dc5b823 remote=127.0.0.1 fwd=n/a origin=n/a host=127.0.0.1:19790 ua=n/a code=4008 reason=connect failed
+[2026-04-07T11:17:57.210Z] stderr: 2026-04-07T19:17:57.210+08:00 [ws] closed before connect conn=47c75e96-6ace-4e86-af4e-0ed95dc5b823 remote=127.0.0.1 fwd=n/a origin=n/a host=127.0.0.1:19790 ua=n/a code=4008 reason=connect failed
+[gateway-rpc] websocket opening ws://127.0.0.1:19790/
+[gateway-rpc] websocket opened
+[gateway-rpc] connect handshake failed: origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[gateway-rpc] websocket closed code=1008 reason=origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[backend] Gateway RPC 已断开
+[gateway-rpc] scheduling reconnect in 15000ms
+[gateway] 2026-04-07T19:18:02.331+08:00 [ws] closed before connect conn=bec78e84-9f5f-45e5-b608-3c8f6e04a2e3 remote=127.0.0.1 fwd=n/a origin=n/a host=127.0.0.1:19790 ua=n/a code=1008 reason=origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[2026-04-07T11:18:02.331Z] stderr: 2026-04-07T19:18:02.331+08:00 [ws] closed before connect conn=bec78e84-9f5f-45e5-b608-3c8f6e04a2e3 remote=127.0.0.1 fwd=n/a origin=n/a host=127.0.0.1:19790 ua=n/a code=1008 reason=origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[gateway] 2026-04-07T19:18:12.213+08:00 [ws] closed before connect conn=6a0f7c54-e39c-4a70-802a-38f8742a0f2e remote=127.0.0.1 fwd=n/a origin=n/a host=127.0.0.1:19790 ua=n/a code=4008 reason=connect failed
+[2026-04-07T11:18:12.214Z] stderr: 2026-04-07T19:18:12.213+08:00 [ws] closed before connect conn=6a0f7c54-e39c-4a70-802a-38f8742a0f2e remote=127.0.0.1 fwd=n/a origin=n/a host=127.0.0.1:19790 ua=n/a code=4008 reason=connect failed
+[gateway-rpc] websocket opening ws://127.0.0.1:19790/
+[gateway-rpc] websocket opened
+[gateway-rpc] connect handshake failed: origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[gateway-rpc] websocket closed code=1008 reason=origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[backend] Gateway RPC 已断开
+[gateway-rpc] scheduling reconnect in 15000ms
+[gateway] 2026-04-07T19:18:17.335+08:00 [ws] closed before connect conn=6b3e071c-1228-4256-8951-985a8703a38d remote=127.0.0.1 fwd=n/a origin=n/a host=127.0.0.1:19790 ua=n/a code=1008 reason=origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[2026-04-07T11:18:17.335Z] stderr: 2026-04-07T19:18:17.335+08:00 [ws] closed before connect conn=6b3e071c-1228-4256-8951-985a8703a38d remote=127.0.0.1 fwd=n/a origin=n/a host=127.0.0.1:19790 ua=n/a code=1008 reason=origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[gateway] 2026-04-07T19:18:27.224+08:00 [ws] closed before connect conn=946c7fcb-5e56-48c5-8a54-5c5363b56a3b remote=127.0.0.1 fwd=n/a origin=n/a host=127.0.0.1:19790 ua=n/a code=4008 reason=connect failed
+[2026-04-07T11:18:27.225Z] stderr: 2026-04-07T19:18:27.224+08:00 [ws] closed before connect conn=946c7fcb-5e56-48c5-8a54-5c5363b56a3b remote=127.0.0.1 fwd=n/a origin=n/a host=127.0.0.1:19790 ua=n/a code=4008 reason=connect failed
+[gateway-rpc] websocket opening ws://127.0.0.1:19790/
+[gateway-rpc] websocket opened
+[gateway-rpc] connect handshake failed: origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[gateway-rpc] websocket closed code=1008 reason=origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[backend] Gateway RPC 已断开
+[gateway-rpc] scheduling reconnect in 15000ms
+[gateway] 2026-04-07T19:18:32.339+08:00 [ws] closed before connect conn=dac47331-8642-4b05-9649-5542e593db8f remote=127.0.0.1 fwd=n/a origin=n/a host=127.0.0.1:19790 ua=n/a code=1008 reason=origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[2026-04-07T11:18:32.339Z] stderr: 2026-04-07T19:18:32.339+08:00 [ws] closed before connect conn=dac47331-8642-4b05-9649-5542e593db8f remote=127.0.0.1 fwd=n/a origin=n/a host=127.0.0.1:19790 ua=n/a code=1008 reason=origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+(node:27612) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+(Use `Electron --trace-deprecation ...` to show where the warning was created)
+[gateway] 2026-04-07T19:18:42.235+08:00 [ws] closed before connect conn=a7a54a94-f47a-4e57-a011-2a8a3228ae57 remote=127.0.0.1 fwd=n/a origin=n/a host=127.0.0.1:19790 ua=n/a code=4008 reason=connect failed
+[2026-04-07T11:18:42.236Z] stderr: 2026-04-07T19:18:42.235+08:00 [ws] closed before connect conn=a7a54a94-f47a-4e57-a011-2a8a3228ae57 remote=127.0.0.1 fwd=n/a origin=n/a host=127.0.0.1:19790 ua=n/a code=4008 reason=connect failed
+[gateway-rpc] websocket opening ws://127.0.0.1:19790/
+[gateway-rpc] websocket opened
+[gateway-rpc] connect handshake failed: origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[gateway-rpc] websocket closed code=1008 reason=origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[backend] Gateway RPC 已断开
+[gateway-rpc] scheduling reconnect in 15000ms
+[gateway] 2026-04-07T19:18:47.350+08:00 [ws] closed before connect conn=51b55b17-796a-49c8-8149-dde395485f37 remote=127.0.0.1 fwd=n/a origin=n/a host=127.0.0.1:19790 ua=n/a code=1008 reason=origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[2026-04-07T11:18:47.350Z] stderr: 2026-04-07T19:18:47.350+08:00 [ws] closed before connect conn=51b55b17-796a-49c8-8149-dde395485f37 remote=127.0.0.1 fwd=n/a origin=n/a host=127.0.0.1:19790 ua=n/a code=1008 reason=origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[gateway] 2026-04-07T19:18:57.238+08:00 [ws] closed before connect conn=ea1305f3-50d5-49ab-ab2a-44efe12fb8c3 remote=127.0.0.1 fwd=n/a origin=n/a host=127.0.0.1:19790 ua=n/a code=1008 reason=origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[2026-04-07T11:18:57.238Z] stderr: 2026-04-07T19:18:57.238+08:00 [ws] closed before connect conn=ea1305f3-50d5-49ab-ab2a-44efe12fb8c3 remote=127.0.0.1 fwd=n/a origin=n/a host=127.0.0.1:19790 ua=n/a code=1008 reason=origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[gateway-rpc] websocket opening ws://127.0.0.1:19790/
+[gateway-rpc] websocket opened
+[gateway-rpc] connect handshake failed: origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[gateway-rpc] websocket closed code=1008 reason=origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[backend] Gateway RPC 已断开
+[gateway-rpc] scheduling reconnect in 15000ms
+[gateway] 2026-04-07T19:19:02.360+08:00 [ws] closed before connect conn=0277ff7c-242a-4a84-bfe6-9dc81110b40e remote=127.0.0.1 fwd=n/a origin=n/a host=127.0.0.1:19790 ua=n/a code=1008 reason=origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[2026-04-07T11:19:02.360Z] stderr: 2026-04-07T19:19:02.360+08:00 [ws] closed before connect conn=0277ff7c-242a-4a84-bfe6-9dc81110b40e remote=127.0.0.1 fwd=n/a origin=n/a host=127.0.0.1:19790 ua=n/a code=1008 reason=origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[gateway] 2026-04-07T19:19:12.247+08:00 [ws] closed before connect conn=ae7268a5-46fe-43c8-a84c-6599957d2734 remote=127.0.0.1 fwd=n/a origin=n/a host=127.0.0.1:19790 ua=n/a code=4008 reason=connect failed
+[2026-04-07T11:19:12.248Z] stderr: 2026-04-07T19:19:12.247+08:00 [ws] closed before connect conn=ae7268a5-46fe-43c8-a84c-6599957d2734 remote=127.0.0.1 fwd=n/a origin=n/a host=127.0.0.1:19790 ua=n/a code=4008 reason=connect failed
+[gateway-rpc] websocket opening ws://127.0.0.1:19790/
+[gateway-rpc] websocket opened
+[gateway-rpc] connect handshake failed: origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[gateway-rpc] websocket closed code=1008 reason=origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[backend] Gateway RPC 已断开
+[gateway-rpc] scheduling reconnect in 15000ms
+[gateway] 2026-04-07T19:19:17.370+08:00 [ws] closed before connect conn=c2644049-6c83-45e2-bb6a-9cb58dcb171e remote=127.0.0.1 fwd=n/a origin=n/a host=127.0.0.1:19790 ua=n/a code=4008 reason=connect failed
+[2026-04-07T11:19:17.371Z] stderr: 2026-04-07T19:19:17.370+08:00 [ws] closed before connect conn=c2644049-6c83-45e2-bb6a-9cb58dcb171e remote=127.0.0.1 fwd=n/a origin=n/a host=127.0.0.1:19790 ua=n/a code=4008 reason=connect failed
+[gateway] 2026-04-07T19:19:27.253+08:00 [ws] closed before connect conn=c52e674c-fc4c-42a4-8722-29ca7f66431d remote=127.0.0.1 fwd=n/a origin=n/a host=127.0.0.1:19790 ua=n/a code=1008 reason=origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[2026-04-07T11:19:27.254Z] stderr: 2026-04-07T19:19:27.253+08:00 [ws] closed before connect conn=c52e674c-fc4c-42a4-8722-29ca7f66431d remote=127.0.0.1 fwd=n/a origin=n/a host=127.0.0.1:19790 ua=n/a code=1008 reason=origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[gateway-rpc] websocket opening ws://127.0.0.1:19790/
+[gateway-rpc] websocket opened
+[gateway-rpc] connect handshake failed: origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[gateway-rpc] websocket closed code=1008 reason=origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[backend] Gateway RPC 已断开
+[gateway-rpc] scheduling reconnect in 15000ms
+[gateway] 2026-04-07T19:19:32.379+08:00 [ws] closed before connect conn=374b1445-863c-47df-aa9a-c390e4fa8729 remote=127.0.0.1 fwd=n/a origin=n/a host=127.0.0.1:19790 ua=n/a code=1008 reason=origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[2026-04-07T11:19:32.380Z] stderr: 2026-04-07T19:19:32.379+08:00 [ws] closed before connect conn=374b1445-863c-47df-aa9a-c390e4fa8729 remote=127.0.0.1 fwd=n/a origin=n/a host=127.0.0.1:19790 ua=n/a code=1008 reason=origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[gateway] 2026-04-07T19:19:42.256+08:00 [ws] closed before connect conn=1f0a36c5-843f-4864-9aaa-7ebb057fa91d remote=127.0.0.1 fwd=n/a origin=n/a host=127.0.0.1:19790 ua=n/a code=1008 reason=origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[2026-04-07T11:19:42.256Z] stderr: 2026-04-07T19:19:42.256+08:00 [ws] closed before connect conn=1f0a36c5-843f-4864-9aaa-7ebb057fa91d remote=127.0.0.1 fwd=n/a origin=n/a host=127.0.0.1:19790 ua=n/a code=1008 reason=origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[gateway-rpc] websocket opening ws://127.0.0.1:19790/
+[gateway-rpc] websocket opened
+[gateway-rpc] connect handshake failed: origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[gateway-rpc] websocket closed code=1008 reason=origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[backend] Gateway RPC 已断开
+[gateway-rpc] scheduling reconnect in 15000ms
+[gateway] 2026-04-07T19:19:47.383+08:00 [ws] closed before connect conn=3bd26a29-aec7-4683-a6eb-092368810ae5 remote=127.0.0.1 fwd=n/a origin=n/a host=127.0.0.1:19790 ua=n/a code=1008 reason=origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[2026-04-07T11:19:47.383Z] stderr: 2026-04-07T19:19:47.383+08:00 [ws] closed before connect conn=3bd26a29-aec7-4683-a6eb-092368810ae5 remote=127.0.0.1 fwd=n/a origin=n/a host=127.0.0.1:19790 ua=n/a code=1008 reason=origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[gateway] 2026-04-07T19:19:57.262+08:00 [ws] closed before connect conn=0490f913-e9c6-4bec-acf0-7883f1dce815 remote=127.0.0.1 fwd=n/a origin=n/a host=127.0.0.1:19790 ua=n/a code=1008 reason=origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[2026-04-07T11:19:57.262Z] stderr: 2026-04-07T19:19:57.262+08:00 [ws] closed before connect conn=0490f913-e9c6-4bec-acf0-7883f1dce815 remote=127.0.0.1 fwd=n/a origin=n/a host=127.0.0.1:19790 ua=n/a code=1008 reason=origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[gateway-rpc] websocket opening ws://127.0.0.1:19790/
+[gateway-rpc] websocket opened
+[gateway-rpc] connect handshake failed: origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[gateway-rpc] websocket closed code=1008 reason=origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[backend] Gateway RPC 已断开
+[gateway-rpc] scheduling reconnect in 15000ms
+[gateway] 2026-04-07T19:20:02.386+08:00 [ws] closed before connect conn=cb8dfbb8-2ec8-4e5b-9b71-f4b2bdc1ebb4 remote=127.0.0.1 fwd=n/a origin=n/a host=127.0.0.1:19790 ua=n/a code=1008 reason=origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[2026-04-07T11:20:02.386Z] stderr: 2026-04-07T19:20:02.386+08:00 [ws] closed before connect conn=cb8dfbb8-2ec8-4e5b-9b71-f4b2bdc1ebb4 remote=127.0.0.1 fwd=n/a origin=n/a host=127.0.0.1:19790 ua=n/a code=1008 reason=origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[gateway] 2026-04-07T19:20:12.270+08:00 [ws] closed before connect conn=aa4f77f5-0a50-477e-be17-fee0fec87379 remote=127.0.0.1 fwd=n/a origin=n/a host=127.0.0.1:19790 ua=n/a code=1008 reason=origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[2026-04-07T11:20:12.270Z] stderr: 2026-04-07T19:20:12.270+08:00 [ws] closed before connect conn=aa4f77f5-0a50-477e-be17-fee0fec87379 remote=127.0.0.1 fwd=n/a origin=n/a host=127.0.0.1:19790 ua=n/a code=1008 reason=origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[gateway-rpc] websocket opening ws://127.0.0.1:19790/
+[gateway-rpc] websocket opened
+[gateway-rpc] connect handshake failed: origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[gateway-rpc] websocket closed code=1008 reason=origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[backend] Gateway RPC 已断开
+[gateway-rpc] scheduling reconnect in 15000ms
+[gateway] 2026-04-07T19:20:17.397+08:00 [ws] closed before connect conn=f67a2787-6623-4865-a0d3-964a40cf1ee8 remote=127.0.0.1 fwd=n/a origin=n/a host=127.0.0.1:19790 ua=n/a code=4008 reason=connect failed
+[2026-04-07T11:20:17.397Z] stderr: 2026-04-07T19:20:17.397+08:00 [ws] closed before connect conn=f67a2787-6623-4865-a0d3-964a40cf1ee8 remote=127.0.0.1 fwd=n/a origin=n/a host=127.0.0.1:19790 ua=n/a code=4008 reason=connect failed
+[gateway] 2026-04-07T19:20:27.276+08:00 [ws] closed before connect conn=40037fe6-50d4-4152-8f1c-15122e395494 remote=127.0.0.1 fwd=n/a origin=n/a host=127.0.0.1:19790 ua=n/a code=1008 reason=origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[2026-04-07T11:20:27.276Z] stderr: 2026-04-07T19:20:27.276+08:00 [ws] closed before connect conn=40037fe6-50d4-4152-8f1c-15122e395494 remote=127.0.0.1 fwd=n/a origin=n/a host=127.0.0.1:19790 ua=n/a code=1008 reason=origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[gateway-rpc] websocket opening ws://127.0.0.1:19790/
+[gateway-rpc] websocket opened
+[gateway-rpc] connect handshake failed: origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[gateway-rpc] websocket closed code=1008 reason=origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[backend] Gateway RPC 已断开
+[gateway-rpc] scheduling reconnect in 15000ms
+[gateway] 2026-04-07T19:20:32.403+08:00 [ws] closed before connect conn=5c9b3680-e6a1-4ae9-80f4-f35c3a9bdbed remote=127.0.0.1 fwd=n/a origin=n/a host=127.0.0.1:19790 ua=n/a code=1008 reason=origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[2026-04-07T11:20:32.404Z] stderr: 2026-04-07T19:20:32.403+08:00 [ws] closed before connect conn=5c9b3680-e6a1-4ae9-80f4-f35c3a9bdbed remote=127.0.0.1 fwd=n/a origin=n/a host=127.0.0.1:19790 ua=n/a code=1008 reason=origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[gateway] 2026-04-07T19:20:42.281+08:00 [ws] closed before connect conn=9494d8e0-39a5-4016-b0ec-24d3d1b1e946 remote=127.0.0.1 fwd=n/a origin=n/a host=127.0.0.1:19790 ua=n/a code=1008 reason=origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[2026-04-07T11:20:42.282Z] stderr: 2026-04-07T19:20:42.281+08:00 [ws] closed before connect conn=9494d8e0-39a5-4016-b0ec-24d3d1b1e946 remote=127.0.0.1 fwd=n/a origin=n/a host=127.0.0.1:19790 ua=n/a code=1008 reason=origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[gateway-rpc] websocket opening ws://127.0.0.1:19790/
+[gateway-rpc] websocket opened
+[gateway-rpc] connect handshake failed: origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[gateway-rpc] websocket closed code=1008 reason=origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[backend] Gateway RPC 已断开
+[gateway-rpc] scheduling reconnect in 15000ms
+[gateway] 2026-04-07T19:20:47.410+08:00 [ws] closed before connect conn=604f56a2-291e-49b8-a9fe-2b4027af4b6c remote=127.0.0.1 fwd=n/a origin=n/a host=127.0.0.1:19790 ua=n/a code=1008 reason=origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[2026-04-07T11:20:47.410Z] stderr: 2026-04-07T19:20:47.410+08:00 [ws] closed before connect conn=604f56a2-291e-49b8-a9fe-2b4027af4b6c remote=127.0.0.1 fwd=n/a origin=n/a host=127.0.0.1:19790 ua=n/a code=1008 reason=origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[gateway] 2026-04-07T19:20:57.286+08:00 [ws] closed before connect conn=aef7c935-9b53-43b2-adb8-e5c630eeea86 remote=127.0.0.1 fwd=n/a origin=n/a host=127.0.0.1:19790 ua=n/a code=1008 reason=origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[2026-04-07T11:20:57.286Z] stderr: 2026-04-07T19:20:57.286+08:00 [ws] closed before connect conn=aef7c935-9b53-43b2-adb8-e5c630eeea86 remote=127.0.0.1 fwd=n/a origin=n/a host=127.0.0.1:19790 ua=n/a code=1008 reason=origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[gateway-rpc] websocket opening ws://127.0.0.1:19790/
+[gateway-rpc] websocket opened
+[gateway-rpc] connect handshake failed: origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[gateway-rpc] websocket closed code=1008 reason=origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[backend] Gateway RPC 已断开
+[gateway-rpc] scheduling reconnect in 15000ms
+[gateway] 2026-04-07T19:21:02.420+08:00 [ws] closed before connect conn=d20ac816-400a-489f-bc32-ed5d4616e48f remote=127.0.0.1 fwd=n/a origin=n/a host=127.0.0.1:19790 ua=n/a code=4008 reason=connect failed
+[2026-04-07T11:21:02.420Z] stderr: 2026-04-07T19:21:02.420+08:00 [ws] closed before connect conn=d20ac816-400a-489f-bc32-ed5d4616e48f remote=127.0.0.1 fwd=n/a origin=n/a host=127.0.0.1:19790 ua=n/a code=4008 reason=connect failed
+[gateway] 2026-04-07T19:21:12.290+08:00 [ws] closed before connect conn=24e84785-4581-47b1-8f26-dda2726b904c remote=127.0.0.1 fwd=n/a origin=n/a host=127.0.0.1:19790 ua=n/a code=1008 reason=origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[2026-04-07T11:21:12.290Z] stderr: 2026-04-07T19:21:12.290+08:00 [ws] closed before connect conn=24e84785-4581-47b1-8f26-dda2726b904c remote=127.0.0.1 fwd=n/a origin=n/a host=127.0.0.1:19790 ua=n/a code=1008 reason=origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[gateway-rpc] websocket opening ws://127.0.0.1:19790/
+[gateway-rpc] websocket opened
+[gateway-rpc] connect handshake failed: origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[gateway-rpc] websocket closed code=1008 reason=origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[backend] Gateway RPC 已断开
+[gateway-rpc] scheduling reconnect in 15000ms
+[gateway] 2026-04-07T19:21:17.422+08:00 [ws] closed before connect conn=b364815f-4151-4d94-b9ab-c12141cc49cd remote=127.0.0.1 fwd=n/a origin=n/a host=127.0.0.1:19790 ua=n/a code=1008 reason=origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[2026-04-07T11:21:17.422Z] stderr: 2026-04-07T19:21:17.422+08:00 [ws] closed before connect conn=b364815f-4151-4d94-b9ab-c12141cc49cd remote=127.0.0.1 fwd=n/a origin=n/a host=127.0.0.1:19790 ua=n/a code=1008 reason=origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[gateway] 2026-04-07T19:21:27.298+08:00 [ws] closed before connect conn=5560e149-3155-4fc1-acac-b34f51e25829 remote=127.0.0.1 fwd=n/a origin=n/a host=127.0.0.1:19790 ua=n/a code=1008 reason=origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[2026-04-07T11:21:27.298Z] stderr: 2026-04-07T19:21:27.298+08:00 [ws] closed before connect conn=5560e149-3155-4fc1-acac-b34f51e25829 remote=127.0.0.1 fwd=n/a origin=n/a host=127.0.0.1:19790 ua=n/a code=1008 reason=origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[gateway-rpc] websocket opening ws://127.0.0.1:19790/
+[gateway-rpc] websocket opened
+[gateway-rpc] connect handshake failed: origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[gateway-rpc] websocket closed code=1008 reason=origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[backend] Gateway RPC 已断开
+[gateway-rpc] scheduling reconnect in 15000ms
+[gateway] 2026-04-07T19:21:32.433+08:00 [ws] closed before connect conn=a7d25ef5-ac5e-46ef-abf5-91f653284a0a remote=127.0.0.1 fwd=n/a origin=n/a host=127.0.0.1:19790 ua=n/a code=1008 reason=origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[2026-04-07T11:21:32.434Z] stderr: 2026-04-07T19:21:32.433+08:00 [ws] closed before connect conn=a7d25ef5-ac5e-46ef-abf5-91f653284a0a remote=127.0.0.1 fwd=n/a origin=n/a host=127.0.0.1:19790 ua=n/a code=1008 reason=origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[gateway] 2026-04-07T19:21:42.305+08:00 [ws] closed before connect conn=97d0dc6f-fcee-47c3-b73f-b6ab7e7f4050 remote=127.0.0.1 fwd=n/a origin=n/a host=127.0.0.1:19790 ua=n/a code=1008 reason=origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[2026-04-07T11:21:42.306Z] stderr: 2026-04-07T19:21:42.305+08:00 [ws] closed before connect conn=97d0dc6f-fcee-47c3-b73f-b6ab7e7f4050 remote=127.0.0.1 fwd=n/a origin=n/a host=127.0.0.1:19790 ua=n/a code=1008 reason=origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[gateway-rpc] websocket opening ws://127.0.0.1:19790/
+[gateway-rpc] websocket opened
+[gateway-rpc] connect handshake failed: origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[gateway-rpc] websocket closed code=1008 reason=origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[backend] Gateway RPC 已断开
+[gateway-rpc] scheduling reconnect in 15000ms
+[gateway] 2026-04-07T19:21:47.441+08:00 [ws] closed before connect conn=fef6510d-a1f3-45ad-b24a-2854e9d27a59 remote=127.0.0.1 fwd=n/a origin=n/a host=127.0.0.1:19790 ua=n/a code=1008 reason=origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[2026-04-07T11:21:47.442Z] stderr: 2026-04-07T19:21:47.441+08:00 [ws] closed before connect conn=fef6510d-a1f3-45ad-b24a-2854e9d27a59 remote=127.0.0.1 fwd=n/a origin=n/a host=127.0.0.1:19790 ua=n/a code=1008 reason=origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[gateway] 2026-04-07T19:21:57.310+08:00 [ws] closed before connect conn=cff2a39a-6b54-462d-8ea3-b2de50ad97f5 remote=127.0.0.1 fwd=n/a origin=n/a host=127.0.0.1:19790 ua=n/a code=1008 reason=origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[2026-04-07T11:21:57.311Z] stderr: 2026-04-07T19:21:57.310+08:00 [ws] closed before connect conn=cff2a39a-6b54-462d-8ea3-b2de50ad97f5 remote=127.0.0.1 fwd=n/a origin=n/a host=127.0.0.1:19790 ua=n/a code=1008 reason=origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[gateway-rpc] websocket opening ws://127.0.0.1:19790/
+[gateway-rpc] websocket opened
+[gateway-rpc] connect handshake failed: origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[gateway-rpc] websocket closed code=1008 reason=origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[backend] Gateway RPC 已断开
+[gateway-rpc] scheduling reconnect in 15000ms
+[gateway] 2026-04-07T19:22:02.451+08:00 [ws] closed before connect conn=cb1f8fd0-17c1-4cf1-824a-bd8f3b8e6fa8 remote=127.0.0.1 fwd=n/a origin=n/a host=127.0.0.1:19790 ua=n/a code=4008 reason=connect failed
+[2026-04-07T11:22:02.451Z] stderr: 2026-04-07T19:22:02.451+08:00 [ws] closed before connect conn=cb1f8fd0-17c1-4cf1-824a-bd8f3b8e6fa8 remote=127.0.0.1 fwd=n/a origin=n/a host=127.0.0.1:19790 ua=n/a code=4008 reason=connect failed
+[gateway] 2026-04-07T19:22:12.313+08:00 [ws] closed before connect conn=ca44c200-dba3-4435-a5d6-a8516f8f18f6 remote=127.0.0.1 fwd=n/a origin=n/a host=127.0.0.1:19790 ua=n/a code=1008 reason=origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[2026-04-07T11:22:12.314Z] stderr: 2026-04-07T19:22:12.313+08:00 [ws] closed before connect conn=ca44c200-dba3-4435-a5d6-a8516f8f18f6 remote=127.0.0.1 fwd=n/a origin=n/a host=127.0.0.1:19790 ua=n/a code=1008 reason=origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[gateway-rpc] websocket opening ws://127.0.0.1:19790/
+[gateway-rpc] websocket opened
+[gateway-rpc] connect handshake failed: origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[gateway-rpc] websocket closed code=1008 reason=origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[backend] Gateway RPC 已断开
+[gateway-rpc] scheduling reconnect in 15000ms
+[gateway] 2026-04-07T19:22:17.454+08:00 [ws] closed before connect conn=e122ec00-fab2-44ea-b82d-31ad2af67d88 remote=127.0.0.1 fwd=n/a origin=n/a host=127.0.0.1:19790 ua=n/a code=1008 reason=origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[2026-04-07T11:22:17.455Z] stderr: 2026-04-07T19:22:17.454+08:00 [ws] closed before connect conn=e122ec00-fab2-44ea-b82d-31ad2af67d88 remote=127.0.0.1 fwd=n/a origin=n/a host=127.0.0.1:19790 ua=n/a code=1008 reason=origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[gateway] 2026-04-07T19:22:27.320+08:00 [ws] closed before connect conn=000aca92-2ac5-4e79-8942-edc2fbbac5ab remote=127.0.0.1 fwd=n/a origin=n/a host=127.0.0.1:19790 ua=n/a code=1008 reason=origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[2026-04-07T11:22:27.321Z] stderr: 2026-04-07T19:22:27.320+08:00 [ws] closed before connect conn=000aca92-2ac5-4e79-8942-edc2fbbac5ab remote=127.0.0.1 fwd=n/a origin=n/a host=127.0.0.1:19790 ua=n/a code=1008 reason=origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[gateway-rpc] websocket opening ws://127.0.0.1:19790/
+[gateway-rpc] websocket opened
+[gateway-rpc] connect handshake failed: origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[gateway-rpc] websocket closed code=1008 reason=origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[backend] Gateway RPC 已断开
+[gateway-rpc] scheduling reconnect in 15000ms
+[gateway] 2026-04-07T19:22:32.463+08:00 [ws] closed before connect conn=106f127c-14c0-4508-813f-1e069c6a78fb remote=127.0.0.1 fwd=n/a origin=n/a host=127.0.0.1:19790 ua=n/a code=1008 reason=origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[2026-04-07T11:22:32.464Z] stderr: 2026-04-07T19:22:32.463+08:00 [ws] closed before connect conn=106f127c-14c0-4508-813f-1e069c6a78fb remote=127.0.0.1 fwd=n/a origin=n/a host=127.0.0.1:19790 ua=n/a code=1008 reason=origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[gateway] 2026-04-07T19:22:42.323+08:00 [ws] closed before connect conn=5265875e-43e3-4b9b-89ce-60d6762a11ff remote=127.0.0.1 fwd=n/a origin=n/a host=127.0.0.1:19790 ua=n/a code=1008 reason=origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[2026-04-07T11:22:42.324Z] stderr: 2026-04-07T19:22:42.323+08:00 [ws] closed before connect conn=5265875e-43e3-4b9b-89ce-60d6762a11ff remote=127.0.0.1 fwd=n/a origin=n/a host=127.0.0.1:19790 ua=n/a code=1008 reason=origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[gateway-rpc] websocket opening ws://127.0.0.1:19790/
+[gateway-rpc] websocket opened
+[gateway-rpc] connect handshake failed: origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[gateway-rpc] websocket closed code=1008 reason=origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[backend] Gateway RPC 已断开
+[gateway-rpc] scheduling reconnect in 15000ms
+[gateway] 2026-04-07T19:22:47.467+08:00 [ws] closed before connect conn=4d2bcf65-0212-4c25-b0ce-3002c3f7d111 remote=127.0.0.1 fwd=n/a origin=n/a host=127.0.0.1:19790 ua=n/a code=1008 reason=origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[2026-04-07T11:22:47.468Z] stderr: 2026-04-07T19:22:47.467+08:00 [ws] closed before connect conn=4d2bcf65-0212-4c25-b0ce-3002c3f7d111 remote=127.0.0.1 fwd=n/a origin=n/a host=127.0.0.1:19790 ua=n/a code=1008 reason=origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[gateway] 2026-04-07T19:22:57.329+08:00 [ws] closed before connect conn=f41a5831-9b21-4a85-a398-855abd572a3c remote=127.0.0.1 fwd=n/a origin=n/a host=127.0.0.1:19790 ua=n/a code=4008 reason=connect failed
+[2026-04-07T11:22:57.330Z] stderr: 2026-04-07T19:22:57.329+08:00 [ws] closed before connect conn=f41a5831-9b21-4a85-a398-855abd572a3c remote=127.0.0.1 fwd=n/a origin=n/a host=127.0.0.1:19790 ua=n/a code=4008 reason=connect failed
+[gateway-rpc] websocket opening ws://127.0.0.1:19790/
+[gateway-rpc] websocket opened
+[gateway-rpc] connect handshake failed: origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[gateway-rpc] websocket closed code=1008 reason=origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[backend] Gateway RPC 已断开
+[gateway-rpc] scheduling reconnect in 15000ms
+[gateway] 2026-04-07T19:23:02.470+08:00 [ws] closed before connect conn=abee85be-d77e-4172-96ee-780177e4c477 remote=127.0.0.1 fwd=n/a origin=n/a host=127.0.0.1:19790 ua=n/a code=4008 reason=connect failed
+[2026-04-07T11:23:02.470Z] stderr: 2026-04-07T19:23:02.470+08:00 [ws] closed before connect conn=abee85be-d77e-4172-96ee-780177e4c477 remote=127.0.0.1 fwd=n/a origin=n/a host=127.0.0.1:19790 ua=n/a code=4008 reason=connect failed
+[gateway] 2026-04-07T19:23:12.334+08:00 [ws] closed before connect conn=744b6aa8-7cd1-4bf3-b5e4-d701aa274e7b remote=127.0.0.1 fwd=n/a origin=n/a host=127.0.0.1:19790 ua=n/a code=4008 reason=connect failed
+[2026-04-07T11:23:12.335Z] stderr: 2026-04-07T19:23:12.334+08:00 [ws] closed before connect conn=744b6aa8-7cd1-4bf3-b5e4-d701aa274e7b remote=127.0.0.1 fwd=n/a origin=n/a host=127.0.0.1:19790 ua=n/a code=4008 reason=connect failed
+[gateway-rpc] websocket opening ws://127.0.0.1:19790/
+[gateway-rpc] websocket opened
+[gateway-rpc] connect handshake failed: origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[gateway-rpc] websocket closed code=1008 reason=origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[backend] Gateway RPC 已断开
+[gateway-rpc] scheduling reconnect in 15000ms
+[gateway] 2026-04-07T19:23:17.476+08:00 [ws] closed before connect conn=f0a4db20-5598-4cf2-ad1e-9f32341b51c1 remote=127.0.0.1 fwd=n/a origin=n/a host=127.0.0.1:19790 ua=n/a code=1008 reason=origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[2026-04-07T11:23:17.476Z] stderr: 2026-04-07T19:23:17.476+08:00 [ws] closed before connect conn=f0a4db20-5598-4cf2-ad1e-9f32341b51c1 remote=127.0.0.1 fwd=n/a origin=n/a host=127.0.0.1:19790 ua=n/a code=1008 reason=origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[gateway] 2026-04-07T19:23:27.336+08:00 [ws] closed before connect conn=a0ec4f71-fad8-45dc-b71e-67c9db16d107 remote=127.0.0.1 fwd=n/a origin=n/a host=127.0.0.1:19790 ua=n/a code=1008 reason=origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[2026-04-07T11:23:27.337Z] stderr: 2026-04-07T19:23:27.336+08:00 [ws] closed before connect conn=a0ec4f71-fad8-45dc-b71e-67c9db16d107 remote=127.0.0.1 fwd=n/a origin=n/a host=127.0.0.1:19790 ua=n/a code=1008 reason=origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[gateway-rpc] websocket opening ws://127.0.0.1:19790/
+[gateway-rpc] websocket opened
+[gateway-rpc] connect handshake failed: origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[gateway-rpc] websocket closed code=1008 reason=origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[backend] Gateway RPC 已断开
+[gateway-rpc] scheduling reconnect in 15000ms
+[gateway] 2026-04-07T19:23:32.479+08:00 [ws] closed before connect conn=ef035ff0-1e3f-4f5d-8204-9160e4e6fa45 remote=127.0.0.1 fwd=n/a origin=n/a host=127.0.0.1:19790 ua=n/a code=4008 reason=connect failed
+[2026-04-07T11:23:32.480Z] stderr: 2026-04-07T19:23:32.479+08:00 [ws] closed before connect conn=ef035ff0-1e3f-4f5d-8204-9160e4e6fa45 remote=127.0.0.1 fwd=n/a origin=n/a host=127.0.0.1:19790 ua=n/a code=4008 reason=connect failed
+[gateway] 2026-04-07T19:23:42.346+08:00 [ws] closed before connect conn=72ff7bd9-faaa-486a-b8d2-2d040fbb6a46 remote=127.0.0.1 fwd=n/a origin=n/a host=127.0.0.1:19790 ua=n/a code=1008 reason=origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[2026-04-07T11:23:42.346Z] stderr: 2026-04-07T19:23:42.346+08:00 [ws] closed before connect conn=72ff7bd9-faaa-486a-b8d2-2d040fbb6a46 remote=127.0.0.1 fwd=n/a origin=n/a host=127.0.0.1:19790 ua=n/a code=1008 reason=origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[gateway-rpc] websocket opening ws://127.0.0.1:19790/
+[gateway-rpc] websocket opened
+[gateway-rpc] connect handshake failed: origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[gateway-rpc] websocket closed code=1008 reason=origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[backend] Gateway RPC 已断开
+[gateway-rpc] scheduling reconnect in 15000ms
+[gateway] 2026-04-07T19:23:47.485+08:00 [ws] closed before connect conn=6324f1d1-55d5-410b-a819-5860e6ca4771 remote=127.0.0.1 fwd=n/a origin=n/a host=127.0.0.1:19790 ua=n/a code=1008 reason=origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[2026-04-07T11:23:47.485Z] stderr: 2026-04-07T19:23:47.485+08:00 [ws] closed before connect conn=6324f1d1-55d5-410b-a819-5860e6ca4771 remote=127.0.0.1 fwd=n/a origin=n/a host=127.0.0.1:19790 ua=n/a code=1008 reason=origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[gateway] 2026-04-07T19:23:57.350+08:00 [ws] closed before connect conn=e5070f6c-8ab1-4c42-b658-c4720c07ae88 remote=127.0.0.1 fwd=n/a origin=n/a host=127.0.0.1:19790 ua=n/a code=1008 reason=origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[2026-04-07T11:23:57.351Z] stderr: 2026-04-07T19:23:57.350+08:00 [ws] closed before connect conn=e5070f6c-8ab1-4c42-b658-c4720c07ae88 remote=127.0.0.1 fwd=n/a origin=n/a host=127.0.0.1:19790 ua=n/a code=1008 reason=origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[gateway-rpc] websocket opening ws://127.0.0.1:19790/
+[gateway-rpc] websocket opened
+[gateway-rpc] connect handshake failed: origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[gateway-rpc] websocket closed code=1008 reason=origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[backend] Gateway RPC 已断开
+[gateway-rpc] scheduling reconnect in 15000ms
+[gateway] 2026-04-07T19:24:02.491+08:00 [ws] closed before connect conn=2c33ab8a-e468-4b3f-ad26-4f96d322f14f remote=127.0.0.1 fwd=n/a origin=n/a host=127.0.0.1:19790 ua=n/a code=1008 reason=origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[2026-04-07T11:24:02.491Z] stderr: 2026-04-07T19:24:02.491+08:00 [ws] closed before connect conn=2c33ab8a-e468-4b3f-ad26-4f96d322f14f remote=127.0.0.1 fwd=n/a origin=n/a host=127.0.0.1:19790 ua=n/a code=1008 reason=origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[gateway] 2026-04-07T19:24:12.356+08:00 [ws] closed before connect conn=d4558652-4eb3-474c-83d7-74ff94bcd56e remote=127.0.0.1 fwd=n/a origin=n/a host=127.0.0.1:19790 ua=n/a code=1008 reason=origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[2026-04-07T11:24:12.356Z] stderr: 2026-04-07T19:24:12.356+08:00 [ws] closed before connect conn=d4558652-4eb3-474c-83d7-74ff94bcd56e remote=127.0.0.1 fwd=n/a origin=n/a host=127.0.0.1:19790 ua=n/a code=1008 reason=origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[gateway-rpc] websocket opening ws://127.0.0.1:19790/
+[gateway-rpc] websocket opened
+[gateway-rpc] connect handshake failed: origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[gateway-rpc] websocket closed code=1008 reason=origin not allowed (open the Control UI from the gateway host or allow it in gateway.controlUi.allowedOrigins)
+[backend] Gateway RPC 已断开
+[gateway-rpc] scheduling reconnect in 15000ms
+[gateway] 2026-04-07T19:24:17.496+08:00 [ws] closed before connect conn=c7c2e52a-4009-4d2a-90eb-4db600a20a82 remote=127.0.0.1 fwd=n/a origin=n/a host=127.0.0.1:19790 ua=n/a code=4008 reason=connect failed
+[2026-04-07T11:24:17.497Z] stderr: 2026-04-07T19:24:17.496+08:00 [ws] closed before connect conn=c7c2e52a-4009-4d2a-90eb-4db600a20a82 remote=127.0.0.1 fwd=n/a origin=n/a host=127.0.0.1:19790 ua=n/a code=4008 reason=connect failed
+[2026-04-07T11:24:26.938Z] state: running → stopping
+[backend] Gateway state: stopping
+[gateway] 2026-04-07T19:24:26.941+08:00 [gateway] signal SIGTERM received
+2026-04-07T19:24:26.941+08:00 [gateway] received SIGTERM; shutting down
+2026-04-07T19:24:26.942+08:00 [gmail-watcher] gmail watcher stopped
+[2026-04-07T11:24:27.043Z] stdout: 2026-04-07T19:24:26.941+08:00 [gateway] signal SIGTERM received
+2026-04-07T19:24:26.941+08:00 [gateway] received SIGTERM; shutting down
+2026-04-07T19:24:26.942+08:00 [gmail-watcher] gmail watcher stopped
+[2026-04-07T11:24:27.043Z] child exit: code=0 signal=null prevState=stopping
+[2026-04-07T11:24:27.043Z] state: stopping → stopped
+[backend] Gateway state: stopped

@@ -10,45 +10,41 @@
 
 'use strict';
 
+// 兜底：EPIPE 等管道错误不应弹窗（带节流，防止死循环刷日志）
+let _lastSuppressedTime = 0;
+let _suppressCount = 0;
+process.on('uncaughtException', (err) => {
+  if (['EPIPE', 'ERR_STREAM_WRITE_AFTER_END', 'ENOTCONN'].includes(err.code)) {
+    const now = Date.now();
+    _suppressCount++;
+    if (now - _lastSuppressedTime > 5000) {
+      // 每 5 秒最多打一条，避免刷爆日志
+      console.warn(`[backend] suppressed ${_suppressCount} stream error(s) (latest: ${err.code})`);
+      _lastSuppressedTime = now;
+      _suppressCount = 0;
+    }
+    return;
+  }
+  throw err; // 其他异常继续抛出
+});
+
 const { ipcMain, BrowserWindow } = require('electron');
 const constants = require('./constants');
 const { GatewayProcess } = require('./gateway-process');
 const { GatewayRpcClient } = require('./gateway-rpc');
-const { resolveGatewayAuthToken, ensureGatewayAuthTokenInConfig, ensureControlUiAllowedOriginsInConfig } = require('./gateway-auth');
+const { resolveGatewayAuthToken, ensureGatewayAuthTokenInConfig } = require('./gateway-auth');
 const { readUserConfig, writeUserConfig, verifyCustom, saveProviderConfig, getCurrentProviderConfig, ensureConfigSanitizedAndMigrated, ensureDreamingEnabled } = require('./provider-config');
 const { backupCurrentUserConfig, recordSetupBaselineConfigSnapshot, recordLastKnownGoodConfigSnapshot, getConfigRecoveryData } = require('./config-backup');
 const { ensureWorkspace, getDefaultPetSoul } = require('./workspace-init');
+const { SocialClient } = require('./social-client');
+const { VisitSessionController } = require('./visit-session');
+const { socialEvents } = require('./social-events');
 
 let gateway = null;
 let rpcClient = null;   // Gateway WebSocket RPC 客户端
-
-/**
- * 清理旧 session 文件
- * 避免残留的失败 run（如 API key 过期导致的 isError=true）导致
- * Agent 启动时反复尝试恢复未完成的任务
- */
-function cleanStaleSessions() {
-  const fs = require('fs');
-  const path = require('path');
-  const sessionsDir = path.join(constants.resolveUserStateDir(), 'agents', 'main', 'sessions');
-  if (!fs.existsSync(sessionsDir)) return;
-
-  try {
-    const files = fs.readdirSync(sessionsDir);
-    let cleaned = 0;
-    for (const file of files) {
-      if (file === '.DS_Store') continue;
-      const filePath = path.join(sessionsDir, file);
-      fs.unlinkSync(filePath);
-      cleaned++;
-    }
-    if (cleaned > 0) {
-      console.log(`[backend] 已清理 ${cleaned} 个旧 session 文件`);
-    }
-  } catch (err) {
-    console.warn('[backend] 清理旧 session 失败:', err.message);
-  }
-}
+let socialEventBound = false;
+const socialClient = new SocialClient();
+const visitSession = new VisitSessionController(socialClient);
 
 /**
  * 初始化 Backend
@@ -61,12 +57,11 @@ async function init() {
   ensureWorkspace();
   // 迁移 ~/.openclaw → ~/.qq-pet，并修正与当前 OpenClaw 不兼容的字段（仅宠物使用的配置）
   ensureConfigSanitizedAndMigrated();
+  // 初始化社交本地存储壳
+  socialClient.bootstrap();
 
   // 确保 Dreaming（做梦模式）默认开启
   ensureDreamingEnabled();
-
-  // 启动前清理旧 session（避免残留的失败 run 导致 Agent 反复尝试恢复）
-  cleanStaleSessions();
 
   // 2. 检查是否需要首次配置
   if (!constants.isSetupComplete()) {
@@ -87,17 +82,6 @@ async function startGateway() {
   if (gateway && gateway.getState() === 'running') {
     console.log('[backend] Gateway 已在运行');
     return 'running';
-  }
-
-  // FIX: Ensure controlUi.allowedOrigins is configured for Electron file:// origin
-  // This allows the WebSocket RPC client to connect without "origin not allowed" errors
-  let config = readUserConfig();
-  const before = JSON.stringify(config);
-  ensureControlUiAllowedOriginsInConfig(config);
-  const after = JSON.stringify(config);
-  if (before !== after) {
-    writeUserConfig(config);
-    console.log('[backend] 已补全 gateway.controlUi.allowedOrigins 配置');
   }
 
   // 读取或生成 auth token
@@ -177,12 +161,6 @@ function connectGatewayRpc() {
     },
     onConnected: () => {
       console.log('[backend] Gateway RPC 已连接');
-      // 重置 session，清除旧的未完成 run 残留
-      rpcClient.chatSend('/new').then(() => {
-        console.log('[backend] Gateway session 已重置');
-      }).catch((err) => {
-        console.warn('[backend] Gateway session 重置失败:', err.message);
-      });
       for (const win of BrowserWindow.getAllWindows()) {
         if (!win.isDestroyed()) {
           win.webContents.send('gateway-rpc-connected');
@@ -209,6 +187,7 @@ function stopGateway() {
     gateway.stop();
     gateway = null;
   }
+  Promise.resolve();
 }
 
 /**
@@ -238,10 +217,23 @@ function getGatewayInfo() {
   };
 }
 
+function broadcastSocialEvent(payload) {
+  for (const win of BrowserWindow.getAllWindows()) {
+    if (!win.isDestroyed()) {
+      win.webContents.send('social-event', payload);
+    }
+  }
+}
+
 /**
  * 注册所有 Backend IPC Handlers
  */
 function registerIPC() {
+  if (!socialEventBound) {
+    socialEvents.on('social-event', broadcastSocialEvent);
+    socialEventBound = true;
+  }
+
   // ── 配置向导相关 ──
 
   // 验证 AI Provider
@@ -261,8 +253,6 @@ function registerIPC() {
       const config = saveProviderConfig(apiKey, baseURL, modelID);
       // 确保 gateway auth token
       ensureGatewayAuthTokenInConfig(config);
-      // FIX: Ensure controlUi.allowedOrigins is configured
-      ensureControlUiAllowedOriginsInConfig(config);
       writeUserConfig(config);
       // 记录基线快照
       recordSetupBaselineConfigSnapshot();
@@ -313,6 +303,236 @@ function registerIPC() {
     return constants.isSetupComplete();
   });
 
+  // ── 社交架构壳 IPC ──
+  ipcMain.handle('social-bootstrap', () => {
+    try {
+      return { success: true, data: socialClient.bootstrap() };
+    } catch (err) {
+      return { success: false, message: err.message };
+    }
+  });
+
+  ipcMain.handle('social-get-profile', () => {
+    try {
+      return { success: true, data: socialClient.getProfile() };
+    } catch (err) {
+      return { success: false, message: err.message };
+    }
+  });
+
+  ipcMain.handle('social-upsert-profile', (_event, payload = {}) => {
+    try {
+      return { success: true, data: socialClient.ensureIdentity(payload) };
+    } catch (err) {
+      return { success: false, message: err.message };
+    }
+  });
+
+  ipcMain.handle('social-get-friends', () => {
+    try {
+      return { success: true, data: socialClient.getFriends() };
+    } catch (err) {
+      return { success: false, message: err.message };
+    }
+  });
+
+  ipcMain.handle('social-send-friend-request', (_event, payload = {}) => {
+    try {
+      return { success: true, data: socialClient.sendFriendRequest(payload) };
+    } catch (err) {
+      return { success: false, message: err.message };
+    }
+  });
+
+  ipcMain.handle('social-respond-friend-request', (_event, payload = {}) => {
+    try {
+      return { success: true, data: socialClient.respondFriendRequest(payload) };
+    } catch (err) {
+      return { success: false, message: err.message };
+    }
+  });
+
+  ipcMain.handle('social-get-presence', () => {
+    try {
+      return { success: true, data: socialClient.getPresence() };
+    } catch (err) {
+      return { success: false, message: err.message };
+    }
+  });
+
+  ipcMain.handle('social-set-presence', (_event, payload = {}) => {
+    try {
+      return { success: true, data: socialClient.setPresence(payload) };
+    } catch (err) {
+      return { success: false, message: err.message };
+    }
+  });
+
+  ipcMain.handle('social-heartbeat', (_event, payload = {}) => {
+    try {
+      return { success: true, data: socialClient.heartbeat(payload) };
+    } catch (err) {
+      return { success: false, message: err.message };
+    }
+  });
+
+  ipcMain.handle('social-set-friend-presence', (_event, payload = {}) => {
+    try {
+      return { success: true, data: socialClient.setFriendPresence(payload) };
+    } catch (err) {
+      return { success: false, message: err.message };
+    }
+  });
+
+  ipcMain.handle('social-create-visit-room', (_event, payload = {}) => {
+    try {
+      return { success: true, data: visitSession.createRoom(payload) };
+    } catch (err) {
+      return { success: false, message: err.message };
+    }
+  });
+
+  ipcMain.handle('social-leave-visit-room', (_event, payload = {}) => {
+    try {
+      return { success: true, data: visitSession.leaveRoom(payload.reason || 'manual-leave') };
+    } catch (err) {
+      return { success: false, message: err.message };
+    }
+  });
+
+  ipcMain.handle('social-get-current-room', () => {
+    try {
+      return { success: true, data: visitSession.getCurrentRoom() };
+    } catch (err) {
+      return { success: false, message: err.message };
+    }
+  });
+
+  ipcMain.handle('social-send-visit-interaction', (_event, payload = {}) => {
+    try {
+      return { success: true, data: socialClient.sendVisitInteraction(payload) };
+    } catch (err) {
+      return { success: false, message: err.message };
+    }
+  });
+
+  ipcMain.handle('social-send-visit-chat', (_event, payload = {}) => {
+    try {
+      return { success: true, data: socialClient.sendVisitChat(payload) };
+    } catch (err) {
+      return { success: false, message: err.message };
+    }
+  });
+
+  ipcMain.handle('social-send-visit-request', (_event, payload = {}) => {
+    try {
+      return { success: true, data: socialClient.sendVisitRequest(payload) };
+    } catch (err) {
+      return { success: false, message: err.message };
+    }
+  });
+
+  ipcMain.handle('social-respond-visit-request', (_event, payload = {}) => {
+    try {
+      return { success: true, data: socialClient.respondVisitRequest(payload) };
+    } catch (err) {
+      return { success: false, message: err.message };
+    }
+  });
+
+  ipcMain.handle('social-get-pending-visit-requests', () => {
+    try {
+      return { success: true, data: socialClient.getPendingVisitRequests() };
+    } catch (err) {
+      return { success: false, message: err.message };
+    }
+  });
+
+  ipcMain.handle('social-send-mini-game-request', (_event, payload = {}) => {
+    try {
+      console.log('[social-ipc] sendMiniGameRequest payload:', JSON.stringify(payload));
+      const result = socialClient.sendMiniGameRequest(payload);
+      console.log('[social-ipc] sendMiniGameRequest result:', JSON.stringify(result));
+      return { success: true, data: result };
+    } catch (err) {
+      console.error('[social-ipc] sendMiniGameRequest error:', err);
+      return { success: false, message: err.message };
+    }
+  });
+
+  ipcMain.handle('social-respond-mini-game-request', (_event, payload = {}) => {
+    try {
+      return { success: true, data: socialClient.respondMiniGameRequest(payload) };
+    } catch (err) {
+      return { success: false, message: err.message };
+    }
+  });
+
+  ipcMain.handle('social-start-mini-game', (_event, payload = {}) => {
+    try {
+      return { success: true, data: socialClient.startMiniGame(payload) };
+    } catch (err) {
+      return { success: false, message: err.message };
+    }
+  });
+
+  ipcMain.handle('social-play-mini-game-move', (_event, payload = {}) => {
+    try {
+      return { success: true, data: socialClient.playMiniGameMove(payload) };
+    } catch (err) {
+      return { success: false, message: err.message };
+    }
+  });
+
+  ipcMain.handle('social-reset-mini-game', (_event, payload = {}) => {
+    try {
+      return { success: true, data: socialClient.resetMiniGame(payload) };
+    } catch (err) {
+      return { success: false, message: err.message };
+    }
+  });
+
+  ipcMain.handle('social-get-feature-flags', () => {
+    try {
+      return { success: true, data: socialClient.getFeatureFlags() };
+    } catch (err) {
+      return { success: false, message: err.message };
+    }
+  });
+
+  ipcMain.handle('social-update-feature-flags', (_event, payload = {}) => {
+    try {
+      return { success: true, data: socialClient.updateFeatureFlags(payload) };
+    } catch (err) {
+      return { success: false, message: err.message };
+    }
+  });
+
+  // ── 亲密度体系 ──
+  ipcMain.handle('social-add-intimacy-points', (_event, payload = {}) => {
+    try {
+      return { success: true, data: socialClient.addIntimacyPoints(payload || {}) };
+    } catch (err) {
+      return { success: false, message: err.message };
+    }
+  });
+
+  ipcMain.handle('social-get-intimacy', (_event, payload = {}) => {
+    try {
+      return { success: true, data: socialClient.getIntimacy(payload.friendUserId) };
+    } catch (err) {
+      return { success: false, message: err.message };
+    }
+  });
+
+  ipcMain.handle('social-get-intimacy-overview', () => {
+    try {
+      return { success: true, data: socialClient.getIntimacyOverview() };
+    } catch (err) {
+      return { success: false, message: err.message };
+    }
+  });
+
   // ── Gateway RPC 聊天（走完整 Agent loop） ──
 
   // 发送聊天消息（Agent loop 模式）
@@ -360,53 +580,6 @@ function registerIPC() {
       connected: rpcClient ? rpcClient.isConnected() : false,
       sessionKey: rpcClient ? rpcClient.getSessionKey() : null,
     };
-  });
-
-  // ── 手动触发做梦（执行 openclaw memory promote --apply） ──
-  ipcMain.handle('backend-trigger-dreaming', async () => {
-    const { execFile } = require('child_process');
-    const nodeBin = constants.resolveNodeBin();
-    const entry = constants.resolveGatewayEntry();
-    const cwd = constants.resolveGatewayCwd();
-    const stateDir = constants.resolveUserStateDir();
-
-    return new Promise((resolve) => {
-      console.log('[backend] 手动触发做梦: memory promote --apply');
-
-      // 通知渲染进程做梦开始
-      for (const win of BrowserWindow.getAllWindows()) {
-        if (!win.isDestroyed()) {
-          win.webContents.send('agent-event', { type: 'dreaming_start' });
-        }
-      }
-
-      const child = execFile(nodeBin, [entry, 'memory', 'promote', '--apply'], {
-        cwd,
-        timeout: 120_000,
-        env: {
-          ...process.env,
-          OPENCLAW_STATE_DIR: stateDir,
-          OPENCLAW_HOME: stateDir,
-          OPENCLAW_LENIENT_CONFIG: '1',
-        },
-      }, (err, stdout, stderr) => {
-        const output = (stdout || '') + (stderr || '');
-        console.log('[backend] 做梦完成:', output.slice(0, 500));
-
-        // 通知渲染进程做梦结束
-        for (const win of BrowserWindow.getAllWindows()) {
-          if (!win.isDestroyed()) {
-            win.webContents.send('agent-event', { type: 'dreaming_end' });
-          }
-        }
-
-        if (err) {
-          resolve({ success: false, message: err.message, output });
-        } else {
-          resolve({ success: true, output });
-        }
-      });
-    });
   });
 
   console.log('[backend] IPC handlers 已注册');

@@ -30,11 +30,44 @@ const MeetingNotes = (() => {
     return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
   }
 
-  function pushTranscript(text) {
+  /**
+   * 追加转写文本
+   * @param {string} text - 文本内容
+   * @param {boolean} isStreaming - true=流式中间结果（替换上一段）, false=最终结果（新起一段）
+   */
+  function pushTranscript(text, isStreaming = false) {
     const t = String(text || '').trim();
     if (!t) return;
-    if (state.transcriptParts[state.transcriptParts.length - 1] === t) return;
-    state.transcriptParts.push(t);
+    if (isStreaming) {
+      // 流式增量：替换最后一段（同一段话的中间状态）
+      if (state.transcriptParts.length > 0) {
+        const last = state.transcriptParts[state.transcriptParts.length - 1];
+        // 避免相同文本重复写入 DOM
+        if (last === t) return;
+        state.transcriptParts[state.transcriptParts.length - 1] = t;
+      } else {
+        state.transcriptParts.push(t);
+      }
+    } else {
+      // 最终结果：去重后追加新段落
+      if (state.transcriptParts[state.transcriptParts.length - 1] === t) return;
+      state.transcriptParts.push(t);
+    }
+    updateLiveDisplay();
+  }
+
+  /** 将当前转写文本同步到实时显示区域和全文区域 */
+  function updateLiveDisplay() {
+    const live = document.getElementById('meeting-notes-live');
+    const full = document.getElementById('meeting-notes-fulltext');
+    if (live) {
+      live.textContent = fullTranscript() || '正在实时转写...';
+      live.scrollTop = live.scrollHeight;
+    }
+    if (full) {
+      full.textContent = fullTranscript() || '';
+      full.scrollTop = full.scrollHeight;
+    }
   }
 
   function fullTranscript() {
@@ -43,6 +76,9 @@ const MeetingNotes = (() => {
 
   function showControl() {
     const { box, time, pause, stop } = els();
+    // 先移除父面板 hidden，再移除控制条 hidden（两层都要解隐藏）
+    const panel = document.getElementById('meeting-notes-panel');
+    if (panel) panel.classList.remove('hidden');
     if (box) box.classList.remove('hidden');
     if (time) time.textContent = fmt(state.elapsedSec);
     if (pause) {
@@ -61,6 +97,9 @@ const MeetingNotes = (() => {
 
   function hideControl() {
     const { box } = els();
+    // 隐藏父面板 + 内层控制条（两层都要 hidden，与 showControl 对称）
+    const panel = document.getElementById('meeting-notes-panel');
+    if (panel) panel.classList.add('hidden');
     if (box) box.classList.add('hidden');
   }
 
@@ -81,10 +120,10 @@ const MeetingNotes = (() => {
 
   async function setPaused(nextPaused) {
     if (!state.active || state.generating) return;
-    const { pause } = els();
-    if (pause) {
-      pause.style.transform = 'scale(0.96)';
-      setTimeout(() => { pause.style.transform = ''; }, 120);
+    const { pause: _pauseBtn } = els();
+    if (_pauseBtn) {
+      _pauseBtn.style.transform = 'scale(0.96)';
+      setTimeout(() => { _pauseBtn.style.transform = ''; }, 120);
     }
     if (typeof VoiceMode.pauseRecording !== 'function' || typeof VoiceMode.resumeRecording !== 'function') {
       BubbleSystem.show('当前版本暂不支持暂停/继续，可直接停止生成纪要', 1800);
@@ -94,14 +133,15 @@ const MeetingNotes = (() => {
       const ok = await VoiceMode.pauseRecording();
       if (!ok) return;
       state.paused = true;
-      const { pause } = els();
-      if (pause) pause.textContent = '▶';
+      const { pause: _p } = els();
+      if (_p) _p.textContent = '▶';
       return;
     }
     const ok = await VoiceMode.resumeRecording();
     if (!ok) return;
     state.paused = false;
-    const { pause } = els();
+    const { pause: _p2 } = els();
+    if (_p2) _p2.textContent = '⏸';
     if (pause) pause.textContent = '⏸';
   }
 
@@ -230,13 +270,13 @@ const MeetingNotes = (() => {
 
   function handleStreaming(text) {
     if (!state.active) return false;
-    pushTranscript(text);
+    pushTranscript(text, true);  // 流式增量：替换上一段
     return true;
   }
 
   function handleResult(text) {
     if (!state.active) return false;
-    pushTranscript(text);
+    pushTranscript(text, false); // 最终结果：追加新段落
     return true;
   }
 
@@ -254,6 +294,8 @@ const MeetingNotes = (() => {
 
   function init() {
     const { pause, stop } = els();
+
+    // ─── 按钮事件绑定 ───
     pause?.addEventListener('click', async (e) => {
       e.stopPropagation();
       if (state.generating) return;
@@ -264,9 +306,85 @@ const MeetingNotes = (() => {
       if (state.generating) return;
       await stopAndGenerate();
     });
-    if (typeof VoiceMode !== 'undefined' && typeof VoiceMode.onPcmFrame === 'function') {
-      VoiceMode.onPcmFrame(onPcmFrame);
+
+    // ─── 最小化按钮 ───
+    const minBtn = document.getElementById('meeting-notes-minimize');
+    const panel = document.getElementById('meeting-notes-panel');
+    minBtn?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const live = document.getElementById('meeting-notes-live');
+      if (!panel || !live) return;
+      const minimized = panel.dataset.minimized === '1';
+      if (minimized) {
+        panel.dataset.minimized = '0';
+        panel.style.height = '180px';
+        live.style.display = '';
+        minBtn.textContent = '—';
+        minBtn.title = '最小化';
+      } else {
+        panel.dataset.minimized = '1';
+        panel.style.height = '44px';
+        live.style.display = 'none';
+        minBtn.textContent = '+';
+        minBtn.title = '展开';
+      }
+    });
+
+    // ── 展开全文 ──
+    const expandBtn = document.getElementById('meeting-notes-expand');
+    expandBtn?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const fs = document.getElementById('meeting-notes-fullscreen');
+      const fullTextEl = document.getElementById('meeting-notes-fulltext');
+      if (!fs || !fullTextEl) return;
+      fullTextEl.textContent = fullTranscript() || '暂无转写内容';
+      fs.classList.remove('hidden');
+    });
+    // 全文关闭
+    const fsClose = document.getElementById('meeting-notes-fullscreen-close');
+    const fsWrap = document.getElementById('meeting-notes-fullscreen');
+    fsClose?.addEventListener('click', (e) => { e.stopPropagation(); fsWrap?.classList.add('hidden'); });
+    fsWrap?.addEventListener('click', (e) => { if (e.target === fsWrap) fsWrap.classList.add('hidden'); });
+
+    // ─── 实时转写区域点击 → 展开全文 ───
+    const liveArea = document.getElementById('meeting-notes-live');
+    liveArea?.addEventListener('click', () => { expandBtn?.click(); });
+
+    // ─── 面板拖拽（仅限标题栏区域） ───
+    const ctrl = document.getElementById('meeting-notes-control');
+    if (ctrl && panel && !ctrl.__mnDragBound) {
+      ctrl.__mnDragBound = true;
+      let dragging = false, offX = 0, offY = 0, panelW = 300;
+      const isBtn = (el) =>
+        !!el.closest('#meeting-notes-pause,#meeting-notes-stop,#meeting-notes-expand,#meeting-notes-minimize');
+      ctrl.addEventListener('mousedown', (e) => {
+        if (e.button !== 0 || isBtn(e.target)) return;
+        dragging = true;
+        const r = panel.getBoundingClientRect();
+        panelW = r.width || 300;
+        offX = e.clientX - r.left;
+        offY = e.clientY - r.top;
+        e.preventDefault();
+      });
+      document.addEventListener('mousemove', (e) => {
+        if (!dragging) return;
+        const x = Math.max(0, Math.min(window.innerWidth - panelW, e.clientX - offX));
+        const y = Math.max(0, Math.min(window.innerHeight - 180, e.clientY - offY));
+        panel.style.left = x + 'px';
+        panel.style.top = y + 'px';
+        panel.style.right = 'auto';
+      }, { passive: true });
+      document.addEventListener('mouseup', () => { dragging = false; });
     }
+
+    // ─── 注册 VoiceMode ASR 回调（让转写文字实时流入面板）───
+    if (typeof VoiceMode !== 'undefined') {
+      if (typeof VoiceMode.onPcmFrame === 'function') VoiceMode.onPcmFrame(onPcmFrame);
+      if (typeof VoiceMode.onStreaming === 'function') VoiceMode.onStreaming(handleStreaming);
+      if (typeof VoiceMode.onResult === 'function') VoiceMode.onResult(handleResult);
+      if (typeof VoiceMode.onError === 'function') VoiceMode.onError(handleError);
+    }
+
     document.addEventListener('meeting-notes:start', async () => {
       await start();
     });

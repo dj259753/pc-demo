@@ -315,7 +315,21 @@ function createMainWindow() {
     }
   });
 
+  console.log('🐧 [DEBUG] loadFile starting:', path.join(__dirname, '..', 'renderer', 'index.html'));
   mainWindow.loadFile(path.join(__dirname, '..', 'renderer', 'index.html'));
+
+  mainWindow.webContents.on('did-finish-load', () => {
+    console.log('🐧 [DEBUG] did-finish-load fired');
+  });
+  mainWindow.webContents.on('did-fail-load', (_ev, _code, desc, url) => {
+    console.error('🐧 [DEBUG] did-fail-load:', desc, url);
+  });
+
+  // 转发渲染层所有 console 消息到主进程日志（关键排查）
+  mainWindow.webContents.on('console-message', (event, level, msg) => {
+    const prefix = level === 3 ? '[RENDER-ERR]' : level === 2 ? '[RENDER-WARN]' : '[RENDER]';
+    console.log(`${prefix} ${msg}`);
+  });
 
   // ─── 渲染进程崩溃自动恢复 ───
   mainWindow.webContents.on('render-process-gone', (event, details) => {
@@ -330,6 +344,7 @@ function createMainWindow() {
   });
 
   mainWindow.once('ready-to-show', () => {
+    console.log('🐧 [DEBUG] ready-to-show → calling show()');
     mainWindow.show();
     mainWindow.focus();
     // 启动剪贴板监控
@@ -2730,6 +2745,126 @@ function createMeetingNotesWindow() {
   return meetingNotesWindow;
 }
 
+// ═══════════════════════════════════════════
+// 📌 社交中心独立窗口（竖向 300×750）
+// ═══════════════════════════════════════════
+
+let socialWindow = null;
+
+function createSocialWindow() {
+  if (socialWindow && !socialWindow.isDestroyed()) {
+    if (socialWindow.isMinimized()) socialWindow.restore();
+    socialWindow.show();
+    socialWindow.focus();
+    return socialWindow;
+  }
+  const p = screen.getCursorScreenPoint();
+  const d = screen.getDisplayNearestPoint(p);
+  const x = d.workArea.x + d.workArea.width - 320;
+  const y = d.workArea.y + 80;
+  socialWindow = new BrowserWindow({
+    width: 300,
+    height: 750,
+    minWidth: 270,
+    minHeight: 400,
+    maxWidth: 380,
+    maxHeight: 900,
+    x, y,
+    frame: false,
+    transparent: true,
+    resizable: true,
+    movable: true,
+    alwaysOnTop: true,
+    skipTaskbar: true,
+    hasShadow: true,
+    show: false,
+    webPreferences: {
+      preload: path.join(__dirname, 'preload-social.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+    },
+  });
+  socialWindow.loadFile(path.join(__dirname, '..', 'renderer', 'social.html'));
+  socialWindow.once('ready-to-show', () => socialWindow?.show());
+  socialWindow.on('closed', () => { socialWindow = null; });
+  return socialWindow;
+}
+
+function closeSocialWindow() {
+  if (socialWindow && !socialWindow.isDestroyed()) {
+    socialWindow.close();
+    socialWindow = null;
+  }
+}
+
+ipcMain.on('open-social-window', () => createSocialWindow());
+
+ipcMain.on('close-social-window', () => closeSocialWindow());
+
+// 社交窗口通知主窗口切换宠物性别（SWF 资源重载）
+ipcMain.on('notify-pet-gender-change', (_event, gender) => {
+  const mainWindow = BrowserWindow.getAllWindows().find(w => w !== socialWindow && !w.isDestroyed());
+  if (mainWindow?.webContents) {
+    mainWindow.webContents.send('pet-gender-changed', String(gender || 'gg'));
+  }
+});
+
+// ═══════════════════════════════════════════
+// 📌 五子棋独立窗口（像素风透明窗口 ~520×640）
+// ═══════════════════════════════════════════
+
+let gomokuWindow = null;
+
+function createGomokuWindow() {
+  if (gomokuWindow && !gomokuWindow.isDestroyed()) {
+    if (gomokuWindow.isMinimized()) gomokuWindow.restore();
+    gomokuWindow.show();
+    gomokuWindow.focus();
+    return gomokuWindow;
+  }
+  const p = screen.getCursorScreenPoint();
+  const d = screen.getDisplayNearestPoint(p);
+  const x = d.workArea.x + Math.floor((d.workArea.width - 520) / 2);
+  const y = d.workArea.y + Math.floor((d.workArea.height - 640) / 2);
+  gomokuWindow = new BrowserWindow({
+    width: 520,
+    height: 640,
+    minWidth: 460,
+    minHeight: 560,
+    maxWidth: 600,
+    maxHeight: 720,
+    x, y,
+    frame: false,
+    transparent: true,
+    resizable: true,
+    movable: true,
+    alwaysOnTop: true,
+    skipTaskbar: true,
+    hasShadow: false,
+    show: false,
+    webPreferences: {
+      preload: path.join(__dirname, 'preload-gomoku.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+    },
+  });
+  gomokuWindow.loadFile(path.join(__dirname, '..', 'renderer', 'gomoku.html'));
+  gomokuWindow.once('ready-to-show', () => gomokuWindow?.show());
+  gomokuWindow.on('closed', () => { gomokuWindow = null; });
+  return gomokuWindow;
+}
+
+function closeGomokuWindow() {
+  if (gomokuWindow && !gomokuWindow.isDestroyed()) {
+    gomokuWindow.close();
+    gomokuWindow = null;
+  }
+}
+
+ipcMain.on('open-gomoku-window', () => createGomokuWindow());
+
+ipcMain.on('close-gomoku-window', () => closeGomokuWindow());
+
 // 渲染进程请求打开屏幕居中快捷对话窗口
 ipcMain.on('open-quick-chat-window', () => {
   console.log('💬 收到 open-quick-chat-window IPC');
@@ -4318,22 +4453,34 @@ ipcMain.handle('get-front-selected-text', async () => {
     focused === quickChatWindow ||
     focused === skillsWindow
   );
-  // 如果当前焦点在宠物自身窗口，避免把自身 UI 文本当成“划词翻译”来源
+  // 如果当前焦点在宠物自身窗口，避免把自身 UI 文本当成"划词翻译"来源
   if (selfFocused) return { ok: true, text: '' };
   const prev = clipboard.readText();
-  const script = [
+  // 用 osascript 先模拟 Cmd+C 复制选中文本，等足够时间后再读取剪贴板
+  const copyScript = [
     'tell application "System Events"',
     '  keystroke "c" using command down',
-    'end tell',
-    'delay 0.08',
-    'return the clipboard'
+    'end tell'
   ].join('\n');
   return await new Promise((resolve) => {
-    exec(`osascript -e '${script.replace(/\n/g, `' -e '`)}'`, (err, stdout) => {
-      try { clipboard.writeText(prev || ''); } catch {}
-      if (err) return resolve({ ok: false, text: '', error: err.message });
-      const text = String(stdout || '').trim();
-      resolve({ ok: true, text });
+    // 第一步：模拟 Cmd+C
+    exec(`/usr/bin/osascript -e '${copyScript.replace(/\n/g, `' -e '`)}'`, (copyErr) => {
+      if (copyErr) {
+        console.warn('[get-front-selected-text] Cmd+C 失败:', copyErr.message);
+        try { clipboard.writeText(prev || ''); } catch {}
+        return resolve({ ok: false, text: '', error: copyErr.message });
+      }
+      // 第二步：等待 150ms 让目标应用完成复制，再读取剪贴板
+      setTimeout(() => {
+        const copiedText = clipboard.readText();
+        // 还原原始剪贴板
+        try { clipboard.writeText(prev || ''); } catch {}
+        if (copiedText === prev) {
+          // 剪贴板没变，说明没有选中任何文本或复制失败
+          return resolve({ ok: true, text: '' });
+        }
+        resolve({ ok: true, text: String(copiedText || '').trim() });
+      }, 150);
     });
   });
 });

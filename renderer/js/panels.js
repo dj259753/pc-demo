@@ -231,6 +231,12 @@ const PanelManager = (() => {
             } else {
               BubbleSystem.show('录音纪要暂不可用', 1600);
             }
+          } else if (action === 'focus') {
+            // 从技能菜单进入专注模式
+            if (typeof FocusMode !== 'undefined') {
+              if (FocusMode.isActive) { FocusMode.stop(); }
+              else { FocusMode.start(); }
+            }
           }
           cancelSkillMenuCloseDelay();
           skillModeMenu.classList.add('hidden');
@@ -277,11 +283,33 @@ const PanelManager = (() => {
 
     async function triggerTranslateSelection() {
       if (!translateMode || translating) return;
-      const pick = await window.electronAPI?.getFrontSelectedText?.();
+      let pick;
+      try {
+        pick = await window.electronAPI?.getFrontSelectedText?.();
+      } catch (ipcErr) {
+        console.warn('[translate] getFrontSelectedText IPC 异常:', ipcErr);
+        return;
+      }
+      if (!pick || !pick.ok) {
+        // IPC 返回失败（可能缺少辅助功能权限）
+        if (pick?.error && !pick._warned) {
+          console.warn('[translate] 获取选中文本失败:', pick.error);
+          pick._warned = true;
+          BubbleSystem.showTranslate?.('划词获取失败，请在系统设置中授予辅助功能权限', 3000);
+        }
+        return;
+      }
       const src = String(pick?.text || '').trim();
       if (!src || src.length < 1 || src === lastSelectionText) return;
       lastSelectionText = src;
       translating = true;
+      // 超时保护：8 秒内未完成翻译则自动释放锁
+      const timeoutId = setTimeout(() => {
+        if (translating) {
+          console.warn('[translate] translateDirect 超时，自动释放锁');
+          translating = false;
+        }
+      }, 8000);
       try {
         if (typeof AIBrain === 'undefined' || !AIBrain.translateDirect) {
           BubbleSystem.showTranslate?.('翻译功能暂不可用', 1400);
@@ -293,6 +321,7 @@ const PanelManager = (() => {
       } catch {
         BubbleSystem.showTranslate?.('翻译失败，请检查模型配置', 1600);
       } finally {
+        clearTimeout(timeoutId);
         translating = false;
       }
     }
@@ -319,7 +348,7 @@ const PanelManager = (() => {
     // ─── 全局点击：点击面板/菜单外部自动关闭 ───
     // 注意：system-settings-panel 和 feedback-panel 是表单型面板，不应被点击外部关闭
     const AUTO_CLOSE_PANEL_IDS = ['backpack-panel', 'process-panel', 'diary-panel'];
-    const ALL_PANEL_IDS = ['backpack-panel', 'process-panel', 'diary-panel', 'system-settings-panel', 'feedback-panel'];
+    const ALL_PANEL_IDS = ['backpack-panel', 'process-panel', 'diary-panel', 'system-settings-panel', 'social-panel', 'feedback-panel'];
     const ALL_PANEL_SELECTORS = ALL_PANEL_IDS.map(id => `#${id}`).join(',');
 
     function closeAllPanelsAndMenus() {
@@ -426,11 +455,12 @@ const PanelManager = (() => {
   }
 
   function togglePanel(name) {
-    const panels = ['backpack-panel', 'process-panel', 'diary-panel', 'system-settings-panel', 'feedback-panel'];
+    const panels = ['backpack-panel', 'process-panel', 'diary-panel', 'system-settings-panel', 'social-panel', 'feedback-panel'];
     const targetId = name === 'backpack' ? 'backpack-panel' :
                      name === 'process' ? 'process-panel' :
                      name === 'diary' ? 'diary-panel' :
                      name === 'system-settings' ? 'system-settings-panel' :
+                     name === 'social' ? 'social-panel' :
                      name === 'feedback' ? 'feedback-panel' : null;
 
     if (!targetId) return;
