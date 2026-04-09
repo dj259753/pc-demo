@@ -1541,7 +1541,7 @@ class SocialClient {
   }
 
   /** 处理认输/退出游戏 */
-  function _handleResignGame(safeGameType, payload = {}) {
+  _handleResignGame(safeGameType, payload = {}) {
     const now = nowISO();
     let game = null;
     let gameEvent = null;

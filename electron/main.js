@@ -2849,6 +2849,9 @@ function createGomokuWindow() {
     },
   });
   gomokuWindow.loadFile(path.join(__dirname, '..', 'renderer', 'gomoku.html'));
+  if (process.argv.includes('--dev')) {
+    gomokuWindow.webContents.openDevTools({ mode: 'detach' });
+  }
   gomokuWindow.once('ready-to-show', () => gomokuWindow?.show());
   gomokuWindow.on('closed', () => { gomokuWindow = null; });
   return gomokuWindow;
