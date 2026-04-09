@@ -888,7 +888,17 @@
     if (!SocialState.getState().currentRoom) { toast('当前没有进行中的拜访', 1800); return; }
     const res = await SocialActions.leaveVisitRoom('manual-leave');
     if (res?.success) toast('已离开拜访', 1800);
-    else toast(`离开失败：${res?.message || '未知错误'}`, 2200);
+    else {
+      const detail = res?.message || '未知错误';
+      // ── 服务端房间不存在时，强制本地清理 ──
+      if (detail.includes('not-in-visit') || detail.includes('visit-room-not-found')) {
+        console.warn('[social-window] 服务端无活跃房间，强制本地退出');
+        SocialState.patch({ currentRoom: null }, 'visit.room.force-leave');
+        toast('已断开拜访连接', 2000);
+        return;
+      }
+      toast(`离开失败：${detail}`, 2200);
+    }
   }
 
   async function handleVisit(friendId) {

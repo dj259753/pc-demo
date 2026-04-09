@@ -117,10 +117,12 @@ body.visit-dual-mode #guest-pet-container {
 /* ─── 拜访模式 HUD / 邀请卡 / 客宠菜单 ─── */
 #visit-hud {
   position: absolute;
-  left: 10px;
-  right: 10px;
-  bottom: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: 52px;          /* 状态栏上方，不遮挡 hover-panel(z:350, bottom:6px) 和右键菜单 */
   z-index: 610;
+  width: auto;
+  max-width: calc(100% - 20px);
   display: flex;
   align-items: center;
   justify-content: space-between;

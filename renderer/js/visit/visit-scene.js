@@ -403,6 +403,24 @@ const VisitScene = (() => {
       guessPhase = 'idle';
     } else {
       const detail = res?.message || '未知错误';
+      // ── 服务端房间已不存在时，强制本地清理，防止卡死 ──
+      if (detail.includes('not-in-visit') || detail.includes('visit-room-not-found')) {
+        console.warn('[visit-scene] 服务端无活跃房间，强制本地退出');
+        SocialState.patch({ currentRoom: null }, 'visit.room.force-leave');
+        if (typeof VisitSession !== 'undefined' && typeof SocialActions !== 'undefined') {
+          SocialState.patch({
+            presence: { ...SocialState.getState().presence, sessionStatus: 'idle' },
+            currentGame: null,
+          }, 'visit.session.force-leave');
+        }
+        window.electronAPI?.closeGomokuWindow?.();
+        hideChatInput();
+        hideGuessPanel();
+        hideGuessRequestCard();
+        guessPhase = 'idle';
+        toast('已断开拜访连接', 2000);
+        return;
+      }
       console.warn('[visit-scene] 离开失败:', detail);
       toast(`离开失败：${detail}`, 2200);
     }
